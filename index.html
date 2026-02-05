@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>中国跳棋 - 玻璃弹珠版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            min-height: 100dvh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: white;
+            padding: 10px;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            background: linear-gradient(45deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        .game-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .game-info {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .current-player {
+            font-size: clamp(0.9rem, 3.5vw, 1.1rem);
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 25px;
+            border: 2px solid;
+            transition: all 0.3s;
+            backdrop-filter: blur(12px);
+            min-width: 140px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 6px;
+            background: rgba(255,255,255,0.06);
+            padding: 5px;
+            border-radius: 20px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: clamp(0.8rem, 3vw, 0.95rem);
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        button:hover::before, button:active::before {
+            left: 100%;
+        }
+
+        button:hover, button:active {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        button.active {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+
+        .move-info-panel {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
+            padding: 10px 16px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .move-status {
+            font-size: 0.85em;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .move-detail {
+            font-size: clamp(0.95rem, 3.5vw, 1.1rem);
+            font-weight: 600;
+            color: white;
+            line-height: 1.4;
+        }
+
+        .jump-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            margin-left: 6px;
+            font-weight: 700;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+
+        .status-badge.continue {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            animation: pulse-text 1.5s infinite;
+        }
+
+        .status-badge.end-turn {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        #board-container {
+            position: relative;
+            width: 100%;
+            max-width: min(95vw, 600px);
+            aspect-ratio: 600/540;
+            margin: 0 auto;
+        }
+
+        #board {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at 30% 20%, rgba(139, 92, 43, 0.4) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(139, 92, 43, 0.3) 0%, transparent 50%),
+                linear-gradient(165deg, #8b5a2b 0%, #6b4423 50%, #5d3a1a 100%);
+            border-radius: 16px;
+            box-shadow: 
+                0 20px 50px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255,255,255,0.1),
+                0 0 0 6px #4a3728;
+            padding: clamp(20px, 5vw, 35px);
+            user-select: none;
+            border: 1px solid rgba(139, 92, 43, 0.5);
+        }
+
+        .hole {
+            position: absolute;
+            width: clamp(14px, 3.5vw, 18px);
+            height: clamp(14px, 3.5vw, 18px);
+            background: 
+                radial-gradient(circle at 30% 30%, rgba(92, 64, 51, 0.8), rgba(45, 31, 22, 0.9));
+            border-radius: 50%;
+            box-shadow: 
+                inset 2px 2px 4px rgba(0, 0, 0, 0.9), 
+                inset -1px -1px 2px rgba(255, 255, 255, 0.05),
+                0 2px 4px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .hole:hover, .hole:active {
+            box-shadow: 
+                inset 2px 2px 4px rgba(0, 0, 0, 0.8), 
+                0 0 20px rgba(255, 255, 255, 0.3);
+            transform: scale(1.15);
+        }
+
+        .hole.valid-move {
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(200, 200, 200, 0.8));
+            box-shadow: 
+                0 0 15px rgba(255, 255, 255, 0.6), 
+                inset 0 0 8px rgba(255, 255, 255, 0.4),
+                0 0 30px rgba(255, 255, 255, 0.3);
+            animation: pulse-glow 2s infinite;
+            z-index: 15;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .hole.jump-move {
+            background: radial-gradient(circle at 30% 30%, rgba(147, 197, 253, 0.95), rgba(96, 165, 250, 0.9));
+            box-shadow: 
+                0 0 20px rgba(59, 130, 246, 0.8), 
+                inset 0 0 10px rgba(147, 197, 253, 0.6),
+                0 0 40px rgba(59, 130, 246, 0.5);
+            animation: pulse-blue 1.5s infinite;
+            border: 2px solid rgba(147, 197, 253, 0.9);
+            z-index: 16;
+        }
+
+        .hole.jump-continue {
+            background: radial-gradient(circle at 30% 30%, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.9));
+            box-shadow: 
+                0 0 20px rgba(251, 191, 36, 0.8), 
+                inset 0 0 10px rgba(251, 191, 36, 0.6),
+                0 0 40px rgba(251, 191, 36, 0.5);
+            animation: pulse-gold 1s infinite;
+            border: 2px solid rgba(251, 191, 36, 0.9);
+            z-index: 17;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+
+        @keyframes pulse-blue {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.25); opacity: 0.75; }
+        }
+
+        @keyframes pulse-gold {
+            0%, 100% { transform: scale(1); opacity: 0.95; }
+            50% { transform: scale(1.3); opacity: 0.8; }
+        }
+
+        .piece {
+            position: absolute;
+            width: clamp(20px, 5vw, 26px);
+            height: clamp(20px, 5vw, 26px);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 20;
+            pointer-events: auto;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            background: 
+                radial-gradient(circle at 25% 25%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 20%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(0,0,0,0.2) 0%, transparent 40%);
+            box-shadow: 
+                inset 2px 2px 4px rgba(255,255,255,0.5),
+                inset -2px -2px 4px rgba(0,0,0,0.3),
+                0 4px 8px rgba(0,0,0,0.4),
+                0 0 15px currentColor;
+        }
+
+        .piece:hover, .piece:active {
+            transform: scale(1.15);
+            z-index: 30;
+            filter: brightness(1.2);
+            box-shadow: 
+                inset 2px 2px 6px rgba(255,255,255,0.7),
+                inset -2px -2px 6px rgba(0,0,0,0.4),
+                0 6px 20px rgba(0,0,0,0.5),
+                0 0 30px currentColor;
+        }
+
+        .piece.selected {
+            animation: selected-glow 1.5s ease-in-out infinite alternate;
+            transform: scale(1.15);
+            z-index: 40;
+            box-shadow: 
+                inset 2px 2px 6px rgba(255,255,255,0.9),
+                inset -2px -2px 6px rgba(0,0,0,0.5),
+                0 0 30px currentColor,
+                0 0 60px currentColor;
+        }
+
+        @keyframes selected-glow {
+            from { box-shadow: inset 2px 2px 6px rgba(255,255,255,0.7), 0 0 20px currentColor, 0 0 40px currentColor; }
+            to { box-shadow: inset 2px 2px 8px rgba(255,255,255,0.9), 0 0 40px currentColor, 0 0 80px rgba(255,255,255,0.6); }
+        }
+
+        /* 玻璃弹珠颜色 */
+        .piece.player-0 { background-color: #ef4444; color: rgba(239, 68, 68, 0.8); }
+        .piece.player-1 { background-color: #3b82f6; color: rgba(59, 130, 246, 0.8); }
+        .piece.player-2 { background-color: #22c55e; color: rgba(34, 197, 94, 0.8); }
+        .piece.player-3 { background-color: #eab308; color: rgba(234, 179, 8, 0.8); }
+        .piece.player-4 { background-color: #a855f7; color: rgba(168, 85, 247, 0.8); }
+        .piece.player-5 { background-color: #06b6d4; color: rgba(6, 182, 212, 0.8); }
+
+        @keyframes marble-drop {
+            0% { transform: translateY(-50px) scale(0.3); opacity: 0; }
+            60% { transform: translateY(5px) scale(1.1); opacity: 1; }
+            80% { transform: translateY(-3px) scale(0.95); }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .instructions {
+            margin-top: 15px;
+            max-width: 700px;
+            text-align: center;
+            line-height: 1.6;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: clamp(0.8rem, 3vw, 0.9rem);
+        }
+
+        .instructions strong {
+            color: #fbbf24;
+        }
+
+        .hint-text { color: #60a5fa; }
+        .jump-text { color: #fbbf24; }
+
+        .win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: clamp(30px, 8vw, 50px) clamp(25px, 6vw, 60px);
+            border-radius: 20px;
+            box-shadow: 
+                0 25px 80px rgba(0, 0, 0, 0.8),
+                0 0 0 1px rgba(255,255,255,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            z-index: 1000;
+            text-align: center;
+            display: none;
+            border: 2px solid rgba(251, 191, 36, 0.5);
+            animation: modal-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        @keyframes modal-in {
+            to { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .win-message h2 {
+            font-size: clamp(1.8rem, 6vw, 2.5rem);
+            margin-bottom: 15px;
+            background: linear-gradient(45deg, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .last-move {
+            position: absolute;
+            width: clamp(26px, 6.5vw, 34px);
+            height: clamp(26px, 6.5vw, 34px);
+            border: 3px solid rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fade-ring 2s forwards;
+            z-index: 5;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes fade-ring {
+            0%, 50% { opacity: 1; transform: scale(1); border-width: 3px; }
+            100% { opacity: 0; transform: scale(1.5); border-width: 0px; }
+        }
+
+        .player-indicator {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+            box-shadow: 0 0 10px currentColor;
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+
+        .move-path {
+            position: absolute;
+            pointer-events: none;
+            z-index: 18;
+        }
+
+        .players-legend {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            font-size: clamp(0.75rem, 2.8vw, 0.85rem);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .end-turn-btn {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4) !important;
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4); }
+            50% { box-shadow: 0 4px 25px rgba(34, 197, 94, 0.7); }
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            .game-panel {
+                gap: 8px;
+            }
+            
+            .game-info {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .current-player {
+                width: 100%;
+                max-width: none;
+            }
+            
+            .controls {
+                width: 100%;
+                justify-content: stretch;
+            }
+            
+            .controls button {
+                flex: 1;
+                padding: 12px 10px;
+                font-size: 0.85rem;
+            }
+            
+            .mode-selector {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .mode-selector button {
+                flex: 1;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .game-panel {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🔮 玻璃弹珠跳棋</h1>
+    
+    <div class="game-panel">
+        <div class="game-info">
+            <div class="current-player" id="currentPlayer">
+                <span class="player-indicator" id="playerIndicator"></span>
+                <span id="playerText">红方回合</span>
+            </div>
+            
+            <div class="mode-selector">
+                <button onclick="game.setMode(2)" id="mode2">2人</button>
+                <button onclick="game.setMode(4)" id="mode4">4人</button>
+                <button onclick="game.setMode(6)" id="mode6" class="active">6人</button>
+            </div>
+            
+            <div class="controls">
+                <button onclick="game.reset()">🔄 重置</button>
+                <button onclick="game.undo()" id="undoBtn" disabled>↩️ 撤销</button>
+                <button onclick="game.toggleMoveHint()" id="hintBtn">💡 提示</button>
+                <button onclick="game.endJumpChain()" id="endTurnBtn" style="display: none;" class="end-turn-btn">✓ 结束回合</button>
+            </div>
+        </div>
+        
+        <div class="move-info-panel">
+            <div class="move-status">当前状态</div>
+            <div class="move-detail" id="moveDetail">选择棋子开始游戏</div>
+            <div class="status-badge" id="statusBadge" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div id="board-container">
+        <div id="board"></div>
+    </div>
+
+    <div class="instructions">
+        <p>🎮 <strong>操作：</strong>点击己方棋子，<span class="hint-text">白色</span>=单步，<span style="color: #60a5fa;">蓝色</span>=跳跃，<span class="jump-text">金色</span>=可连跳</p>
+        <p>🚀 <strong>连跳：</strong>跳跃后可继续跳，按空格或点"结束回合"结束</p>
+        <div class="players-legend" id="playersLegend"></div>
+    </div>
+
+    <div class="win-message" id="winMessage">
+        <h2>🎉 恭喜获胜！</h2>
+        <p id="winnerText"></p>
+        <button onclick="game.reset()" style="margin-top: 20px; padding: 14px 35px; font-size: 1.1em;">再来一局</button>
+    </div>
+
+    <script>
+        class ChineseCheckers {
+            constructor() {
+                this.board = document.getElementById('board');
+                this.playerCount = 6;
+                this.currentPlayer = 0;
+                this.selectedPiece = null;
+                this.validMoves = [];
+                this.moveHistory = [];
+                this.pieces = [];
+                this.holes = [];
+                this.boardState = new Map();
+                this.showMoveHint = true;
+                this.isMoving = false;
+                
+                // 连跳状态追踪
+                this.isInJumpChain = false;
+                this.jumpChainCount = 0;
+                this.originalPiece = null;
+                this.jumpStartPosition = null;
+                
+                this.playerColors = ['红', '蓝', '绿', '黄', '紫', '青'];
+                this.colorCodes = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#06b6d4'];
+                this.colorNames = ['红色', '蓝色', '绿色', '黄色', '紫色', '青色'];
+                
+                this.rowCounts = [1, 2, 3, 4, 13, 12, 11, 10, 9, 10, 11, 12, 13, 4, 3, 2, 1];
+                this.totalRows = 17;
+                
+                // 响应式尺寸
+                this.boardWidth = 600;
+                this.boardHeight = 540;
+                this.spacingX = 30;
+                this.spacingY = 26;
+                this.centerX = 300;
+                
+                this.init();
+                this.setupKeyboardControls();
+                this.handleResize();
+                window.addEventListener('resize', () => this.handleResize());
+            }
+
+            handleResize() {
+                const container = document.getElementById('board-container');
+                const rect = container.getBoundingClientRect();
+                const scale = Math.min(rect.width / this.boardWidth, rect.height / this.boardHeight);
+                
+                this.currentScale = scale;
+                // 重新计算位置基于实际显示尺寸
+                this.calculatePositions();
+                this.updatePiecePositions();
+            }
+
+            updatePiecePositions() {
+                // 更新所有棋子的显示位置
+                this.pieces.forEach(p => {
+                    const pos = this.positions[p.pos.row][p.pos.col];
+                    p.element.style.left = (pos.x - (this.currentScale < 1 ? 10 : 13)) + 'px';
+                    p.element.style.top = (pos.y - (this.currentScale < 1 ? 10 : 13)) + 'px';
+                });
+                
+                // 更新洞的位置
+                this.holes.forEach(hole => {
+                    const row = parseInt(hole.dataset.row);
+                    const col = parseInt(hole.dataset.col);
+                    const pos = this.positions[row][col];
+                    const holeSize = this.currentScale < 1 ? 7 : 9;
+                    hole.style.left = (pos.x - holeSize) + 'px';
+                    hole.style.top = (pos.y - holeSize) + 'px';
+                });
+            }
+
+            setupKeyboardControls() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        if (this.isInJumpChain) {
+                            this.endJumpChain();
+                        }
+                    }
+                    if (e.code === 'Escape') {
+                        if (this.selectedPiece && !this.isInJumpChain) {
+                            this.deselect();
+                        }
+                    }
+                });
+            }
+
+            setMode(count) {
+                this.playerCount = count;
+                document.querySelectorAll('.mode-selector button').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`mode${count}`).classList.add('active');
+                this.updatePlayersLegend();
+                this.reset();
+            }
+
+            // 修复：6人模式正确的顺时针顺序
+            // 红(0,下) → 蓝(1,上) → 绿(2,左上) → 青(5,右下) → 紫(4,左下) → 黄(3,右上)
+            getPlayOrder() {
+                if (this.playerCount === 2) return [0, 1];
+                if (this.playerCount === 4) return [0, 1, 2, 5];
+                // 6人模式：红→蓝→绿→青→紫→黄（顺时针）
+                return [0, 1, 2, 5, 4, 3];
+            }
+
+            getActivePlayers() {
+                return this.getPlayOrder();
+            }
+
+            updatePlayersLegend() {
+                const container = document.getElementById('playersLegend');
+                const players = this.getPlayOrder();
+                container.innerHTML = players.map((p, i) => 
+                    `<div class="legend-item">
+                        <div class="legend-dot" style="background: ${this.colorCodes[p]}; box-shadow: 0 0 6px ${this.colorCodes[p]}"></div>
+                        <span>${this.playerColors[p]}${i === 0 ? '(当前)' : ''}</span>
+                    </div>`
+                ).join('<span style="color: #64748b">→</span>');
+            }
+
+            toggleMoveHint() {
+                this.showMoveHint = !this.showMoveHint;
+                const btn = document.getElementById('hintBtn');
+                btn.textContent = this.showMoveHint ? '💡 提示' : '💡 隐藏';
+                
+                if (!this.showMoveHint) {
+                    this.clearHighlights();
+                } else if (this.selectedPiece) {
+                    this.highlightValidMoves();
+                }
+            }
+
+            clearHighlights() {
+                document.querySelectorAll('.hole.valid-move, .hole.jump-move, .hole.jump-continue').forEach(h => {
+                    h.classList.remove('valid-move', 'jump-move', 'jump-continue');
+                });
+            }
+
+            init() {
+                this.calculatePositions();
+                this.createBoard();
+                this.updatePlayersLegend();
+                this.setupPieces();
+                this.updatePlayerDisplay();
+            }
+
+            calculatePositions() {
+                this.positions = [];
+                // 根据实际board尺寸调整
+                const containerWidth = document.getElementById('board-container')?.offsetWidth || this.boardWidth;
+                const scale = Math.min(containerWidth / this.boardWidth, 1);
+                
+                const spacingX = this.spacingX * scale;
+                const spacingY = this.spacingY * scale;
+                const centerX = (this.boardWidth * scale) / 2;
+                const baseY = (this.boardHeight * scale) - 40 * scale;
+                
+                for (let row = 0; row < this.totalRows; row++) {
+                    const count = this.rowCounts[row];
+                    const rowPositions = [];
+                    const rowWidth = (count - 1) * spacingX;
+                    const startX = centerX - rowWidth / 2;
+                    
+                    for (let col = 0; col < count; col++) {
+                        rowPositions.push({
+                            x: startX + col * spacingX,
+                            y: baseY - row * spacingY,
+                            row: row,
+                            col: col,
+                            id: `${row}-${col}`
+                        });
+                    }
+                    this.positions.push(rowPositions);
+                }
+            }
+
+            createBoard() {
+                this.board.innerHTML = '';
+                this.holes = [];
+                
+                for (let row = 0; row < this.totalRows; row++) {
+                    for (let pos of this.positions[row]) {
+                        const hole = document.createElement('div');
+                        hole.className = 'hole';
+                        const holeSize = this.currentScale < 1 ? 7 : 9;
+                        hole.style.left = (pos.x - holeSize) + 'px';
+                        hole.style.top = (pos.y - holeSize) + 'px';
+                        hole.dataset.row = row;
+                        hole.dataset.col = pos.col;
+                        
+                        hole.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.onHoleClick(pos);
+                        });
+                        
+                        // 触摸支持
+                        hole.addEventListener('touchstart', (e) => {
+                            e.preventDefault();
+                            this.onHoleClick(pos);
+                        }, {passive: false});
+                        
+                        this.board.appendChild(hole);
+                        this.holes.push(hole);
+                    }
+                }
+            }
+
+            setupPieces() {
+                document.querySelectorAll('.piece').forEach(p => p.remove());
+                this.pieces = [];
+                this.boardState.clear();
+                this.isInJumpChain = false;
+                this.jumpChainCount = 0;
+                this.hideEndTurnButton();
+                
+                const activePlayers = this.getActivePlayers();
+                const allCornerPositions = this.getAllCornerPositions();
+                
+                for (let player of activePlayers) {
+                    const positions = allCornerPositions[player];
+                    for (let pos of positions) {
+                        if (this.isValidPosition(pos.row, pos.col)) {
+                            this.createPiece(player, pos);
+                        }
+                    }
+                }
+            }
+
+            getAllCornerPositions() {
+                return [
+                    // 玩家0（红）- 正下方
+                    [{row: 16, col: 0}, {row: 15, col: 0}, {row: 15, col: 1}, {row: 14, col: 0}, {row: 14, col: 1}, {row: 14, col: 2}, {row: 13, col: 0}, {row: 13, col: 1}, {row: 13, col: 2}, {row: 13, col: 3}],
+                    // 玩家1（蓝）- 正上方
+                    [{row: 0, col: 0}, {row: 1, col: 0}, {row: 1, col: 1}, {row: 2, col: 0}, {row: 2, col: 1}, {row: 2, col: 2}, {row: 3, col: 0}, {row: 3, col: 1}, {row: 3, col: 2}, {row: 3, col: 3}],
+                    // 玩家2（绿）- 左上方
+                    [{row: 4, col: 0}, {row: 4, col: 1}, {row: 5, col: 0}, {row: 4, col: 2}, {row: 5, col: 1}, {row: 6, col: 0}, {row: 4, col: 3}, {row: 5, col: 2}, {row: 6, col: 1}, {row: 7, col: 0}],
+                    // 玩家3（黄）- 右上方
+                    [{row: 4, col: 12}, {row: 4, col: 11}, {row: 5, col: 11}, {row: 4, col: 10}, {row: 5, col: 10}, {row: 6, col: 10}, {row: 4, col: 9}, {row: 5, col: 9}, {row: 6, col: 9}, {row: 7, col: 9}],
+                    // 玩家4（紫）- 左下方
+                    [{row: 12, col: 0}, {row: 11, col: 0}, {row: 12, col: 1}, {row: 10, col: 0}, {row: 11, col: 1}, {row: 12, col: 2}, {row: 9, col: 0}, {row: 10, col: 1}, {row: 11, col: 2}, {row: 12, col: 3}],
+                    // 玩家5（青）- 右下方
+                    [{row: 12, col: 12}, {row: 11, col: 11}, {row: 12, col: 11}, {row: 10, col: 10}, {row: 11, col: 10}, {row: 12, col: 10}, {row: 9, col: 9}, {row: 10, col: 9}, {row: 11, col: 9}, {row: 12, col: 9}]
+                ];
+            }
+
+            isValidPosition(row, col) {
+                return row >= 0 && row < this.totalRows && col >= 0 && col < this.rowCounts[row];
+            }
+
+            createPiece(player, pos) {
+                const piece = document.createElement('div');
+                piece.className = `piece player-${player}`;
+                const position = this.positions[pos.row][pos.col];
+                const pieceSize = this.currentScale < 1 ? 10 : 13;
+                
+                piece.style.left = (position.x - pieceSize) + 'px';
+                piece.style.top = (position.y - pieceSize) + 'px';
+                piece.dataset.player = player;
+                piece.dataset.row = pos.row;
+                piece.dataset.col = pos.col;
+                
+                piece.style.animation = 'marble-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                setTimeout(() => piece.style.animation = '', 500);
+                
+                const handleClick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const currentPos = {
+                        row: parseInt(piece.dataset.row),
+                        col: parseInt(piece.dataset.col)
+                    };
+                    this.onPieceClick(piece, currentPos);
+                };
+                
+                piece.addEventListener('click', handleClick);
+                piece.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleClick(e);
+                }, {passive: false});
+                
+                this.board.appendChild(piece);
+                this.pieces.push({element: piece, player: player, pos: pos});
+                this.boardState.set(`${pos.row}-${pos.col}`, player);
+            }
+
+            onPieceClick(pieceElement, pos) {
+                if (this.isMoving) return;
+                
+                const player = parseInt(pieceElement.dataset.player);
+                
+                if (this.isInJumpChain) {
+                    if (pieceElement !== this.selectedPiece) {
+                        this.showMessage('连跳中，请继续移动当前棋子');
+                        return;
+                    }
+                } else {
+                    if (player !== this.currentPlayer) {
+                        this.shakeElement(pieceElement);
+                        return;
+                    }
+                }
+                
+                if (this.selectedPiece === pieceElement) {
+                    if (this.isInJumpChain) {
+                        this.showMessage('请按"结束回合"或空格键结束连跳');
+                        return;
+                    }
+                    this.deselect();
+                    return;
+                }
+                
+                this.deselect();
+                this.selectedPiece = pieceElement;
+                pieceElement.classList.add('selected');
+                
+                if (this.isInJumpChain) {
+                    this.validMoves = this.calculateJumpOnlyMoves(pos);
+                } else {
+                    this.validMoves = this.calculateValidMoves(pos);
+                }
+                
+                this.updateMoveInfo();
+                
+                if (this.showMoveHint) {
+                    this.highlightValidMoves();
+                }
+            }
+
+            calculateJumpOnlyMoves(startPos) {
+                const moves = [];
+                const visited = new Set();
+                const queue = [{pos: startPos, path: [startPos], jumpCount: 0}];
+                visited.add(`${startPos.row}-${startPos.col}`);
+                
+                const directions = [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]];
+                
+                while (queue.length > 0) {
+                    const {pos, path, jumpCount} = queue.shift();
+                    
+                    for (let [dr, dc] of directions) {
+                        const adjRow = pos.row + dr;
+                        const adjCol = pos.col + dc;
+                        
+                        if (!this.isValidPosition(adjRow, adjCol)) continue;
+                        if (!this.boardState.has(`${adjRow}-${adjCol}`)) continue;
+                        
+                        const jumpRow = adjRow + dr;
+                        const jumpCol = adjCol + dc;
+                        
+                        if (!this.isValidPosition(jumpRow, jumpCol)) continue;
+                        if (this.boardState.has(`${jumpRow}-${jumpCol}`)) continue;
+                        
+                        if (jumpRow === this.jumpStartPosition.row && jumpCol === this.jumpStartPosition.col) continue;
+                        
+                        const stateKey = `${jumpRow}-${jumpCol}-${path.length}`;
+                        if (visited.has(stateKey)) continue;
+                        visited.add(stateKey);
+                        
+                        const newPath = [...path, {row: jumpRow, col: jumpCol}];
+                        const newJumpCount = jumpCount + 1;
+                        
+                        moves.push({
+                            row: jumpRow,
+                            col: jumpCol,
+                            isJump: true,
+                            jumpCount: newJumpCount,
+                            path: newPath,
+                            canContinue: true
+                        });
+                        
+                        queue.push({
+                            pos: {row: jumpRow, col: jumpCol},
+                            path: newPath,
+                            jumpCount: newJumpCount
+                        });
+                    }
+                }
+                
+                return moves;
+            }
+
+            calculateValidMoves(startPos) {
+                const moves = [];
+                const visited = new Set();
+                const queue = [{pos: startPos, path: [startPos], isJump: false, jumpCount: 0}];
+                
+                const directions = [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]];
+                
+                for (let [dr, dc] of directions) {
+                    const adjRow = startPos.row + dr;
+                    const adjCol = startPos.col + dc;
+                    
+                    if (this.isValidPosition(adjRow, adjCol) && !this.boardState.has(`${adjRow}-${adjCol}`)) {
+                        moves.push({
+                            row: adjRow,
+                            col: adjCol,
+                            isJump: false,
+                            jumpCount: 0,
+                            path: [startPos, {row: adjRow, col: adjCol}],
+                            canContinue: false
+                        });
+                    }
+                }
+                
+                visited.add(`${startPos.row}-${startPos.col}`);
+                
+                while (queue.length > 0) {
+                    const {pos, path, isJump, jumpCount} = queue.shift();
+                    
+                    for (let [dr, dc] of directions) {
+                        const adjRow = pos.row + dr;
+                        const adjCol = pos.col + dc;
+                        
+                        if (!this.isValidPosition(adjRow, adjCol)) continue;
+                        if (!this.boardState.has(`${adjRow}-${adjCol}`)) continue;
+                        
+                        const jumpRow = adjRow + dr;
+                        const jumpCol = adjCol + dc;
+                        
+                        if (!this.isValidPosition(jumpRow, jumpCol)) continue;
+                        if (this.boardState.has(`${jumpRow}-${jumpCol}`)) continue;
+                        
+                        const stateKey = `${jumpRow}-${jumpCol}`;
+                        if (visited.has(stateKey)) continue;
+                        visited.add(stateKey);
+                        
+                        const newPath = [...path, {row: jumpRow, col: jumpCol}];
+                        const newJumpCount = jumpCount + 1;
+                        
+                        moves.push({
+                            row: jumpRow,
+                            col: jumpCol,
+                            isJump: true,
+                            jumpCount: newJumpCount,
+                            path: newPath,
+                            canContinue: true
+                        });
+                        
+                        queue.push({
+                            pos: {row: jumpRow, col: jumpCol},
+                            path: newPath,
+                            isJump: true,
+                            jumpCount: newJumpCount
+                        });
+                    }
+                }
+                
+                return moves.filter(m => !(m.row === startPos.row && m.col === startPos.col));
+            }
+
+            highlightValidMoves() {
+                this.clearHighlights();
+                
+                this.validMoves.forEach(move => {
+                    const hole = this.findHole(move.row, move.col);
+                    if (hole) {
+                        if (this.isInJumpChain) {
+                            hole.classList.add('jump-continue');
+                        } else {
+                            if (move.isJump) {
+                                hole.classList.add('jump-move');
+                            } else {
+                                hole.classList.add('valid-move');
+                            }
+                        }
+                    }
+                });
+            }
+
+            showEndTurnButton() {
+                const btn = document.getElementById('endTurnBtn');
+                btn.style.display = 'inline-block';
+            }
+
+            hideEndTurnButton() {
+                const btn = document.getElementById('endTurnBtn');
+                btn.style.display = 'none';
+            }
+
+            updateMoveInfo() {
+                const moveDetail = document.getElementById('moveDetail');
+                const statusBadge = document.getElementById('statusBadge');
+                
+                if (this.isInJumpChain) {
+                    if (this.validMoves.length > 0) {
+                        moveDetail.innerHTML = `连跳中！已跳 <span class="jump-badge">${this.jumpChainCount}</span> 次`;
+                        statusBadge.textContent = '可继续跳跃';
+                        statusBadge.className = 'status-badge continue';
+                        statusBadge.style.display = 'inline-block';
+                        this.showEndTurnButton();
+                    } else {
+                        moveDetail.innerHTML = `连跳结束！共 <span class="jump-badge">${this.jumpChainCount}</span> 次`;
+                        statusBadge.textContent = '无可用跳跃';
+                        statusBadge.className = 'status-badge';
+                        statusBadge.style.display = 'inline-block';
+                        statusBadge.style.background = 'rgba(107, 114, 128, 0.3)';
+                        statusBadge.style.color = '#9ca3af';
+                        this.hideEndTurnButton();
+                        setTimeout(() => this.endJumpChain(), 1200);
+                    }
+                    return;
+                }
+                
+                if (!this.selectedPiece) {
+                    moveDetail.textContent = '选择棋子';
+                    statusBadge.style.display = 'none';
+                    return;
+                }
+                
+                if (this.validMoves.length === 0) {
+                    moveDetail.textContent = '无法移动';
+                    statusBadge.style.display = 'none';
+                    return;
+                }
+                
+                const jumpMoves = this.validMoves.filter(m => m.isJump);
+                const normalMoves = this.validMoves.filter(m => !m.isJump);
+                
+                if (jumpMoves.length > 0) {
+                    const maxJumps = Math.max(...jumpMoves.map(m => m.jumpCount));
+                    moveDetail.innerHTML = `可${normalMoves.length > 0 ? '走或' : ''}跳 <span class="jump-badge">最多${maxJumps}跳</span>`;
+                    statusBadge.textContent = '点击蓝色开始连跳';
+                    statusBadge.className = 'status-badge';
+                    statusBadge.style.display = 'inline-block';
+                    statusBadge.style.background = 'rgba(59, 130, 246, 0.2)';
+                    statusBadge.style.color = '#60a5fa';
+                } else {
+                    moveDetail.textContent = `可移动 ${normalMoves.length} 处`;
+                    statusBadge.style.display = 'none';
+                }
+            }
+
+            showMessage(text) {
+                const moveDetail = document.getElementById('moveDetail');
+                const originalText = moveDetail.textContent;
+                moveDetail.textContent = text;
+                moveDetail.style.color = '#fbbf24';
+                setTimeout(() => {
+                    moveDetail.textContent = originalText;
+                    moveDetail.style.color = '';
+                }, 2000);
+            }
+
+            shakeElement(element) {
+                element.style.animation = 'shake 0.4s';
+                setTimeout(() => element.style.animation = '', 400);
+            }
+
+            findHole(row, col) {
+                return this.holes.find(h => 
+                    parseInt(h.dataset.row) === row && parseInt(h.dataset.col) === col
+                );
+            }
+
+            onHoleClick(pos) {
+                if (this.isMoving || !this.selectedPiece) return;
+                
+                const move = this.validMoves.find(m => m.row === pos.row && m.col === pos.col);
+                if (!move) return;
+                
+                this.executeMove(move);
+            }
+
+            executeMove(move) {
+                this.isMoving = true;
+                const oldRow = parseInt(this.selectedPiece.dataset.row);
+                const oldCol = parseInt(this.selectedPiece.dataset.col);
+                const newRow = move.row;
+                const newCol = move.col;
+                const player = parseInt(this.selectedPiece.dataset.player);
+                
+                if (move.path && move.path.length > 1) {
+                    this.showMovePath(move.path);
+                }
+                
+                if (!this.isInJumpChain) {
+                    this.moveHistory.push({
+                        piece: this.selectedPiece,
+                        from: {row: oldRow, col: oldCol},
+                        to: {row: newRow, col: newCol},
+                        player: player,
+                        path: move.path,
+                        isChainStart: true
+                    });
+                    this.originalPiece = this.selectedPiece;
+                    this.jumpStartPosition = {row: oldRow, col: oldCol};
+                } else {
+                    const lastMove = this.moveHistory[this.moveHistory.length - 1];
+                    lastMove.to = {row: newRow, col: newCol};
+                    lastMove.path = move.path;
+                }
+                
+                document.getElementById('undoBtn').disabled = false;
+                
+                this.boardState.delete(`${oldRow}-${oldCol}`);
+                this.boardState.set(`${newRow}-${newCol}`, player);
+                
+                const newPos = this.positions[newRow][newCol];
+                const pieceSize = this.currentScale < 1 ? 10 : 13;
+                
+                this.selectedPiece.style.transition = 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                this.selectedPiece.style.left = (newPos.x - pieceSize) + 'px';
+                this.selectedPiece.style.top = (newPos.y - pieceSize) + 'px';
+                
+                setTimeout(() => {
+                    this.selectedPiece.dataset.row = newRow;
+                    this.selectedPiece.dataset.col = newCol;
+                    this.selectedPiece.style.transition = '';
+                    
+                    this.showLastMove(newPos);
+                    
+                    if (move.isJump && move.canContinue) {
+                        this.isInJumpChain = true;
+                        this.jumpChainCount = move.jumpCount;
+                        
+                        this.validMoves = this.calculateJumpOnlyMoves({row: newRow, col: newCol});
+                        
+                        if (this.validMoves.length > 0) {
+                            this.updateMoveInfo();
+                            if (this.showMoveHint) {
+                                this.highlightValidMoves();
+                            }
+                            this.isMoving = false;
+                            
+                            if (this.jumpChainCount >= 3) {
+                                this.showMessage(`已连跳${this.jumpChainCount}次，可随时结束`);
+                            }
+                        } else {
+                            this.endJumpChain();
+                        }
+                    } else {
+                        this.deselect();
+                        if (this.checkWin(player)) {
+                            this.showWin(player);
+                        } else {
+                            this.nextPlayer();
+                        }
+                        this.isMoving = false;
+                    }
+                }, 350);
+            }
+
+            endJumpChain() {
+                if (!this.isInJumpChain) return;
+                
+                this.isInJumpChain = false;
+                this.hideEndTurnButton();
+                this.deselect();
+                
+                const player = this.currentPlayer;
+                if (this.checkWin(player)) {
+                    this.showWin(player);
+                } else {
+                    this.nextPlayer();
+                }
+                this.isMoving = false;
+            }
+
+            showMovePath(path) {
+                document.querySelectorAll('.move-path').forEach(el => el.remove());
+                
+                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.classList.add('move-path');
+                svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:18;';
+                
+                let pathData = '';
+                for (let i = 0; i < path.length; i++) {
+                    const pos = this.positions[path[i].row][path[i].col];
+                    if (i === 0) pathData = `M ${pos.x} ${pos.y}`;
+                    else pathData += ` L ${pos.x} ${pos.y}`;
+                }
+                
+                const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                pathEl.setAttribute("d", pathData);
+                pathEl.setAttribute("stroke", this.isInJumpChain ? "#fbbf24" : "#60a5fa");
+                pathEl.setAttribute("stroke-width", "3");
+                pathEl.setAttribute("fill", "none");
+                pathEl.setAttribute("stroke-linecap", "round");
+                pathEl.setAttribute("stroke-linejoin", "round");
+                pathEl.setAttribute("stroke-dasharray", "6,3");
+                pathEl.style.filter = `drop-shadow(0 0 6px ${this.isInJumpChain ? "#fbbf24" : "#60a5fa"})`;
+                
+                const length = 1000;
+                pathEl.style.strokeDasharray = length;
+                pathEl.style.strokeDashoffset = length;
+                pathEl.style.animation = 'draw-path 0.4s ease-out forwards';
+                
+                const style = document.createElement('style');
+                style.textContent = '@keyframes draw-path { to { stroke-dashoffset: 0; } }';
+                document.head.appendChild(style);
+                
+                svg.appendChild(pathEl);
+                this.board.appendChild(svg);
+                
+                setTimeout(() => {
+                    svg.remove();
+                    style.remove();
+                }, 2000);
+            }
+
+            showLastMove(pos) {
+                const indicator = document.createElement('div');
+                indicator.className = 'last-move';
+                const size = this.currentScale < 1 ? 13 : 16;
+                indicator.style.left = (pos.x - size) + 'px';
+                indicator.style.top = (pos.y - size) + 'px';
+                this.board.appendChild(indicator);
+                setTimeout(() => indicator.remove(), 2000);
+            }
+
+            deselect() {
+                if (this.selectedPiece) {
+                    this.selectedPiece.classList.remove('selected');
+                    this.selectedPiece = null;
+                }
+                this.validMoves = [];
+                this.clearHighlights();
+                
+                if (!this.isInJumpChain) {
+                    document.getElementById('moveDetail').textContent = '选择棋子';
+                    document.getElementById('statusBadge').style.display = 'none';
+                }
+            }
+
+            nextPlayer() {
+                const playOrder = this.getPlayOrder();
+                const currentIndex = playOrder.indexOf(this.currentPlayer);
+                this.currentPlayer = playOrder[(currentIndex + 1) % playOrder.length];
+                this.jumpChainCount = 0;
+                this.isInJumpChain = false;
+                this.originalPiece = null;
+                this.jumpStartPosition = null;
+                this.updatePlayerDisplay();
+                this.updatePlayersLegend();
+            }
+
+            updatePlayerDisplay() {
+                const indicator = document.getElementById('playerIndicator');
+                const text = document.getElementById('playerText');
+                const display = document.getElementById('currentPlayer');
+                
+                indicator.style.background = this.colorCodes[this.currentPlayer];
+                indicator.style.boxShadow = `0 0 15px ${this.colorCodes[this.currentPlayer]}`;
+                text.textContent = `${this.playerColors[this.currentPlayer]}方回合`;
+                display.style.borderColor = this.colorCodes[this.currentPlayer];
+                display.style.boxShadow = `0 0 20px ${this.colorCodes[this.currentPlayer]}40`;
+            }
+
+            checkWin(player) {
+                const targetPlayer = (player + 3) % 6;
+                const allPositions = this.getAllCornerPositions();
+                const targetPositions = allPositions[targetPlayer];
+                
+                let count = 0;
+                for (let pos of targetPositions) {
+                    if (this.boardState.get(`${pos.row}-${pos.col}`) === player) count++;
+                }
+                
+                return count >= 10;
+            }
+
+            showWin(player) {
+                const modal = document.getElementById('winMessage');
+                const text = document.getElementById('winnerText');
+                text.innerHTML = `<div style="font-size: 1.3em; margin-bottom: 8px;"><span style="color: ${this.colorCodes[player]}; text-shadow: 0 0 20px currentColor;">${this.playerColors[player]}方</span></div><div style="color: #94a3b8; font-size: 0.9em;">率先占领对角！</div>`;
+                modal.style.display = 'block';
+            }
+
+            undo() {
+                if (this.isMoving || this.moveHistory.length === 0) return;
+                
+                if (this.isInJumpChain) {
+                    this.isInJumpChain = false;
+                    this.jumpChainCount = 0;
+                    this.hideEndTurnButton();
+                }
+                
+                const lastMove = this.moveHistory.pop();
+                const piece = lastMove.piece;
+                
+                this.boardState.delete(`${lastMove.to.row}-${lastMove.to.col}`);
+                this.boardState.set(`${lastMove.from.row}-${lastMove.from.col}`, lastMove.player);
+                
+                const oldPos = this.positions[lastMove.from.row][lastMove.from.col];
+                const pieceSize = this.currentScale < 1 ? 10 : 13;
+                
+                piece.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                piece.style.left = (oldPos.x - pieceSize) + 'px';
+                piece.style.top = (oldPos.y - pieceSize) + 'px';
+                
+                setTimeout(() => {
+                    piece.dataset.row = lastMove.from.row;
+                    piece.dataset.col = lastMove.from.col;
+                    piece.style.transition = '';
+                    
+                    this.currentPlayer = lastMove.player;
+                    this.updatePlayerDisplay();
+                    this.updatePlayersLegend();
+                    this.deselect();
+                    
+                    if (this.moveHistory.length === 0) {
+                        document.getElementById('undoBtn').disabled = true;
+                    }
+                }, 400);
+            }
+
+            reset() {
+                this.moveHistory = [];
+                this.isMoving = false;
+                this.isInJumpChain = false;
+                this.jumpChainCount = 0;
+                this.originalPiece = null;
+                this.jumpStartPosition = null;
+                this.hideEndTurnButton();
+                
+                document.getElementById('undoBtn').disabled = true;
+                document.getElementById('winMessage').style.display = 'none';
+                document.getElementById('moveDetail').textContent = '选择棋子';
+                document.getElementById('statusBadge').style.display = 'none';
+                
+                const activePlayers = this.getActivePlayers();
+                this.currentPlayer = activePlayers[0];
+                
+                this.deselect();
+                this.setupPieces();
+                this.updatePlayerDisplay();
+                this.updatePlayersLegend();
+            }
+        }
+
+        const game = new ChineseCheckers();
+    </script>
+</body>
+</html>
