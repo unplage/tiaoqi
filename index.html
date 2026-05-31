@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中国跳棋 - 玻璃弹珠版</title>
+    <title>中国跳棋 - 自由模式版</title>
     <link rel="manifest" href="./manifest.json">
     <style>
         * {
@@ -135,6 +135,11 @@
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
         }
 
+        button.free-mode-active {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        }
+
         button:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -209,6 +214,7 @@
             max-width: min(95vw, 600px);
             aspect-ratio: 600/540;
             margin: 0 auto;
+            overflow: auto;  /* 缩放后超出可滚动 */
         }
 
         #board {
@@ -229,6 +235,8 @@
             padding: clamp(20px, 5vw, 35px);
             user-select: none;
             border: 1px solid rgba(139, 92, 43, 0.5);
+            transform-origin: center center;
+            transition: transform 0.1s ease;
         }
 
         .hole {
@@ -558,7 +566,11 @@
                 <button onclick="game.reset()">🔄 重置</button>
                 <button onclick="game.undo()" id="undoBtn" disabled>↩️ 撤销</button>
                 <button onclick="game.toggleMoveHint()" id="hintBtn">💡 提示</button>
+                <button onclick="game.toggleFreeMode()" id="freeModeBtn">🎲 自由模式</button>
                 <button onclick="game.endJumpChain()" id="endTurnBtn" style="display: none;" class="end-turn-btn">✓ 结束回合</button>
+                <!-- 新增缩放按钮 -->
+                <button onclick="game.zoomOut()" id="zoomOutBtn">🔍 缩小</button>
+                <button onclick="game.zoomIn()" id="zoomInBtn">🔍 放大</button>
             </div>
         </div>
         
@@ -576,6 +588,8 @@
     <div class="instructions">
         <p>🎮 <strong>操作：</strong>点击己方棋子，<span class="hint-text">白色</span>=单步，<span style="color: #60a5fa;">蓝色</span>=跳跃，<span class="jump-text">金色</span>=可连跳</p>
         <p>🚀 <strong>连跳：</strong>跳跃后可继续跳，按空格或点"结束回合"结束</p>
+        <p>🎲 <strong>自由模式：</strong>开启后无视任何规则，可移动任意棋子到任意空位（点击棋子→点击目标位置直接移动）</p>
+        <p>🔍 <strong>缩放：</strong>点击"放大"/"缩小"可等比例缩放棋盘，便于操作</p>
         <div class="players-legend" id="playersLegend"></div>
     </div>
 
@@ -599,6 +613,7 @@
                 this.boardState = new Map();
                 this.showMoveHint = true;
                 this.isMoving = false;
+                this.freeMode = false;          // 自由模式标志
                 
                 // 连跳状态追踪
                 this.isInJumpChain = false;
@@ -620,32 +635,96 @@
                 this.spacingY = 26;
                 this.centerX = 300;
                 
+                // 缩放相关
+                this.currentZoom = 1.0;        // 当前缩放比例
+                this.minZoom = 0.5;
+                this.maxZoom = 2.0;
+                this.zoomStep = 0.1;
+                
                 this.init();
                 this.setupKeyboardControls();
                 this.handleResize();
                 window.addEventListener('resize', () => this.handleResize());
             }
 
+            // ========== 缩放功能 ==========
+            zoomIn() {
+                let newZoom = this.currentZoom + this.zoomStep;
+                if (newZoom > this.maxZoom) newZoom = this.maxZoom;
+                if (newZoom === this.currentZoom) return;
+                this.currentZoom = newZoom;
+                this.applyZoom();
+            }
+
+            zoomOut() {
+                let newZoom = this.currentZoom - this.zoomStep;
+                if (newZoom < this.minZoom) newZoom = this.minZoom;
+                if (newZoom === this.currentZoom) return;
+                this.currentZoom = newZoom;
+                this.applyZoom();
+            }
+
+            applyZoom() {
+                // 通过 CSS transform 缩放棋盘，不影响内部坐标计算
+                this.board.style.transform = `scale(${this.currentZoom})`;
+                // 可选：根据缩放调整容器滚动，但不强制
+            }
+
+            // 重置缩放（在 reset 时可选，我们保持缩放独立，但为了方便，也允许重置）
+            resetZoom() {
+                this.currentZoom = 1.0;
+                this.applyZoom();
+            }
+
+            // ========== 自由模式切换 ==========
+            toggleFreeMode() {
+                this.freeMode = !this.freeMode;
+                const btn = document.getElementById('freeModeBtn');
+                if (this.freeMode) {
+                    btn.classList.add('free-mode-active');
+                    btn.textContent = '🎲 自由模式(开启)';
+                    // 清空选中状态，避免干扰
+                    this.deselect();
+                    this.showMessage('自由模式已开启：可任意移动棋子到任意空位', 3000);
+                } else {
+                    btn.classList.remove('free-mode-active');
+                    btn.textContent = '🎲 自由模式';
+                    this.showMessage('自由模式已关闭，恢复正常规则', 2000);
+                    this.deselect();
+                    // 重置连跳状态
+                    if (this.isInJumpChain) {
+                        this.endJumpChain();
+                    }
+                }
+                // 刷新提示信息
+                this.updateMoveInfo();
+                if (this.selectedPiece && this.showMoveHint) {
+                    const row = parseInt(this.selectedPiece.dataset.row);
+                    const col = parseInt(this.selectedPiece.dataset.col);
+                    this.validMoves = this.calculateValidMoves({row, col});
+                    this.highlightValidMoves();
+                }
+            }
+
             handleResize() {
                 const container = document.getElementById('board-container');
+                if (!container) return;
                 const rect = container.getBoundingClientRect();
                 const scale = Math.min(rect.width / this.boardWidth, rect.height / this.boardHeight);
-                
                 this.currentScale = scale;
-                // 重新计算位置基于实际显示尺寸
                 this.calculatePositions();
                 this.updatePiecePositions();
+                // 缩放已经通过 CSS transform 处理，这里不需要额外动作，但为了保持一致性，重新应用缩放
+                this.applyZoom();
             }
 
             updatePiecePositions() {
-                // 更新所有棋子的显示位置
                 this.pieces.forEach(p => {
                     const pos = this.positions[p.pos.row][p.pos.col];
-                    p.element.style.left = (pos.x - (this.currentScale < 1 ? 10 : 13)) + 'px';
-                    p.element.style.top = (pos.y - (this.currentScale < 1 ? 10 : 13)) + 'px';
+                    const pieceSize = this.currentScale < 1 ? 10 : 13;
+                    p.element.style.left = (pos.x - pieceSize) + 'px';
+                    p.element.style.top = (pos.y - pieceSize) + 'px';
                 });
-                
-                // 更新洞的位置
                 this.holes.forEach(hole => {
                     const row = parseInt(hole.dataset.row);
                     const col = parseInt(hole.dataset.col);
@@ -673,6 +752,7 @@
             }
 
             setMode(count) {
+                if (this.freeMode) this.toggleFreeMode(); // 切换模式时自动关闭自由模式
                 this.playerCount = count;
                 document.querySelectorAll('.mode-selector button').forEach(btn => btn.classList.remove('active'));
                 document.getElementById(`mode${count}`).classList.add('active');
@@ -680,12 +760,9 @@
                 this.reset();
             }
 
-            // 修复：6人模式正确的顺时针顺序
-            // 红(0,下) → 蓝(1,上) → 绿(2,左上) → 青(5,右下) → 紫(4,左下) → 黄(3,右上)
             getPlayOrder() {
                 if (this.playerCount === 2) return [0, 1];
                 if (this.playerCount === 4) return [0, 1, 2, 5];
-                // 6人模式：红→蓝→绿→青→紫→黄（顺时针）
                 return [0, 1, 2, 5, 4, 3];
             }
 
@@ -708,10 +785,12 @@
                 this.showMoveHint = !this.showMoveHint;
                 const btn = document.getElementById('hintBtn');
                 btn.textContent = this.showMoveHint ? '💡 提示' : '💡 隐藏';
-                
                 if (!this.showMoveHint) {
                     this.clearHighlights();
                 } else if (this.selectedPiece) {
+                    const row = parseInt(this.selectedPiece.dataset.row);
+                    const col = parseInt(this.selectedPiece.dataset.col);
+                    this.validMoves = this.calculateValidMoves({row, col});
                     this.highlightValidMoves();
                 }
             }
@@ -728,14 +807,13 @@
                 this.updatePlayersLegend();
                 this.setupPieces();
                 this.updatePlayerDisplay();
+                this.applyZoom(); // 初始缩放
             }
 
             calculatePositions() {
                 this.positions = [];
-                // 根据实际board尺寸调整
                 const containerWidth = document.getElementById('board-container')?.offsetWidth || this.boardWidth;
                 const scale = Math.min(containerWidth / this.boardWidth, 1);
-                
                 const spacingX = this.spacingX * scale;
                 const spacingY = this.spacingY * scale;
                 const centerX = (this.boardWidth * scale) / 2;
@@ -746,7 +824,6 @@
                     const rowPositions = [];
                     const rowWidth = (count - 1) * spacingX;
                     const startX = centerX - rowWidth / 2;
-                    
                     for (let col = 0; col < count; col++) {
                         rowPositions.push({
                             x: startX + col * spacingX,
@@ -763,7 +840,6 @@
             createBoard() {
                 this.board.innerHTML = '';
                 this.holes = [];
-                
                 for (let row = 0; row < this.totalRows; row++) {
                     for (let pos of this.positions[row]) {
                         const hole = document.createElement('div');
@@ -773,18 +849,14 @@
                         hole.style.top = (pos.y - holeSize) + 'px';
                         hole.dataset.row = row;
                         hole.dataset.col = pos.col;
-                        
                         hole.addEventListener('click', (e) => {
                             e.stopPropagation();
                             this.onHoleClick(pos);
                         });
-                        
-                        // 触摸支持
                         hole.addEventListener('touchstart', (e) => {
                             e.preventDefault();
                             this.onHoleClick(pos);
                         }, {passive: false});
-                        
                         this.board.appendChild(hole);
                         this.holes.push(hole);
                     }
@@ -798,10 +870,8 @@
                 this.isInJumpChain = false;
                 this.jumpChainCount = 0;
                 this.hideEndTurnButton();
-                
                 const activePlayers = this.getActivePlayers();
                 const allCornerPositions = this.getAllCornerPositions();
-                
                 for (let player of activePlayers) {
                     const positions = allCornerPositions[player];
                     for (let pos of positions) {
@@ -814,17 +884,11 @@
 
             getAllCornerPositions() {
                 return [
-                    // 玩家0（红）- 正下方
                     [{row: 16, col: 0}, {row: 15, col: 0}, {row: 15, col: 1}, {row: 14, col: 0}, {row: 14, col: 1}, {row: 14, col: 2}, {row: 13, col: 0}, {row: 13, col: 1}, {row: 13, col: 2}, {row: 13, col: 3}],
-                    // 玩家1（蓝）- 正上方
                     [{row: 0, col: 0}, {row: 1, col: 0}, {row: 1, col: 1}, {row: 2, col: 0}, {row: 2, col: 1}, {row: 2, col: 2}, {row: 3, col: 0}, {row: 3, col: 1}, {row: 3, col: 2}, {row: 3, col: 3}],
-                    // 玩家2（绿）- 左上方
                     [{row: 4, col: 0}, {row: 4, col: 1}, {row: 5, col: 0}, {row: 4, col: 2}, {row: 5, col: 1}, {row: 6, col: 0}, {row: 4, col: 3}, {row: 5, col: 2}, {row: 6, col: 1}, {row: 7, col: 0}],
-                    // 玩家3（黄）- 右上方
                     [{row: 4, col: 12}, {row: 4, col: 11}, {row: 5, col: 11}, {row: 4, col: 10}, {row: 5, col: 10}, {row: 6, col: 10}, {row: 4, col: 9}, {row: 5, col: 9}, {row: 6, col: 9}, {row: 7, col: 9}],
-                    // 玩家4（紫）- 左下方
                     [{row: 12, col: 0}, {row: 11, col: 0}, {row: 12, col: 1}, {row: 10, col: 0}, {row: 11, col: 1}, {row: 12, col: 2}, {row: 9, col: 0}, {row: 10, col: 1}, {row: 11, col: 2}, {row: 12, col: 3}],
-                    // 玩家5（青）- 右下方
                     [{row: 12, col: 12}, {row: 11, col: 11}, {row: 12, col: 11}, {row: 10, col: 10}, {row: 11, col: 10}, {row: 12, col: 10}, {row: 9, col: 9}, {row: 10, col: 9}, {row: 11, col: 9}, {row: 12, col: 9}]
                 ];
             }
@@ -838,16 +902,13 @@
                 piece.className = `piece player-${player}`;
                 const position = this.positions[pos.row][pos.col];
                 const pieceSize = this.currentScale < 1 ? 10 : 13;
-                
                 piece.style.left = (position.x - pieceSize) + 'px';
                 piece.style.top = (position.y - pieceSize) + 'px';
                 piece.dataset.player = player;
                 piece.dataset.row = pos.row;
                 piece.dataset.col = pos.col;
-                
                 piece.style.animation = 'marble-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
                 setTimeout(() => piece.style.animation = '', 500);
-                
                 const handleClick = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -857,13 +918,11 @@
                     };
                     this.onPieceClick(piece, currentPos);
                 };
-                
                 piece.addEventListener('click', handleClick);
                 piece.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     handleClick(e);
                 }, {passive: false});
-                
                 this.board.appendChild(piece);
                 this.pieces.push({element: piece, player: player, pos: pos});
                 this.boardState.set(`${pos.row}-${pos.col}`, player);
@@ -871,9 +930,36 @@
 
             onPieceClick(pieceElement, pos) {
                 if (this.isMoving) return;
-                
                 const player = parseInt(pieceElement.dataset.player);
                 
+                // 自由模式：允许移动任意棋子，不检查当前玩家
+                if (this.freeMode) {
+                    // 如果已经选中同一个棋子，则取消选中
+                    if (this.selectedPiece === pieceElement) {
+                        this.deselect();
+                        return;
+                    }
+                    this.deselect();
+                    this.selectedPiece = pieceElement;
+                    pieceElement.classList.add('selected');
+                    // 自由模式下所有空位都可移动（除了自己当前位置）
+                    this.validMoves = [];
+                    for (let row = 0; row < this.totalRows; row++) {
+                        for (let col = 0; col < this.rowCounts[row]; col++) {
+                            if (!this.boardState.has(`${row}-${col}`)) {
+                                this.validMoves.push({
+                                    row, col, isJump: false, jumpCount: 0,
+                                    path: [pos, {row, col}], canContinue: false
+                                });
+                            }
+                        }
+                    }
+                    this.updateMoveInfo();
+                    if (this.showMoveHint) this.highlightValidMoves();
+                    return;
+                }
+                
+                // 正常模式：保留原有规则
                 if (this.isInJumpChain) {
                     if (pieceElement !== this.selectedPiece) {
                         this.showMessage('连跳中，请继续移动当前棋子');
@@ -885,7 +971,6 @@
                         return;
                     }
                 }
-                
                 if (this.selectedPiece === pieceElement) {
                     if (this.isInJumpChain) {
                         this.showMessage('请按"结束回合"或空格键结束连跳');
@@ -894,22 +979,16 @@
                     this.deselect();
                     return;
                 }
-                
                 this.deselect();
                 this.selectedPiece = pieceElement;
                 pieceElement.classList.add('selected');
-                
                 if (this.isInJumpChain) {
                     this.validMoves = this.calculateJumpOnlyMoves(pos);
                 } else {
                     this.validMoves = this.calculateValidMoves(pos);
                 }
-                
                 this.updateMoveInfo();
-                
-                if (this.showMoveHint) {
-                    this.highlightValidMoves();
-                }
+                if (this.showMoveHint) this.highlightValidMoves();
             }
 
             calculateJumpOnlyMoves(startPos) {
@@ -917,34 +996,24 @@
                 const visited = new Set();
                 const queue = [{pos: startPos, path: [startPos], jumpCount: 0}];
                 visited.add(`${startPos.row}-${startPos.col}`);
-                
                 const directions = [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]];
-                
                 while (queue.length > 0) {
                     const {pos, path, jumpCount} = queue.shift();
-                    
                     for (let [dr, dc] of directions) {
                         const adjRow = pos.row + dr;
                         const adjCol = pos.col + dc;
-                        
                         if (!this.isValidPosition(adjRow, adjCol)) continue;
                         if (!this.boardState.has(`${adjRow}-${adjCol}`)) continue;
-                        
                         const jumpRow = adjRow + dr;
                         const jumpCol = adjCol + dc;
-                        
                         if (!this.isValidPosition(jumpRow, jumpCol)) continue;
                         if (this.boardState.has(`${jumpRow}-${jumpCol}`)) continue;
-                        
                         if (jumpRow === this.jumpStartPosition.row && jumpCol === this.jumpStartPosition.col) continue;
-                        
                         const stateKey = `${jumpRow}-${jumpCol}-${path.length}`;
                         if (visited.has(stateKey)) continue;
                         visited.add(stateKey);
-                        
                         const newPath = [...path, {row: jumpRow, col: jumpCol}];
                         const newJumpCount = jumpCount + 1;
-                        
                         moves.push({
                             row: jumpRow,
                             col: jumpCol,
@@ -953,7 +1022,6 @@
                             path: newPath,
                             canContinue: true
                         });
-                        
                         queue.push({
                             pos: {row: jumpRow, col: jumpCol},
                             path: newPath,
@@ -961,67 +1029,47 @@
                         });
                     }
                 }
-                
                 return moves;
             }
 
             calculateValidMoves(startPos) {
+                // 自由模式下不会调用此函数，但保留以防意外
+                if (this.freeMode) return [];
                 const moves = [];
                 const visited = new Set();
                 const queue = [{pos: startPos, path: [startPos], isJump: false, jumpCount: 0}];
-                
                 const directions = [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]];
-                
                 for (let [dr, dc] of directions) {
                     const adjRow = startPos.row + dr;
                     const adjCol = startPos.col + dc;
-                    
                     if (this.isValidPosition(adjRow, adjCol) && !this.boardState.has(`${adjRow}-${adjCol}`)) {
                         moves.push({
-                            row: adjRow,
-                            col: adjCol,
-                            isJump: false,
-                            jumpCount: 0,
-                            path: [startPos, {row: adjRow, col: adjCol}],
-                            canContinue: false
+                            row: adjRow, col: adjCol, isJump: false, jumpCount: 0,
+                            path: [startPos, {row: adjRow, col: adjCol}], canContinue: false
                         });
                     }
                 }
-                
                 visited.add(`${startPos.row}-${startPos.col}`);
-                
                 while (queue.length > 0) {
                     const {pos, path, isJump, jumpCount} = queue.shift();
-                    
                     for (let [dr, dc] of directions) {
                         const adjRow = pos.row + dr;
                         const adjCol = pos.col + dc;
-                        
                         if (!this.isValidPosition(adjRow, adjCol)) continue;
                         if (!this.boardState.has(`${adjRow}-${adjCol}`)) continue;
-                        
                         const jumpRow = adjRow + dr;
                         const jumpCol = adjCol + dc;
-                        
                         if (!this.isValidPosition(jumpRow, jumpCol)) continue;
                         if (this.boardState.has(`${jumpRow}-${jumpCol}`)) continue;
-                        
                         const stateKey = `${jumpRow}-${jumpCol}`;
                         if (visited.has(stateKey)) continue;
                         visited.add(stateKey);
-                        
                         const newPath = [...path, {row: jumpRow, col: jumpCol}];
                         const newJumpCount = jumpCount + 1;
-                        
                         moves.push({
-                            row: jumpRow,
-                            col: jumpCol,
-                            isJump: true,
-                            jumpCount: newJumpCount,
-                            path: newPath,
-                            canContinue: true
+                            row: jumpRow, col: jumpCol, isJump: true, jumpCount: newJumpCount,
+                            path: newPath, canContinue: true
                         });
-                        
                         queue.push({
                             pos: {row: jumpRow, col: jumpCol},
                             path: newPath,
@@ -1030,24 +1078,21 @@
                         });
                     }
                 }
-                
                 return moves.filter(m => !(m.row === startPos.row && m.col === startPos.col));
             }
 
             highlightValidMoves() {
                 this.clearHighlights();
-                
                 this.validMoves.forEach(move => {
                     const hole = this.findHole(move.row, move.col);
                     if (hole) {
-                        if (this.isInJumpChain) {
+                        if (this.freeMode) {
+                            hole.classList.add('valid-move');
+                        } else if (this.isInJumpChain) {
                             hole.classList.add('jump-continue');
                         } else {
-                            if (move.isJump) {
-                                hole.classList.add('jump-move');
-                            } else {
-                                hole.classList.add('valid-move');
-                            }
+                            if (move.isJump) hole.classList.add('jump-move');
+                            else hole.classList.add('valid-move');
                         }
                     }
                 });
@@ -1066,6 +1111,17 @@
             updateMoveInfo() {
                 const moveDetail = document.getElementById('moveDetail');
                 const statusBadge = document.getElementById('statusBadge');
+                
+                if (this.freeMode) {
+                    if (this.selectedPiece) {
+                        moveDetail.innerHTML = `自由模式 | 可选空位: ${this.validMoves.length}`;
+                    } else {
+                        moveDetail.innerHTML = '🎲 自由模式 - 点击任意棋子可移动';
+                    }
+                    statusBadge.style.display = 'none';
+                    this.hideEndTurnButton();
+                    return;
+                }
                 
                 if (this.isInJumpChain) {
                     if (this.validMoves.length > 0) {
@@ -1092,16 +1148,13 @@
                     statusBadge.style.display = 'none';
                     return;
                 }
-                
                 if (this.validMoves.length === 0) {
                     moveDetail.textContent = '无法移动';
                     statusBadge.style.display = 'none';
                     return;
                 }
-                
                 const jumpMoves = this.validMoves.filter(m => m.isJump);
                 const normalMoves = this.validMoves.filter(m => !m.isJump);
-                
                 if (jumpMoves.length > 0) {
                     const maxJumps = Math.max(...jumpMoves.map(m => m.jumpCount));
                     moveDetail.innerHTML = `可${normalMoves.length > 0 ? '走或' : ''}跳 <span class="jump-badge">最多${maxJumps}跳</span>`;
@@ -1116,7 +1169,7 @@
                 }
             }
 
-            showMessage(text) {
+            showMessage(text, duration = 2000) {
                 const moveDetail = document.getElementById('moveDetail');
                 const originalText = moveDetail.textContent;
                 moveDetail.textContent = text;
@@ -1124,7 +1177,7 @@
                 setTimeout(() => {
                     moveDetail.textContent = originalText;
                     moveDetail.style.color = '';
-                }, 2000);
+                }, duration);
             }
 
             shakeElement(element) {
@@ -1140,10 +1193,8 @@
 
             onHoleClick(pos) {
                 if (this.isMoving || !this.selectedPiece) return;
-                
                 const move = this.validMoves.find(m => m.row === pos.row && m.col === pos.col);
                 if (!move) return;
-                
                 this.executeMove(move);
             }
 
@@ -1159,7 +1210,7 @@
                     this.showMovePath(move.path);
                 }
                 
-                if (!this.isInJumpChain) {
+                if (!this.isInJumpChain && !this.freeMode) {
                     this.moveHistory.push({
                         piece: this.selectedPiece,
                         from: {row: oldRow, col: oldCol},
@@ -1170,20 +1221,28 @@
                     });
                     this.originalPiece = this.selectedPiece;
                     this.jumpStartPosition = {row: oldRow, col: oldCol};
-                } else {
+                } else if (!this.freeMode) {
                     const lastMove = this.moveHistory[this.moveHistory.length - 1];
-                    lastMove.to = {row: newRow, col: newCol};
-                    lastMove.path = move.path;
+                    if (lastMove) {
+                        lastMove.to = {row: newRow, col: newCol};
+                        lastMove.path = move.path;
+                    }
+                } else {
+                    // 自由模式历史记录
+                    this.moveHistory.push({
+                        piece: this.selectedPiece,
+                        from: {row: oldRow, col: oldCol},
+                        to: {row: newRow, col: newCol},
+                        player: player,
+                        path: move.path
+                    });
                 }
                 
                 document.getElementById('undoBtn').disabled = false;
-                
                 this.boardState.delete(`${oldRow}-${oldCol}`);
                 this.boardState.set(`${newRow}-${newCol}`, player);
-                
                 const newPos = this.positions[newRow][newCol];
                 const pieceSize = this.currentScale < 1 ? 10 : 13;
-                
                 this.selectedPiece.style.transition = 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
                 this.selectedPiece.style.left = (newPos.x - pieceSize) + 'px';
                 this.selectedPiece.style.top = (newPos.y - pieceSize) + 'px';
@@ -1192,22 +1251,29 @@
                     this.selectedPiece.dataset.row = newRow;
                     this.selectedPiece.dataset.col = newCol;
                     this.selectedPiece.style.transition = '';
-                    
                     this.showLastMove(newPos);
                     
+                    if (this.freeMode) {
+                        // 自由模式：移动后不清除选中，保持选中状态以便连续移动
+                        this.deselect();
+                        // 不切换玩家，直接结束移动状态
+                        this.isMoving = false;
+                        // 胜利检测依然保留（自由模式下也可获胜）
+                        if (this.checkWin(player)) {
+                            this.showWin(player);
+                        }
+                        return;
+                    }
+                    
+                    // 正常模式逻辑
                     if (move.isJump && move.canContinue) {
                         this.isInJumpChain = true;
                         this.jumpChainCount = move.jumpCount;
-                        
                         this.validMoves = this.calculateJumpOnlyMoves({row: newRow, col: newCol});
-                        
                         if (this.validMoves.length > 0) {
                             this.updateMoveInfo();
-                            if (this.showMoveHint) {
-                                this.highlightValidMoves();
-                            }
+                            if (this.showMoveHint) this.highlightValidMoves();
                             this.isMoving = false;
-                            
                             if (this.jumpChainCount >= 3) {
                                 this.showMessage(`已连跳${this.jumpChainCount}次，可随时结束`);
                             }
@@ -1228,11 +1294,9 @@
 
             endJumpChain() {
                 if (!this.isInJumpChain) return;
-                
                 this.isInJumpChain = false;
                 this.hideEndTurnButton();
                 this.deselect();
-                
                 const player = this.currentPlayer;
                 if (this.checkWin(player)) {
                     this.showWin(player);
@@ -1244,40 +1308,33 @@
 
             showMovePath(path) {
                 document.querySelectorAll('.move-path').forEach(el => el.remove());
-                
                 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
                 svg.classList.add('move-path');
                 svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:18;';
-                
                 let pathData = '';
                 for (let i = 0; i < path.length; i++) {
                     const pos = this.positions[path[i].row][path[i].col];
                     if (i === 0) pathData = `M ${pos.x} ${pos.y}`;
                     else pathData += ` L ${pos.x} ${pos.y}`;
                 }
-                
                 const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 pathEl.setAttribute("d", pathData);
-                pathEl.setAttribute("stroke", this.isInJumpChain ? "#fbbf24" : "#60a5fa");
+                pathEl.setAttribute("stroke", this.isInJumpChain ? "#fbbf24" : (this.freeMode ? "#c084fc" : "#60a5fa"));
                 pathEl.setAttribute("stroke-width", "3");
                 pathEl.setAttribute("fill", "none");
                 pathEl.setAttribute("stroke-linecap", "round");
                 pathEl.setAttribute("stroke-linejoin", "round");
                 pathEl.setAttribute("stroke-dasharray", "6,3");
-                pathEl.style.filter = `drop-shadow(0 0 6px ${this.isInJumpChain ? "#fbbf24" : "#60a5fa"})`;
-                
+                pathEl.style.filter = `drop-shadow(0 0 6px ${this.isInJumpChain ? "#fbbf24" : (this.freeMode ? "#c084fc" : "#60a5fa")})`;
                 const length = 1000;
                 pathEl.style.strokeDasharray = length;
                 pathEl.style.strokeDashoffset = length;
                 pathEl.style.animation = 'draw-path 0.4s ease-out forwards';
-                
                 const style = document.createElement('style');
                 style.textContent = '@keyframes draw-path { to { stroke-dashoffset: 0; } }';
                 document.head.appendChild(style);
-                
                 svg.appendChild(pathEl);
                 this.board.appendChild(svg);
-                
                 setTimeout(() => {
                     svg.remove();
                     style.remove();
@@ -1301,10 +1358,11 @@
                 }
                 this.validMoves = [];
                 this.clearHighlights();
-                
-                if (!this.isInJumpChain) {
+                if (!this.isInJumpChain && !this.freeMode) {
                     document.getElementById('moveDetail').textContent = '选择棋子';
                     document.getElementById('statusBadge').style.display = 'none';
+                } else if (this.freeMode) {
+                    document.getElementById('moveDetail').textContent = '自由模式 - 点击棋子';
                 }
             }
 
@@ -1324,7 +1382,6 @@
                 const indicator = document.getElementById('playerIndicator');
                 const text = document.getElementById('playerText');
                 const display = document.getElementById('currentPlayer');
-                
                 indicator.style.background = this.colorCodes[this.currentPlayer];
                 indicator.style.boxShadow = `0 0 15px ${this.colorCodes[this.currentPlayer]}`;
                 text.textContent = `${this.playerColors[this.currentPlayer]}方回合`;
@@ -1336,12 +1393,10 @@
                 const targetPlayer = (player + 3) % 6;
                 const allPositions = this.getAllCornerPositions();
                 const targetPositions = allPositions[targetPlayer];
-                
                 let count = 0;
                 for (let pos of targetPositions) {
                     if (this.boardState.get(`${pos.row}-${pos.col}`) === player) count++;
                 }
-                
                 return count >= 10;
             }
 
@@ -1354,36 +1409,30 @@
 
             undo() {
                 if (this.isMoving || this.moveHistory.length === 0) return;
-                
                 if (this.isInJumpChain) {
                     this.isInJumpChain = false;
                     this.jumpChainCount = 0;
                     this.hideEndTurnButton();
                 }
-                
                 const lastMove = this.moveHistory.pop();
                 const piece = lastMove.piece;
-                
                 this.boardState.delete(`${lastMove.to.row}-${lastMove.to.col}`);
                 this.boardState.set(`${lastMove.from.row}-${lastMove.from.col}`, lastMove.player);
-                
                 const oldPos = this.positions[lastMove.from.row][lastMove.from.col];
                 const pieceSize = this.currentScale < 1 ? 10 : 13;
-                
                 piece.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
                 piece.style.left = (oldPos.x - pieceSize) + 'px';
                 piece.style.top = (oldPos.y - pieceSize) + 'px';
-                
                 setTimeout(() => {
                     piece.dataset.row = lastMove.from.row;
                     piece.dataset.col = lastMove.from.col;
                     piece.style.transition = '';
-                    
-                    this.currentPlayer = lastMove.player;
-                    this.updatePlayerDisplay();
-                    this.updatePlayersLegend();
+                    if (!this.freeMode) {
+                        this.currentPlayer = lastMove.player;
+                        this.updatePlayerDisplay();
+                        this.updatePlayersLegend();
+                    }
                     this.deselect();
-                    
                     if (this.moveHistory.length === 0) {
                         document.getElementById('undoBtn').disabled = true;
                     }
@@ -1391,6 +1440,7 @@
             }
 
             reset() {
+                if (this.freeMode) this.toggleFreeMode(); // 重置时自动关闭自由模式
                 this.moveHistory = [];
                 this.isMoving = false;
                 this.isInJumpChain = false;
@@ -1398,23 +1448,31 @@
                 this.originalPiece = null;
                 this.jumpStartPosition = null;
                 this.hideEndTurnButton();
-                
                 document.getElementById('undoBtn').disabled = true;
                 document.getElementById('winMessage').style.display = 'none';
                 document.getElementById('moveDetail').textContent = '选择棋子';
                 document.getElementById('statusBadge').style.display = 'none';
-                
                 const activePlayers = this.getActivePlayers();
                 this.currentPlayer = activePlayers[0];
-                
                 this.deselect();
                 this.setupPieces();
                 this.updatePlayerDisplay();
                 this.updatePlayersLegend();
+                // 重置缩放为 1.0
+                this.resetZoom();
             }
         }
 
         const game = new ChineseCheckers();
     </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sv.js').then(reg => {
+          console.log('Service Worker 注册成功，作用域:', reg.scope);
+        }).catch(err => {
+          console.error('Service Worker 注册失败:', err);
+        });
+      }
+    </script>    
 </body>
 </html>
