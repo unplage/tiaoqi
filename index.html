@@ -1467,7 +1467,7 @@
     </script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sv.js').then(reg => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
           console.log('Service Worker 注册成功，作用域:', reg.scope);
         }).catch(err => {
           console.error('Service Worker 注册失败:', err);
