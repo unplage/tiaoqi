@@ -7,12 +7,13 @@ const BASE_PATH = self.location.pathname.replace(/[^/]+$/, '');
 // 构建带项目标识的缓存名称，避免多项目冲突
 // 例如 '/pwa1/' -> 前缀 'pwa-cache-pwa1-'
 const CACHE_PREFIX = `pwa-cache${BASE_PATH.replace(/\//g, '-')}`;
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const CACHE_NAME = `${CACHE_PREFIX}v5`;
 
 // 预缓存资源列表（全部使用相对于当前 sw.js 的路径）
 const PRECACHE_URLS = [
   BASE_PATH,                 // 例如 '/pwa1/'
   `${BASE_PATH}index.html`,
+  `${BASE_PATH}ai-worker.js`,
   `${BASE_PATH}manifest.json`,
   `${BASE_PATH}icons/icon-192.png`,
   `${BASE_PATH}icons/icon-512.png`,
@@ -43,7 +44,6 @@ self.addEventListener('install', (event) => {
           PRECACHE_URLS.map(url => cache.add(url).catch(err => console.warn(`预缓存失败 ${url}:`, err)))
         );
       })
-      .then(() => self.skipWaiting()) // 立即激活
   );
 });
 
@@ -61,7 +61,7 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // 立即控制所有页面
+    })
   );
 });
 
