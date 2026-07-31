@@ -212,6 +212,7 @@ console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' �
     [375, 640],     // 手机竖屏
     [844, 390],     // 手机横屏（高度受限）
     [1920, 1040],   // 桌面
+    [1920, 700],    // 桌面矮窗口（宽>高，旧版棋子溢出棋盘的回归场景）
     [320, 200],     // 极小屏
     [600, 540],     // 默认兜底
   ];
@@ -222,16 +223,17 @@ console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' �
     containerEl.offsetHeight = H;
     game.calculatePositions();
     const s = game.currentScale;
-    // 正方形棋盘区：边长取宽高较小值
+    // 正方形棋盘区：边长取宽高较小值；坐标以 #board（边长 side）为基准
     const side = Math.min(W, H);
-    const expect = Math.min((side - 32) / 360, (side - 32) / ((game.totalRows - 1) * game.spacingY));
+    const expect = Math.min((side - 40) / 360, (side - 40) / ((game.totalRows - 1) * game.spacingY));
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (let r = 0; r < 17; r++) for (let c = 0; c < game.rowCounts[r]; c++) {
       const p = game.positions[r][c];
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
-    if (minX < 0 || maxX > W || minY < 0 || maxY > H) clip++;
+    // 内容必须完整落在棋盘（side×side）内；棋盘由容器 flex 居中，故亦在容器内
+    if (minX < 0 || maxX > side || minY < 0 || maxY > side) clip++;
     if (Math.abs(s - expect) > 1e-9) sizeBad++;
     // 每个尺寸下重新做全量几何校验（旧实现在此处会缺失/幻影）
     const t = trueAdjSet(), g = graphAdjSet();

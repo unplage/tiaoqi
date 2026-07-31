@@ -1199,11 +1199,11 @@
                         }
                         const bestMove = this.ai.getBestMove(this, this.aiDifficulty);
                         if (bestMove) {
-                            // 找到对应的棋子元素
+                            // 找到对应的棋子元素（用 dataset 定位：随走子实时更新，与棋盘状态一致）
                             const piece = this.pieces.find(p =>
                                 p.player === this.currentPlayer &&
-                                p.pos.row === bestMove.from.row &&
-                                p.pos.col === bestMove.from.col
+                                p.element.dataset.row == bestMove.from.row &&
+                                p.element.dataset.col == bestMove.from.col
                             );
                             if (piece) {
                                 this.selectedPiece = piece.element;
@@ -1219,6 +1219,8 @@
                                 });
                             } else {
                                 // 找不到对应棋子（异常），跳过回合
+                                console.error('AI 走棋失败：找不到棋子', bestMove);
+                                this.showMessage('AI 走棋失败，自动跳过');
                                 this.nextPlayer();
                             }
                         } else {
@@ -1296,14 +1298,15 @@
                 // 按棋盘内容本身（最宽行 13 格、总高 17 行）适配
                 const layoutW = (this.rowCounts[4] - 1) * this.spacingX;   // 12 * 30 = 360
                 const layoutH = (this.totalRows - 1) * this.spacingY;      // 16 * 26 = 416
-                const margin = 16;
+                const margin = 20;
                 const scale = Math.min((side - 2 * margin) / layoutW, (side - 2 * margin) / layoutH);
                 this.currentScale = scale;
                 const spacingX = this.spacingX * scale;
                 const spacingY = this.spacingY * scale;
-                const centerX = containerWidth / 2;
+                // 棋子/孔洞是 #board（边长 side 的正方形）的子元素，坐标一律以 #board 为基准
+                const centerX = side / 2;
                 // 垂直居中，保证内容始终完整可见
-                const baseY = (containerHeight + layoutH * scale) / 2;
+                const baseY = (side + layoutH * scale) / 2;
                 
                 for (let row = 0; row < this.totalRows; row++) {
                     const count = this.rowCounts[row];
@@ -1781,6 +1784,9 @@
                     this.selectedPiece.dataset.col = newCol;
                     this.selectedPiece.style.transition = '';
                     this.showLastMove(newPos);
+                    // 同步棋子记录位置（p.pos 是后续查找/AI 走棋的唯一依据，必须与棋盘一致）
+                    const pieceRec = this.pieces.find(p => p.element === this.selectedPiece);
+                    if (pieceRec) pieceRec.pos = {row: newRow, col: newCol};
                     
                     if (this.freeMode) {
                         // 自由模式：移动后不清除选中，保持选中状态以便连续移动
@@ -1910,6 +1916,9 @@
                 this.isInJumpChain = false;
                 this.originalPiece = null;
                 this.jumpStartPosition = null;
+                // 回合移交时清除"AI 思考中"等残留提示（覆盖跳过/异常等路径）
+                document.getElementById('moveDetail').textContent = '选择棋子';
+                document.getElementById('statusBadge').style.display = 'none';
                 this.updatePlayerDisplay();
                 this.updatePlayersLegend();
                 // AI 自动走棋（仅 2 人模式）
@@ -1981,6 +1990,9 @@
                         m.piece.dataset.row = m.from.row;
                         m.piece.dataset.col = m.from.col;
                         m.piece.style.transition = '';
+                        // 同步棋子记录位置，保证撤销后 p.pos 与棋盘一致
+                        const rec = this.pieces.find(p => p.element === m.piece);
+                        if (rec) rec.pos = {row: m.from.row, col: m.from.col};
                     }, 400);
                 }
                 const lastMove = undone[undone.length - 1];
