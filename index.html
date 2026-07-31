@@ -256,14 +256,13 @@
             overflow: hidden;
             flex: 1;
             min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #board {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: relative;
             background: 
                 radial-gradient(ellipse at 30% 20%, rgba(139, 92, 43, 0.4) 0%, transparent 50%),
                 radial-gradient(ellipse at 70% 80%, rgba(139, 92, 43, 0.3) 0%, transparent 50%),
@@ -407,23 +406,6 @@
             60% { transform: translateY(5px) scale(1.1); opacity: 1; }
             80% { transform: translateY(-3px) scale(0.95); }
             100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-
-        .instructions {
-            margin-top: 15px;
-            max-width: 700px;
-            text-align: center;
-            line-height: 1.6;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 15px 20px;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
-            font-size: clamp(0.8rem, 3vw, 0.9rem);
-        }
-
-        .instructions strong {
-            color: #fbbf24;
         }
 
         .hint-text { color: #60a5fa; }
@@ -574,11 +556,6 @@
                 padding: 5px 8px;
                 font-size: 0.7rem;
             }
-
-            .instructions {
-                padding: 8px 12px;
-                font-size: 0.75rem;
-            }
         }
 
         @media (min-width: 768px) {
@@ -588,11 +565,8 @@
             }
         }
 
-        /* 高度不足的屏幕上隐藏操作说明，把空间让给棋盘 */
+        /* 高度不足的屏幕上隐藏标题，把空间让给棋盘 */
         @media (max-height: 480px) {
-            .instructions {
-                display: none;
-            }
             h1 {
                 display: none;
             }
@@ -641,17 +615,12 @@
             <div class="move-status">当前状态</div>
             <div class="move-detail" id="moveDetail">选择棋子开始游戏</div>
             <div class="status-badge" id="statusBadge" style="display: none;"></div>
+            <div class="players-legend" id="playersLegend"></div>
         </div>
     </div>
 
     <div id="board-container">
         <div id="board"></div>
-    </div>
-
-    <div class="instructions">
-        <p>🎮 <strong>操作：</strong>点击己方棋子，<span class="hint-text">白色</span>=单步，<span style="color: #60a5fa;">蓝色</span>=跳跃，<span class="jump-text">金色</span>=可连跳</p>
-        <p>🚀 <strong>连跳：</strong>跳跃后可继续跳，按空格或点"结束回合"结束 | 🤖 <strong>人机：</strong>点击"人机"切换对战模式</p>
-        <div class="players-legend" id="playersLegend"></div>
     </div>
 
     <div class="win-message" id="winMessage">
@@ -922,11 +891,13 @@
             }
 
             // 残局极小化搜索（2 人模式：AI 与玩家轮流走子）
-            minimax(boardState, aiPlayer, playerToMove, depth, alpha, beta) {
+            // deadline: 搜索时间预算（毫秒时间戳），超时立即返回当前最优，避免界面长时间冻结
+            minimax(boardState, aiPlayer, playerToMove, depth, alpha, beta, deadline) {
                 // 胜负优先：AI 赢=+∞，玩家赢=-∞
                 if (this._checkWinState(boardState, aiPlayer)) return {score: Infinity, move: null};
                 if (this._checkWinState(boardState, 1 - aiPlayer)) return {score: -Infinity, move: null};
                 if (depth === 0) return {score: this.evaluate(boardState, aiPlayer), move: null};
+                if (deadline && Date.now() > deadline) return {score: this.evaluate(boardState, aiPlayer), move: null};
 
                 // 当前走棋方的合法走法（AI 与玩家逐层轮换）
                 const moves = this.getAllMoves(boardState, playerToMove);
@@ -947,7 +918,7 @@
                     let bestMove = limitedMoves[0];
                     for (const move of limitedMoves) {
                         const newState = this.applyMove(boardState, move);
-                        const evalResult = this.minimax(newState, aiPlayer, 1 - aiPlayer, depth - 1, alpha, beta);
+                        const evalResult = this.minimax(newState, aiPlayer, 1 - aiPlayer, depth - 1, alpha, beta, deadline);
                         if (evalResult.score > maxEval) {
                             maxEval = evalResult.score;
                             bestMove = move;
@@ -961,7 +932,7 @@
                     let bestMove = limitedMoves[0];
                     for (const move of limitedMoves) {
                         const newState = this.applyMove(boardState, move);
-                        const evalResult = this.minimax(newState, aiPlayer, aiPlayer, depth - 1, alpha, beta);
+                        const evalResult = this.minimax(newState, aiPlayer, aiPlayer, depth - 1, alpha, beta, deadline);
                         if (evalResult.score < minEval) {
                             minEval = evalResult.score;
                             bestMove = move;
@@ -1009,7 +980,7 @@
 
                 // 残局用极小化搜索，开局/中局用 MCTS
                 if (isEndgame) {
-                    const result = this.minimax(boardState, player, player, depth, -Infinity, Infinity);
+                    const result = this.minimax(boardState, player, player, depth, -Infinity, Infinity, Date.now() + 800);
                     return result.move || allMoves[0];
                 } else {
                     const move = this.mcts(boardState, player, iterations);
@@ -1104,7 +1075,12 @@
 
             handleResize() {
                 const container = document.getElementById('board-container');
-                if (!container) return;
+                const board = document.getElementById('board');
+                if (!container || !board) return;
+                // 棋盘区为正方形：边长取容器宽高的较小值，flex 居中
+                const side = Math.max(0, Math.min(container.offsetWidth, container.offsetHeight));
+                board.style.width = side + 'px';
+                board.style.height = side + 'px';
                 this.calculatePositions();
                 this.updatePiecePositions();
             }
@@ -1216,40 +1192,47 @@
 
                 this.aiTimerId = setTimeout(() => {
                     this.aiTimerId = null;
-                    // 思考期间可能被重置/切换模式/撤销，重新校验
-                    if (!this.aiEnabled || this.playerCount !== 2 || this.currentPlayer !== this.aiPlayer || this.isMoving) {
-                        this.aiThinking = false;
-                        return;
-                    }
-                    const bestMove = this.ai.getBestMove(this, this.aiDifficulty);
-                    this.aiThinking = false;
-                    if (bestMove) {
-                        // 找到对应的棋子元素
-                        const piece = this.pieces.find(p =>
-                            p.player === this.currentPlayer &&
-                            p.pos.row === bestMove.from.row &&
-                            p.pos.col === bestMove.from.col
-                        );
-                        if (piece) {
-                            this.selectedPiece = piece.element;
-                            piece.element.classList.add('selected');
-                            // 跳跃/单步走法统一直接执行到终点
-                            this.executeMove({
-                                row: bestMove.to.row,
-                                col: bestMove.to.col,
-                                isJump: bestMove.isJump,
-                                jumpCount: bestMove.jumpCount || 0,
-                                path: [bestMove.from, bestMove.to],
-                                canContinue: false
-                            });
+                    try {
+                        // 思考期间可能被重置/切换模式/撤销，重新校验
+                        if (!this.aiEnabled || this.playerCount !== 2 || this.currentPlayer !== this.aiPlayer || this.isMoving) {
+                            return;
+                        }
+                        const bestMove = this.ai.getBestMove(this, this.aiDifficulty);
+                        if (bestMove) {
+                            // 找到对应的棋子元素
+                            const piece = this.pieces.find(p =>
+                                p.player === this.currentPlayer &&
+                                p.pos.row === bestMove.from.row &&
+                                p.pos.col === bestMove.from.col
+                            );
+                            if (piece) {
+                                this.selectedPiece = piece.element;
+                                piece.element.classList.add('selected');
+                                // 跳跃/单步走法统一直接执行到终点
+                                this.executeMove({
+                                    row: bestMove.to.row,
+                                    col: bestMove.to.col,
+                                    isJump: bestMove.isJump,
+                                    jumpCount: bestMove.jumpCount || 0,
+                                    path: [bestMove.from, bestMove.to],
+                                    canContinue: false
+                                });
+                            } else {
+                                // 找不到对应棋子（异常），跳过回合
+                                this.nextPlayer();
+                            }
                         } else {
-                            // 找不到对应棋子（异常），跳过回合
+                            // AI 无子可动：提示并自动跳过
+                            this.showMessage('AI 无子可动，自动跳过');
                             this.nextPlayer();
                         }
-                    } else {
-                        // AI 无子可动：提示并自动跳过
-                        this.showMessage('AI 无子可动，自动跳过');
+                    } catch (err) {
+                        // 搜索异常不应锁死游戏：提示并跳过本回合
+                        console.error('AI 走棋异常:', err);
+                        this.showMessage('AI 出现异常，自动跳过');
                         this.nextPlayer();
+                    } finally {
+                        this.aiThinking = false;
                     }
                 }, 300);
             }
@@ -1308,11 +1291,13 @@
                 const container = document.getElementById('board-container');
                 const containerWidth = container?.offsetWidth || this.boardWidth;
                 const containerHeight = container?.offsetHeight || this.boardHeight;
-                // 按棋盘内容本身（最宽行 13 格、总高 17 行）适配，避免 600x540 外框浪费空间
+                // 正方形棋盘区：按边长（宽高较小值）适配，最大化棋子展示
+                const side = Math.max(0, Math.min(containerWidth, containerHeight));
+                // 按棋盘内容本身（最宽行 13 格、总高 17 行）适配
                 const layoutW = (this.rowCounts[4] - 1) * this.spacingX;   // 12 * 30 = 360
                 const layoutH = (this.totalRows - 1) * this.spacingY;      // 16 * 26 = 416
                 const margin = 16;
-                const scale = Math.min((containerWidth - 2 * margin) / layoutW, (containerHeight - 2 * margin) / layoutH);
+                const scale = Math.min((side - 2 * margin) / layoutW, (side - 2 * margin) / layoutH);
                 this.currentScale = scale;
                 const spacingX = this.spacingX * scale;
                 const spacingY = this.spacingY * scale;
@@ -1734,7 +1719,9 @@
             }
 
             onHoleClick(pos) {
-                if (this.isMoving || this.aiThinking || !this.selectedPiece) return;
+                if (this.isMoving || this.aiThinking) return;
+                if (this.aiEnabled && this.currentPlayer === this.aiPlayer) return;
+                if (!this.selectedPiece) return;
                 const move = this.validMoves.find(m => m.row === pos.row && m.col === pos.col);
                 if (!move) return;
                 this.executeMove(move);

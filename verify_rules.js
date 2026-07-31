@@ -222,7 +222,9 @@ console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' �
     containerEl.offsetHeight = H;
     game.calculatePositions();
     const s = game.currentScale;
-    const expect = Math.min((W - 32) / 360, (H - 32) / ((game.totalRows - 1) * game.spacingY));
+    // 正方形棋盘区：边长取宽高较小值
+    const side = Math.min(W, H);
+    const expect = Math.min((side - 32) / 360, (side - 32) / ((game.totalRows - 1) * game.spacingY));
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (let r = 0; r < 17; r++) for (let c = 0; c < game.rowCounts[r]; c++) {
       const p = game.positions[r][c];
