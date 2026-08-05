@@ -1,7 +1,10 @@
 // 验证 index.html 中真实的走法生成代码：几何相邻、对称性、跳跃落点、目标角规则
+// 以及 ai-worker.js 的 AI 逻辑（2P/4P/6P 一致性与多玩家搜索）
 const fs = require('fs');
+const path = require('path');
 
-const html = fs.readFileSync('/home/jiemiaoxing/work/opencode_task/tiaoqi/index.html', 'utf8');
+const htmlPath = path.join(__dirname, 'index.html');
+const html = fs.readFileSync(htmlPath, 'utf8');
 const mainScript = html.match(/<script>([\s\S]*?)<\/script>/g)
   .map(s => s.replace(/<\/?script>/g, ''))
   .find(s => s.includes('class ChineseCheckers'));
@@ -9,7 +12,7 @@ const mainScript = html.match(/<script>([\s\S]*?)<\/script>/g)
 // ---- DOM 桩 ----
 function makeEl() {
   return {
-    style: {}, classList: {add(){}, remove(){}}, dataset: {},
+    style: {}, classList: {add(){}, remove(){}, toggle(){}}, dataset: {},
     addEventListener(){}, appendChild(){}, remove(){},
     setAttribute(){}, getAttribute(){ return null; },
     innerHTML: '', textContent: '', disabled: false,
@@ -30,8 +33,14 @@ const window = { addEventListener(){} };
 const navigator = { serviceWorker: undefined };
 
 const factory = new Function('document', 'window', 'navigator',
-  mainScript + '\n;return {Game: ChineseCheckers, AI: ChineseCheckersAI, game: game};');
-const {Game, AI, game} = factory(document, window, navigator);
+  mainScript + '\n;return {Game: ChineseCheckers, game: game};');
+const {Game, game} = factory(document, window, navigator);
+
+// AI 类位于 ai-worker.js（index.html 通过 Web Worker 委托，内联无此类）
+const workerSrc = fs.readFileSync(path.join(__dirname, 'ai-worker.js'), 'utf8');
+const selfStub = { onmessage: null, postMessage(){} };
+const aiFactory = new Function('self', workerSrc + '\n;return {AI: ChineseCheckersAI};');
+const {AI} = aiFactory(selfStub);
 const ai = new AI();
 
 const fail = (msg) => { console.error('FAIL:', msg); process.exitCode = 1; };
@@ -253,4 +262,242 @@ console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' �
   containerEl.offsetWidth = 600; containerEl.offsetHeight = 540;
   game.calculatePositions();
 }
+
+// ================= 9. 多人模式：非 0/1 玩家的走法一致性 =================
+function multiBoard(players) {
+  const st = new Map();
+  for (const p of players) {
+    for (const pos of game.getAllCornerPositions()[p]) st.set(`${pos.row}-${pos.col}`, p);
+  }
+  // 中路添加被跳链，制造跳跃场景
+  st.set('4-5', players[1]); st.set('4-6', players[1]);
+  st.set('8-5', players[2]); st.set('8-6', players[2]);
+  return st;
+}
+{
+  const scenarios = [
+    { players: [0, 1, 2, 5], label: '4P' },
+    { players: [0, 1, 2, 3, 4, 5], label: '6P' },
+  ];
+  for (const { players, label } of scenarios) {
+    const st = multiBoard(players);
+    for (const p of players) {
+      game.boardState = st;
+      game.currentPlayer = p;
+      game.isInJumpChain = false;
+      game.jumpStartPosition = { row: -1, col: -1 };
+      const gameMoves = new Set();
+      for (let r = 0; r < 17; r++) for (let c = 0; c < game.rowCounts[r]; c++) {
+        if (st.get(`${r}-${c}`) !== p) continue;
+        for (const m of game.calculateValidMoves({ row: r, col: c })) gameMoves.add(`${r}-${c}>${m.row}-${m.col}`);
+      }
+      const aiMoves = new Set(ai.getAllMoves(st, p).map(m => `${m.from.row}-${m.from.col}>${m.to.row}-${m.to.col}`));
+      const onlyGame = [...gameMoves].filter(m => !aiMoves.has(m));
+      const onlyAI = [...aiMoves].filter(m => !gameMoves.has(m));
+      assert(onlyGame.length === 0 && onlyAI.length === 0,
+        `[${label}] 玩家${p} 游戏与 AI 走法完全一致（仅游戏=${onlyGame.length}，仅AI=${onlyAI.length}）`);
+    }
+  }
+}
+
+// ================= 10. playOrder 轮转与名次顺序 =================
+{
+  assert(ai._getNextPlayer(0, [0,1,2,5]) === 1, '4P 下一位 0→1');
+  assert(ai._getNextPlayer(5, [0,1,2,5]) === 0, '4P 下一位 5→0（循环回起点）');
+  assert(ai._getNextPlayer(4, [0,1,2,5,4,3]) === 3, '6P 下一位 4→3');
+  assert(ai._getNextPlayer(3, [0,1,2,5,4,3]) === 0, '6P 下一位 3→0');
+  assert(game.getPlayOrder().join(',') === '0,1,2,5,4,3', '6P 出场顺序');
+  game.playerCount = 4;
+  assert(game.getPlayOrder().join(',') === '0,1,2,5', '4P 出场顺序');
+  game.playerCount = 2;
+  assert(game.getPlayOrder().join(',') === '0,1', '2P 出场顺序');
+  game.playerCount = 6;
+}
+
+// ================= 11. 多人 evaluate 单调性（越靠近目标评分越高） =================
+{
+  const playOrder = [0, 1, 2, 5];
+  const st = multiBoard(playOrder);
+  st.set('6-1', 2);              // 玩家 2 起始角的一子
+  const base = ai.evaluate(st, 2, playOrder);
+  st.delete('6-1');
+  st.set('8-5', 2);              // 挪近目标角（角5），(8,5) 为空
+  const closer = ai.evaluate(st, 2, playOrder);
+  assert(closer > base, `多人 evaluate 靠近目标得分更高（${base} -> ${closer}）`);
+}
+
+// ================= 12. 多人 getBestMove 合法走法 =================
+{
+  const playOrder = [0, 1, 2, 5];
+  const st = multiBoard(playOrder);
+  st.set('4-5', 1); st.set('5-5', 1);   // 跳链
+  for (const p of playOrder) {
+    const mv = ai.getBestMove(Object.fromEntries(st), p, 'easy', playOrder);
+    assert(!!mv, `4P 玩家${p} getBestMove 有解`);
+    if (mv) {
+      assert(st.get(`${mv.from.row}-${mv.from.col}`) === p, `4P 玩家${p} 走法来自本棋子`);
+      assert(!st.has(`${mv.to.row}-${mv.to.col}`), `4P 玩家${p} 走法落点为空`);
+    }
+  }
+}
+
+// ================= 13. 全 AI 4P 冒烟对局（名次齐全、有限步结束） =================
+// 每名玩家 9 子已在目标角、1 子在入口格（单步可入）：验证排名轮转、离场跳过与
+// 仅用“活跃玩家”参与 AI 搜索（避免已完成玩家的对角被 paranoid 视为己方失败）。
+{
+  const playOrder = [0, 1, 2, 5];
+  const entrance = {
+    0: { target: 1, empty: [3, 3], piece: [4, 7] },
+    1: { target: 0, empty: [13, 3], piece: [12, 7] },
+    2: { target: 5, empty: [12, 9], piece: [12, 8] },
+    5: { target: 2, empty: [7, 0], piece: [8, 0] },
+  };
+  let st = new Map();
+  for (const p of playOrder) {
+    const cfg = entrance[p];
+    const corner = game.getAllCornerPositions()[cfg.target];
+    for (const pos of corner) {
+      if (pos.row === cfg.empty[0] && pos.col === cfg.empty[1]) continue;
+      st.set(`${pos.row}-${pos.col}`, p);
+    }
+    st.set(`${cfg.piece[0]}-${cfg.piece[1]}`, p);
+  }
+  const finished = [];
+  let current = playOrder[0];
+  let steps = 0;
+  const nextActive = (cur) => {
+    const i = playOrder.indexOf(cur);
+    for (let k = 1; k <= playOrder.length; k++) {
+      const c = playOrder[(i + k) % playOrder.length];
+      if (!finished.includes(c)) return c;
+    }
+    return cur;
+  };
+  while (finished.length < playOrder.length - 1 && steps < 100) {
+    if (!finished.includes(current)) {
+      const active = playOrder.filter(p => !finished.includes(p));
+      const move = ai.getBestMove(Object.fromEntries(st), current, 'easy', active);
+      if (move) {
+        st = ai.applyMove(st, move);
+        if (ai._checkWinState(st, current)) finished.push(current);
+      }
+    }
+    current = nextActive(current);
+    steps++;
+  }
+  const last = playOrder.find(p => !finished.includes(p));
+  if (last !== undefined && !finished.includes(last)) finished.push(last);
+  assert(finished.length === playOrder.length, `全 AI 4P 对局决出全部名次（${finished.length}/${playOrder.length}，步数=${steps}）`);
+  assert(steps < 100, `全 AI 4P 对局有限步内结束（${steps} 步）`);
+}
+
+// ================= 14. AI 不"乱走"：开局/中盘走子必须改善本方启发式 =================
+// 回归防护：中盘引擎若退化为随机选子，会出现大量"走完本方评分变差"的走法。
+{
+  const playOrder = [0, 1];
+  const makeBoard = () => new Map([
+    ['13-0',0],['13-1',0],['13-2',0],['13-3',0],['14-0',0],['14-1',0],['14-2',0],['15-0',0],['15-1',0],['16-0',0],
+    ['3-0',1],['3-1',1],['3-2',1],['3-3',1],['2-0',1],['2-1',1],['2-2',1],['1-0',1],['1-1',1],['0-0',1]
+  ]);
+  const heur = (st, p) => {
+    const t = ai.TARGET_MAP[p]; let s = 0;
+    for (const tp of ai.CORNER_POSITIONS[t]) if (st.get(`${tp.row}-${tp.col}`) === p) s += 200;
+    st.forEach((q, k) => { if (q === p) {
+      const [r, c] = k.split('-').map(Number);
+      let md = 1e9;
+      for (const tp of ai.CORNER_POSITIONS[t]) md = Math.min(md, Math.abs(r - tp.row) + Math.abs(c - tp.col));
+      s -= md * 5;
+    }});
+    return s;
+  };
+  let neg = 0, count = 0, slowest = 0;
+  for (let i = 0; i < 5; i++) {
+    const st = makeBoard();
+    const t0 = Date.now();
+    const move = ai.getBestMove(Object.fromEntries(st), 0, 'easy', playOrder);
+    slowest = Math.max(slowest, Date.now() - t0);
+    const next = ai.applyMove(st, move);
+    if (heur(next, 0) < heur(st, 0)) neg++;
+    count++;
+  }
+  assert(neg === 0, `2P 开局 easy 首手不降低本方评分（负向 ${neg}/${count}）`);
+  assert(slowest < 1000, `2P 开局 easy 单步耗时 < 1s（实测 ${slowest}ms）`);
+}
+
+// ================= 15. 僵局检测（连续无进展→提示，不判和） =================
+{
+  game.setMode(2);
+  game.reset();
+  const corners = game.getAllCornerPositions();
+  game.boardState.clear();
+  // 玩家0: 9 子在目标角1（除 (0,0)），第 10 子 (8,3) 在中场被封死
+  for (const p of corners[1].slice(1)) game.boardState.set(`${p.row}-${p.col}`, 0);
+  game.boardState.set('8-3', 0);
+  // 玩家1: 9 子在目标角0（除 (13,3)），第 10 子 (3,3)
+  for (const p of corners[0].slice(0, 9)) game.boardState.set(`${p.row}-${p.col}`, 1);
+  game.boardState.set('3-3', 1);
+  game.bestProgress = {0: game.progressScore(0), 1: game.progressScore(1)};
+  game.stagnation = 0;
+  for (let i = 0; i < 39; i++) game.updateStagnation(0);
+  game.maybeTriggerStalemate();
+  assert(game.awaitingStalemate === false, '连续 39 步无进展不触发僵局');
+  game.updateStagnation(0);
+  game.maybeTriggerStalemate();
+  assert(game.awaitingStalemate === true, '连续 40 步无进展触发僵局提示');
+  game.advanceTurn();
+  assert(game.currentPlayer === 0, '僵局提示期间不推进回合');
+  game.continueAfterStalemate();
+  assert(game.awaitingStalemate === false, '继续对局后解除僵局');
+  // 取得进展（棋子向目标角靠近）→ 计数清零
+  game.boardState.delete('8-3');
+  game.boardState.set('6-3', 0);
+  game.updateStagnation(0);
+  assert(game.stagnation === 0, '取得进展后僵局计数清零');
+  game.reset();
+  assert(game.awaitingStalemate === false, 'reset 清空僵局状态');
+}
+
+// ================= 16. AI 前进优先：中盘平移占比 + 制胜步抓取 =================
+{
+  // 2P medium 自对弈 100 步：统计“前进（距离和下降）/平移（不变）/后退”
+  const mkPos = () => ai.getBoardState({
+    '13-0':0,'13-1':0,'13-2':0,'13-3':0,'14-0':0,'14-1':0,'14-2':0,'15-0':0,'15-1':0,'16-0':0,
+    '3-0':1,'3-1':1,'3-2':1,'3-3':1,'2-0':1,'2-1':1,'2-2':1,'1-0':1,'1-1':1,'0-0':1
+  });
+  const dsum = (st, p) => {
+    const t = ai.TARGET_MAP[p]; let s = 0;
+    st.forEach((q, k) => { if (q === p) {
+      const [r, c] = k.split('-').map(Number);
+      let md = 1e9;
+      for (const tp of ai.CORNER_POSITIONS[t]) md = Math.min(md, Math.abs(r - tp.row) + Math.abs(c - tp.col));
+      s += md;
+    }});
+    return s;
+  };
+  let st = mkPos(), cur = 0, fwd = 0, lat = 0;
+  for (let i = 0; i < 100; i++) {
+    const d0 = dsum(st, cur);
+    const m = ai.getBestMove(Object.fromEntries(st), cur, 'medium', [0, 1]);
+    st = ai.applyMove(st, m);
+    const dd = dsum(st, cur) - d0;
+    if (dd < 0) fwd++; else if (dd === 0) lat++;
+    if (ai._checkWinState(st, cur)) break;
+    cur = cur === 0 ? 1 : 0;
+  }
+  assert(fwd >= 50, `2P 中盘前进占比高（前进 ${fwd}，平移 ${lat}）`);
+  assert(lat <= 50, `2P 中盘平移占比受控（前进 ${fwd}，平移 ${lat}）`);
+
+  // 制胜步抓取：9 子入角 + 入口子一步可入，任何难度都必须立刻制胜
+  const wb = new Map();
+  for (const p of ai.CORNER_POSITIONS[1]) wb.set(`${p.row}-${p.col}`, 0);
+  for (const p of ai.CORNER_POSITIONS[0]) wb.set(`${p.row}-${p.col}`, 1);
+  wb.delete('3-3');
+  wb.set('4-7', 0);
+  assert(ai.getAllMoves(wb, 0).some(m => m.to.row === 3 && m.to.col === 3), '制胜局面构造有效');
+  const wm = ai.getBestMove(Object.fromEntries(wb), 0, 'medium', [0, 1]);
+  assert(ai._checkWinState(ai.applyMove(wb, wm), 0), 'AI 必抓制胜步（medium）');
+  const wmH = ai.getBestMove(Object.fromEntries(wb), 0, 'hard', [0, 1]);
+  assert(ai._checkWinState(ai.applyMove(wb, wmH), 0), 'AI 必抓制胜步（hard）');
+}
+
 console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' 项检查）');

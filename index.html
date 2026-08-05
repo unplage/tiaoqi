@@ -181,6 +181,64 @@
             border-radius: 12px;
         }
 
+        .ai-count-selector {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            background: rgba(255,255,255,0.06);
+            padding: 3px 6px;
+            border-radius: 15px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .ai-count-selector button {
+            padding: 5px 9px;
+            font-size: 0.72rem;
+            border-radius: 11px;
+        }
+
+        .ai-difficulty-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            background: rgba(255,255,255,0.05);
+            padding: 5px 10px;
+            border-radius: 15px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .ai-diff-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            background: rgba(255,255,255,0.05);
+            padding: 3px 8px;
+            border-radius: 12px;
+        }
+
+        .ai-diff-item select {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 2px 4px;
+            font-size: 0.72rem;
+        }
+
+        .rank-badge {
+            display: inline-block;
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 0.68em;
+            margin-left: 3px;
+        }
+
         button:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -552,6 +610,11 @@
                 font-size: 0.75rem;
             }
 
+            .ai-count-selector button {
+                padding: 5px 7px;
+                font-size: 0.7rem;
+            }
+
             .difficulty-selector button {
                 padding: 5px 8px;
                 font-size: 0.7rem;
@@ -595,6 +658,17 @@
                 <button onclick="game.setMode(6)" id="mode6" class="active">6人</button>
                 <button onclick="game.toggleAI()" id="aiBtn">🤖 人机</button>
             </div>
+
+            <div class="ai-count-selector" id="aiCountSelector" style="display: none;">
+                <span style="font-size: 0.72rem; color: #94a3b8;">AI:</span>
+                <button onclick="game.setAICount(0)" id="aiCount0">0</button>
+                <button onclick="game.setAICount(1)" id="aiCount1">1</button>
+                <button onclick="game.setAICount(2)" id="aiCount2">2</button>
+                <button onclick="game.setAICount(3)" id="aiCount3">3</button>
+                <button onclick="game.setAICount(4)" id="aiCount4">4</button>
+                <button onclick="game.setAICount(5)" id="aiCount5">5</button>
+                <button onclick="game.setAICount(6)" id="aiCount6">6</button>
+            </div>
             
             <div class="controls">
                 <button onclick="game.reset()">🔄 重置</button>
@@ -604,11 +678,7 @@
                 <button onclick="game.endJumpChain()" id="endTurnBtn" style="display: none;" class="end-turn-btn">✓ 结束回合</button>
             </div>
             
-            <div id="difficultyPanel" class="difficulty-selector" style="display: none;">
-                <button onclick="game.setDifficulty('easy')" id="diffEasy">简单</button>
-                <button onclick="game.setDifficulty('medium')" id="diffMedium" class="active">中等</button>
-                <button onclick="game.setDifficulty('hard')" id="diffHard">困难</button>
-            </div>
+            <div id="aiDifficultyPanel" class="ai-difficulty-panel" style="display: none;"></div>
         </div>
         
         <div class="move-info-panel">
@@ -626,7 +696,16 @@
     <div class="win-message" id="winMessage">
         <h2>🎉 恭喜获胜！</h2>
         <p id="winnerText"></p>
-        <button onclick="game.reset()" style="margin-top: 20px; padding: 14px 35px; font-size: 1.1em;">再来一局</button>
+        <button onclick="game.handleWinBtn()" id="winContinueBtn" style="margin-top: 20px; padding: 14px 35px; font-size: 1.1em;">再来一局</button>
+    </div>
+
+    <div class="win-message" id="stalemateMessage">
+        <h2>⚖️ 对局陷入僵局</h2>
+        <p id="stalemateText" style="color: #94a3b8; font-size: 0.95em; line-height: 1.6;"></p>
+        <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center;">
+            <button onclick="game.continueAfterStalemate()" style="padding: 12px 24px; font-size: 1em; cursor: pointer; border: none; border-radius: 10px; background: linear-gradient(135deg, #38bdf8, #2563eb); color: #fff;">继续对局</button>
+            <button onclick="game.reset()" style="padding: 12px 24px; font-size: 1em; cursor: pointer; border: none; border-radius: 10px; background: linear-gradient(135deg, #64748b, #475569); color: #fff;">重置再来</button>
+        </div>
     </div>
 
     <script>
@@ -646,14 +725,26 @@
                 this.isMoving = false;
                 this.freeMode = false;
                 
-                // AI 相关
+                // AI 相关（支持 2/4/6 人多 AI：可选数量、每 AI 独立难度）
                 this.aiEnabled = false;
-                this.aiPlayer = 1; // AI 默认是玩家 1（蓝方）
-                this.aiDifficulty = 'medium';
-                this.aiWorker = null;  // Web Worker for AI computation
+                this.humanPlayer = 0;              // 人类固定红方
+                this.aiPlayers = [];               // 由 AI 控制的玩家 id 数组
+                this.aiDifficulties = {};          // playerId -> 'easy'|'medium'|'hard'
+                this.aiWorker = null;              // AI Web Worker（搜索与走子动画并行）
                 this.aiThinking = false;
-                this.aiTimerId = null;   // AI 延迟走棋定时器句柄
-                this.aiResolve = null;  // AI 计算完成的回调
+                this.aiTimerId = null;             // AI 延迟走棋定时器句柄
+                this.aiRequestId = 0;              // AI 请求自增 id（token）
+                this.aiPending = {};               // token -> {resolve, generation, watchdog}
+                this.aiGeneration = 0;             // AI 代际：重置/撤销/切模式时 ++ 使旧请求失效
+                this.precomputedTarget = null;     // 动画期间预计算的下一手 {player, move, pending, generation}
+                this.awaitingContinue = false;     // 多人夺冠后等待“继续对局”
+                this.finishedPlayers = [];         // 已完成玩家（名次顺序）
+                this.finishedSet = new Set();      // 已夺冠（离场）玩家集合
+                this.stuckChain = 0;               // 连续无子可动跳过计数（防死循环）
+                this.stagnation = 0;               // 连续无进展走子计数（僵局提示用）
+                this.bestProgress = {};            // 各玩家历史最佳进展分
+                this.awaitingStalemate = false;    // 僵局提示弹窗期间暂停对局
+                this.STALEMATE_LIMIT = 40;         // 连续 40 步无任何进展则提示僵局
                 
                 // 连跳状态追踪
                 this.isInJumpChain = false;
@@ -768,118 +859,271 @@
                 if (this.freeMode) this.toggleFreeMode();
                 this.playerCount = count;
                 this.aiEnabled = false;
+                this.aiPlayers = [];
+                this.aiDifficulties = {};
                 this.clearPendingAI();
                 document.querySelectorAll('.mode-selector button').forEach(btn => btn.classList.remove('active'));
                 document.getElementById(`mode${count}`).classList.add('active');
                 document.getElementById('aiBtn').classList.remove('ai-active');
                 document.getElementById('aiBtn').textContent = '🤖 人机';
-                document.getElementById('difficultyPanel').style.display = 'none';
                 this.updateAIButtonState();
+                this.renderAIDifficultyPanel();
                 this.updatePlayersLegend();
                 this.reset();
             }
 
-            // 清除未决的 AI 定时器，防止迟到的回调乱走棋
+            // 清除未决的 AI 定时器与在途请求，防止迟到的回调乱走棋
             clearPendingAI() {
                 if (this.aiTimerId) {
                     clearTimeout(this.aiTimerId);
                     this.aiTimerId = null;
                 }
                 this.aiThinking = false;
+                this.precomputedTarget = null;
+                // 代际自增：任何在途请求返回时都会被丢弃
+                this.aiGeneration++;
+                for (const token in this.aiPending) {
+                    const entry = this.aiPending[token];
+                    clearTimeout(entry.watchdog);
+                    entry.resolve(null);
+                    delete this.aiPending[token];
+                }
             }
 
-            // 刷新人机按钮可用状态：人机对弈仅支持 2 人模式
+            // 刷新人机相关 UI：2 人用开关，4/6 人用 AI 数量选择器
             updateAIButtonState() {
                 const aiBtn = document.getElementById('aiBtn');
-                if (!aiBtn) return;
-                aiBtn.disabled = (this.playerCount !== 2);
+                const countSel = document.getElementById('aiCountSelector');
+                if (!aiBtn || !countSel) return;
+                if (this.playerCount === 2) {
+                    aiBtn.style.display = '';
+                    aiBtn.disabled = false;
+                    countSel.style.display = 'none';
+                } else {
+                    aiBtn.style.display = 'none';
+                    countSel.style.display = 'flex';
+                    for (let i = 0; i <= 6; i++) {
+                        const b = document.getElementById('aiCount' + i);
+                        if (!b) continue;
+                        b.style.display = (i <= this.playerCount) ? '' : 'none';
+                        b.classList.toggle('active', this.aiEnabled && this.aiPlayers.length === i);
+                    }
+                }
             }
 
             toggleAI() {
-                // 人机对弈仅支持 2 人模式
+                // 2 人模式：人机开关（蓝方由 AI 控制）
                 if (this.playerCount !== 2) {
-                    this.showMessage('人机模式仅支持 2 人模式，请先切换到 2 人');
+                    this.showMessage('4/6 人模式请使用下方 AI 数量选择器', 2500);
                     return;
                 }
                 this.aiEnabled = !this.aiEnabled;
                 const btn = document.getElementById('aiBtn');
-                const diffPanel = document.getElementById('difficultyPanel');
                 if (this.aiEnabled) {
-                    this.aiPlayer = 1;
+                    this.aiPlayers = [1];
+                    if (!this.aiDifficulties[1]) this.aiDifficulties[1] = 'medium';
                     btn.classList.add('ai-active');
                     btn.textContent = '🤖 人机(开)';
-                    diffPanel.style.display = 'flex';
                     this.showMessage('人机模式开启：蓝方由 AI 控制', 2000);
                 } else {
+                    this.aiPlayers = [];
                     btn.classList.remove('ai-active');
                     btn.textContent = '🤖 人机';
-                    diffPanel.style.display = 'none';
                     this.clearPendingAI();
                 }
+                this.renderAIDifficultyPanel();
+                this.updatePlayersLegend();
                 this.reset();
             }
 
-            setDifficulty(diff) {
-                this.aiDifficulty = diff;
-                document.querySelectorAll('.difficulty-selector button').forEach(btn => btn.classList.remove('active'));
-                document.getElementById(`diff${diff.charAt(0).toUpperCase() + diff.slice(1)}`).classList.add('active');
+            setAICount(n) {
+                if (this.playerCount === 2) return;
+                n = Math.max(0, Math.min(n, this.playerCount));
+                const playOrder = this.getPlayOrder();
+                if (n === playOrder.length) {
+                    // 全 AI 观战：红方也由 AI 控制
+                    this.aiPlayers = [...playOrder];
+                } else {
+                    // AI 控制非红方中按 playOrder 倒序取 n 个
+                    const nonRed = playOrder.filter(p => p !== this.humanPlayer);
+                    this.aiPlayers = n === 0 ? [] : nonRed.slice(-n);
+                }
+                this.aiEnabled = this.aiPlayers.length > 0;
+                for (const p of this.aiPlayers) {
+                    if (!this.aiDifficulties[p]) this.aiDifficulties[p] = 'medium';
+                }
+                this.clearPendingAI();
+                this.updateAIButtonState();
+                this.renderAIDifficultyPanel();
+                this.updatePlayersLegend();
+                this.reset();
+            }
+
+            setPlayerDifficulty(player, diff) {
+                this.aiDifficulties[player] = diff;
+            }
+
+            getAIDifficulty(player) {
+                return this.aiDifficulties[player] || 'medium';
+            }
+
+            // 是否至少有一名人类玩家（全 AI 观战时为 false，撤销禁用）
+            hasHuman() {
+                if (!this.aiEnabled) return true;
+                return !this.aiPlayers.includes(this.humanPlayer);
+            }
+
+            // 渲染每 AI 一行难度选择器（各自独立）
+            renderAIDifficultyPanel() {
+                const panel = document.getElementById('aiDifficultyPanel');
+                if (!panel) return;
+                if (!this.aiEnabled || this.aiPlayers.length === 0) {
+                    panel.style.display = 'none';
+                    return;
+                }
+                panel.style.display = 'flex';
+                panel.innerHTML = '';
+                for (const p of this.aiPlayers) {
+                    const diff = this.getAIDifficulty(p);
+                    const row = document.createElement('label');
+                    row.className = 'ai-diff-item';
+                    const dot = document.createElement('span');
+                    dot.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;background:${this.colorCodes[p]};`;
+                    const name = document.createElement('span');
+                    name.textContent = `${this.playerColors[p]}`;
+                    const sel = document.createElement('select');
+                    for (const [val, label] of [['easy', '简单'], ['medium', '中等'], ['hard', '困难']]) {
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = label;
+                        if (val === diff) opt.selected = true;
+                        sel.appendChild(opt);
+                    }
+                    sel.addEventListener('change', () => this.setPlayerDifficulty(p, sel.value));
+                    row.appendChild(dot);
+                    row.appendChild(name);
+                    row.appendChild(sel);
+                    panel.appendChild(row);
+                }
             }
 
             triggerAI() {
-                if (!this.aiEnabled || this.playerCount !== 2 || this.currentPlayer !== this.aiPlayer) return;
+                if (!this.aiEnabled) return;
                 if (this.isMoving || this.aiThinking) return;
+                if (!this.aiPlayers.includes(this.currentPlayer)) return;
+                if (this.finishedSet.has(this.currentPlayer)) return;
                 this.aiThinking = true;
                 const moveDetail = document.getElementById('moveDetail');
                 moveDetail.innerHTML = '🤖 AI 思考中...<span class="ai-thinking">⏳</span>';
-
-                this.aiTimerId = setTimeout(async () => {
-                    this.aiTimerId = null;
+                const player = this.currentPlayer;
+                this.getAIMoveAsync(player, this.getAIDifficulty(player), this.getActivePlayOrder()).then((bestMove) => {
                     try {
-                        // 思考期间可能被重置/切换模式/撤销，重新校验
-                        if (!this.aiEnabled || this.playerCount !== 2 || this.currentPlayer !== this.aiPlayer || this.isMoving) {
-                            return;
-                        }
-                        // 通过 Web Worker 获取 AI 走法（不阻塞主线程）
-                        const bestMove = await this.getAIMoveAsync(this.aiDifficulty);
+                        if (!this.aiEnabled || this.isMoving) return;
+                        if (!this.aiPlayers.includes(this.currentPlayer) || this.currentPlayer !== player) return;
+                        if (this.finishedSet.has(this.currentPlayer)) return;
                         if (bestMove) {
-                            // 找到对应的棋子元素（用 dataset 定位：随走子实时更新，与棋盘状态一致）
-                            const piece = this.pieces.find(p =>
-                                p.player === this.currentPlayer &&
-                                p.element.dataset.row == bestMove.from.row &&
-                                p.element.dataset.col == bestMove.from.col
-                            );
-                            if (piece) {
-                                this.selectedPiece = piece.element;
-                                piece.element.classList.add('selected');
-                                // 跳跃/单步走法统一直接执行到终点
-                                this.executeMove({
-                                    row: bestMove.to.row,
-                                    col: bestMove.to.col,
-                                    isJump: bestMove.isJump,
-                                    jumpCount: bestMove.jumpCount || 0,
-                                    path: [bestMove.from, bestMove.to],
-                                    canContinue: false
-                                });
-                            } else {
-                                // 找不到对应棋子（异常），跳过回合
-                                console.error('AI 走棋失败：找不到棋子', bestMove);
-                                this.showMessage('AI 走棋失败，自动跳过');
-                                this.nextPlayer();
-                            }
+                            this.applyAIMove(bestMove);
                         } else {
                             // AI 无子可动：提示并自动跳过
                             this.showMessage('AI 无子可动，自动跳过');
-                            this.nextPlayer();
+                            this.advanceTurn();
                         }
                     } catch (err) {
                         // 搜索异常不应锁死游戏：提示并跳过本回合
                         console.error('AI 走棋异常:', err);
                         this.showMessage('AI 出现异常，自动跳过');
-                        this.nextPlayer();
+                        this.advanceTurn();
                     } finally {
                         this.aiThinking = false;
                     }
-                }, 300);
+                });
+            }
+
+            // 执行 AI 走法（预计算命中或搜索完成共用）
+            applyAIMove(move) {
+                const player = this.currentPlayer;
+                const piece = this.pieces.find(p =>
+                    p.player === player &&
+                    p.element.dataset.row == move.from.row &&
+                    p.element.dataset.col == move.from.col
+                );
+                if (piece) {
+                    this.selectedPiece = piece.element;
+                    piece.element.classList.add('selected');
+                    // 跳跃/单步走法统一直接执行到终点
+                    this.executeMove({
+                        row: move.to.row,
+                        col: move.to.col,
+                        isJump: move.isJump,
+                        jumpCount: move.jumpCount || 0,
+                        path: [move.from, move.to],
+                        canContinue: false
+                    });
+                } else {
+                    // 找不到对应棋子（走法已失效，如预计算过期）：提示并跳过
+                    console.error('AI 走棋失败：找不到棋子', move);
+                    this.showMessage('AI 走棋失败，自动跳过');
+                    this.advanceTurn();
+                }
+            }
+
+            // 回合推进：切换到下一名未淘汰玩家，并尝试触发 AI 走棋
+            advanceTurn() {
+                if (this.awaitingStalemate) return;
+                this.nextPlayer();
+                this.tryExecuteAITurn();
+            }
+
+            // 尝试用预计算结果或触发 AI 搜索；无 AI 回合时返回
+            tryExecuteAITurn() {
+                if (this.isMoving || this.aiThinking) return;
+                if (!this.aiEnabled || this.awaitingContinue || this.awaitingStalemate) return;
+                if (!this.aiPlayers.includes(this.currentPlayer)) return;
+                if (this.finishedSet.has(this.currentPlayer)) return;
+                const pc = this.precomputedTarget;
+                if (pc && pc.player === this.currentPlayer && pc.generation === this.aiGeneration && !pc.pending && pc.move) {
+                    // 预计算命中；但棋盘可能已被连跳等改变，需校验走法仍合法
+                    if (this.isLegalAIMove(pc.move, this.currentPlayer)) {
+                        this.precomputedTarget = null;
+                        this.applyAIMove(pc.move);
+                        return;
+                    }
+                }
+                this.precomputedTarget = null;
+                this.triggerAI();
+            }
+
+            // 校验走法在当前棋盘上仍合法（防止连跳等造成预计算过期）
+            isLegalAIMove(move, player) {
+                if (this.boardState.get(`${move.from.row}-${move.from.col}`) !== player) return false;
+                if (this.boardState.has(`${move.to.row}-${move.to.col}`)) return false;
+                const validMoves = this.calculateValidMoves(move.from);
+                return validMoves.some(m => m.row === move.to.row && m.col === move.to.col);
+            }
+
+            // 当前走子刚落定（棋盘已更新）即预计算下一手 AI，与动画并行
+            scheduleAIAfterMove() {
+                if (!this.aiEnabled || this.freeMode || this.awaitingContinue) return;
+                const playOrder = this.getPlayOrder();
+                const idx = playOrder.indexOf(this.currentPlayer);
+                if (idx === -1) return;
+                let next = -1;
+                for (let k = 1; k <= playOrder.length; k++) {
+                    const cand = playOrder[(idx + k) % playOrder.length];
+                    if (!this.finishedSet.has(cand)) { next = cand; break; }
+                }
+                if (next === -1 || !this.aiPlayers.includes(next)) return;
+                const pc = this.precomputedTarget;
+                if (pc && pc.player === next && !pc.pending) return;
+                const generation = this.aiGeneration;
+                this.precomputedTarget = { player: next, move: null, pending: true, generation };
+                this.getAIMoveAsync(next, this.getAIDifficulty(next), this.getActivePlayOrder()).then((move) => {
+                    const cur = this.precomputedTarget;
+                    if (!cur || cur.player !== next || cur.generation !== generation) return;
+                    cur.move = move;
+                    cur.pending = false;
+                    this.tryExecuteAITurn();
+                });
             }
 
             getPlayOrder() {
@@ -892,15 +1136,25 @@
                 return this.getPlayOrder();
             }
 
+            // 参与本局对弈的玩家顺序（已夺冠/离场玩家不再参与 AI 搜索与轮转）
+            getActivePlayOrder() {
+                return this.getPlayOrder().filter(p => !this.finishedSet.has(p));
+            }
+
             updatePlayersLegend() {
                 const container = document.getElementById('playersLegend');
                 const players = this.getPlayOrder();
-                container.innerHTML = players.map((p, i) => 
-                    `<div class="legend-item">
+                container.innerHTML = players.map((p) => {
+                    let label = this.playerColors[p];
+                    if (this.aiEnabled && this.aiPlayers.includes(p)) label += '(AI)';
+                    else if (this.aiEnabled && p === this.humanPlayer) label += '(你)';
+                    const rank = this.finishedPlayers.indexOf(p) + 1;
+                    const badge = rank ? ` <span class="rank-badge">第${rank}名</span>` : (p === this.currentPlayer ? '(当前)' : '');
+                    return `<div class="legend-item">
                         <div class="legend-dot" style="background: ${this.colorCodes[p]}; box-shadow: 0 0 6px ${this.colorCodes[p]}"></div>
-                        <span>${this.playerColors[p]}${p === this.currentPlayer ? '(当前)' : ''}</span>
-                    </div>`
-                ).join('<span style="color: #64748b">→</span>');
+                        <span>${label}${badge}</span>
+                    </div>`;
+                }).join('<span style="color: #64748b">→</span>');
             }
 
             toggleMoveHint() {
@@ -938,18 +1192,9 @@
                     try {
                         this.aiWorker = new Worker('./ai-worker.js');
                         this.aiWorker.onmessage = (e) => {
-                            const { type, data } = e.data;
-                            if (type === 'bestMove') {
-                                if (this.aiResolve) {
-                                    this.aiResolve(data);
-                                    this.aiResolve = null;
-                                }
-                            } else if (type === 'error') {
-                                console.error('AI Worker 错误:', data);
-                                if (this.aiResolve) {
-                                    this.aiResolve(null);
-                                    this.aiResolve = null;
-                                }
+                            const { type, data, token } = e.data;
+                            if (type === 'bestMove' || type === 'error') {
+                                this.resolvePendingAI(token, type === 'bestMove' ? data : null);
                             }
                         };
                         this.aiWorker.onerror = (err) => {
@@ -962,8 +1207,18 @@
                         this.aiWorker = null;
                     }
                 } else {
-                    console.warn('浏览器不支持 Web Worker，AI 将在主线程运行');
+                    console.warn('浏览器不支持 Web Worker，AI 无法运行');
                 }
+            }
+
+            // 按 token 结算 AI 请求（代际不符的旧结果直接丢弃）
+            resolvePendingAI(token, move) {
+                const entry = this.aiPending[token];
+                if (!entry) return;
+                clearTimeout(entry.watchdog);
+                delete this.aiPending[token];
+                if (entry.generation !== this.aiGeneration) return;
+                entry.resolve(move);
             }
 
             // 将 boardState Map 转换为可序列化的对象
@@ -975,23 +1230,34 @@
                 return obj;
             }
 
-            // 通过 Web Worker 获取 AI 最佳走法
-            getAIMoveAsync(difficulty) {
+            // 通过 Web Worker 获取 AI 最佳走法（带超时看门狗，防止卡死）
+            getAIMoveAsync(player, difficulty, playOrder) {
                 return new Promise((resolve) => {
-                    if (this.aiWorker) {
-                        this.aiResolve = resolve;
-                        this.aiWorker.postMessage({
-                            type: 'getBestMove',
-                            data: {
-                                boardState: this.serializeBoardState(),
-                                currentPlayer: this.currentPlayer,
-                                difficulty: difficulty
-                            }
-                        });
-                    } else {
-                        // 回退到主线程计算（如果 Worker 不可用）
+                    if (!this.aiWorker) {
                         resolve(null);
+                        return;
                     }
+                    const token = ++this.aiRequestId;
+                    const entry = { resolve, generation: this.aiGeneration, watchdog: null };
+                    this.aiPending[token] = entry;
+                    const timeoutMs = { easy: 3000, medium: 4000, hard: 6000 }[difficulty] || 4000;
+                    entry.watchdog = setTimeout(() => {
+                        if (this.aiPending[token]) {
+                            delete this.aiPending[token];
+                            console.warn('AI 计算超时，自动跳过本回合');
+                            resolve(null);
+                        }
+                    }, timeoutMs);
+                    this.aiWorker.postMessage({
+                        type: 'getBestMove',
+                        token,
+                        data: {
+                            boardState: this.serializeBoardState(),
+                            currentPlayer: player,
+                            difficulty: difficulty,
+                            playOrder: playOrder
+                        }
+                    });
                 });
             }
 
@@ -1168,8 +1434,8 @@
             }
 
             onPieceClick(pieceElement, pos) {
-                if (this.isMoving || this.aiThinking) return;
-                if (this.aiEnabled && this.currentPlayer === this.aiPlayer) return;
+                if (this.isMoving || this.aiThinking || this.awaitingStalemate) return;
+                if (this.aiEnabled && this.aiPlayers.includes(this.currentPlayer)) return;
                 const player = parseInt(pieceElement.dataset.player);
                 
                 // 自由模式：允许移动任意棋子，不检查当前玩家
@@ -1430,7 +1696,7 @@
 
             onHoleClick(pos) {
                 if (this.isMoving || this.aiThinking) return;
-                if (this.aiEnabled && this.currentPlayer === this.aiPlayer) return;
+                if (this.aiEnabled && this.aiPlayers.includes(this.currentPlayer)) return;
                 if (!this.selectedPiece) return;
                 const move = this.validMoves.find(m => m.row === pos.row && m.col === pos.col);
                 if (!move) return;
@@ -1477,9 +1743,13 @@
                     });
                 }
                 
-                document.getElementById('undoBtn').disabled = false;
+                this.updateUndoButton();
                 this.boardState.delete(`${oldRow}-${oldCol}`);
                 this.boardState.set(`${newRow}-${newCol}`, player);
+                // 棋盘已落定：更新僵局计数，并在动画期间并行预计算下一手
+                this.updateStagnation(player);
+                this.stuckChain = 0;
+                this.scheduleAIAfterMove();
                 const newPos = this.positions[newRow][newCol];
                 const pieceSize = Math.max(4, Math.round(13 * this.currentScale));
                 this.selectedPiece.style.transition = 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
@@ -1502,7 +1772,7 @@
                         this.isMoving = false;
                         // 胜利检测依然保留（自由模式下也可获胜）
                         if (this.checkWin(player)) {
-                            this.showWin(player);
+                            this.handleWin(player);
                         }
                         return;
                     }
@@ -1511,7 +1781,7 @@
                     if (this.checkWin(player)) {
                         this.deselect();
                         this.isMoving = false;
-                        this.showWin(player);
+                        this.handleWin(player);
                         return;
                     }
 
@@ -1533,8 +1803,9 @@
                         }
                     } else {
                         this.deselect();
-                        this.nextPlayer();
                         this.isMoving = false;
+                        this.maybeTriggerStalemate();
+                        this.advanceTurn();
                     }
                 }, 350);
             }
@@ -1544,13 +1815,14 @@
                 this.isInJumpChain = false;
                 this.hideEndTurnButton();
                 this.deselect();
+                this.isMoving = false;
                 const player = this.currentPlayer;
                 if (this.checkWin(player)) {
-                    this.showWin(player);
+                    this.handleWin(player);
                 } else {
-                    this.nextPlayer();
+                    this.maybeTriggerStalemate();
+                    this.advanceTurn();
                 }
-                this.isMoving = false;
             }
 
             showMovePath(path) {
@@ -1621,20 +1893,46 @@
             nextPlayer() {
                 const playOrder = this.getPlayOrder();
                 const currentIndex = playOrder.indexOf(this.currentPlayer);
-                this.currentPlayer = playOrder[(currentIndex + 1) % playOrder.length];
+                // 轮转时跳过已夺冠（离场）玩家
+                for (let k = 1; k <= playOrder.length; k++) {
+                    const cand = playOrder[(currentIndex + k) % playOrder.length];
+                    if (!this.finishedSet.has(cand)) { this.currentPlayer = cand; break; }
+                }
                 this.jumpChainCount = 0;
                 this.isInJumpChain = false;
                 this.originalPiece = null;
                 this.jumpStartPosition = null;
-                // 回合移交时清除"AI 思考中"等残留提示（覆盖跳过/异常等路径）
+                // 回合移交时清除"AI 思考中"等残留提示
                 document.getElementById('moveDetail').textContent = '选择棋子';
                 document.getElementById('statusBadge').style.display = 'none';
                 this.updatePlayerDisplay();
                 this.updatePlayersLegend();
-                // AI 自动走棋（仅 2 人模式）
-                if (this.aiEnabled && this.playerCount === 2 && this.currentPlayer === this.aiPlayer) {
-                    this.aiTimerId = setTimeout(() => this.triggerAI(), 400);
+                // 人类回合但无子可动：自动跳过（防止对局停滞）
+                if (!this.finishedSet.has(this.currentPlayer) && !this.aiPlayers.includes(this.currentPlayer)) {
+                    if (!this.humanHasAnyMove(this.currentPlayer)) {
+                        this.stuckChain++;
+                        if (this.stuckChain >= this.playerCount * 2) {
+                            this.showMessage('多位玩家均无子可动，请重置对局');
+                            this.stuckChain = 0;
+                            return;
+                        }
+                        this.showMessage(`${this.playerColors[this.currentPlayer]}方无子可动，自动跳过`);
+                        this.advanceTurn();
+                        return;
+                    }
                 }
+                this.stuckChain = 0;
+            }
+
+            humanHasAnyMove(player) {
+                const pieces = this.pieces.filter(p =>
+                    p.player === player &&
+                    this.boardState.get(`${p.pos.row}-${p.pos.col}`) === player
+                );
+                for (const p of pieces) {
+                    if (this.calculateValidMoves(p.pos).length > 0) return true;
+                }
+                return false;
             }
 
             updatePlayerDisplay() {
@@ -1661,16 +1959,139 @@
                 return count >= 10;
             }
 
-            showWin(player) {
+            // 进展分：该玩家 10 子到各自目标角的曼哈顿距离总和（取负，越大=越接近胜利）
+            progressScore(player) {
+                const targetMap = {0:1, 1:0, 2:5, 3:4, 4:3, 5:2};
+                const targetPositions = this.getAllCornerPositions()[targetMap[player]];
+                let dist = 0;
+                this.boardState.forEach((p, key) => {
+                    if (p !== player) return;
+                    const [r, c] = key.split('-').map(Number);
+                    let md = Infinity;
+                    for (const tp of targetPositions) md = Math.min(md, Math.abs(r - tp.row) + Math.abs(c - tp.col));
+                    dist += md;
+                });
+                return -dist;
+            }
+
+            // 每次落子后更新僵局计数：走子者取得进展则清零，否则累加
+            updateStagnation(mover) {
+                if (this.finishedSet.has(mover)) return;
+                const score = this.progressScore(mover);
+                const best = this.bestProgress[mover] ?? -Infinity;
+                if (score > best) {
+                    this.bestProgress[mover] = score;
+                    this.stagnation = 0;
+                } else {
+                    this.stagnation++;
+                }
+            }
+
+            // 僵局检测：连续多步无人取得进展（无吃子规则下，棋子可能把狭道/目标角永久封死，
+            // 导致各方都无法再入角）。仅提示，不判和，由玩家决定继续或重置。
+            maybeTriggerStalemate() {
+                if (this.awaitingStalemate || this.freeMode) return;
+                if (this.finishedSet.size >= this.playerCount - 1) return;
+                if (this.stagnation < this.STALEMATE_LIMIT) return;
+                this.awaitingStalemate = true;
                 this.clearPendingAI();
+                const modal = document.getElementById('stalemateMessage');
+                const text = document.getElementById('stalemateText');
+                text.innerHTML = `连续 ${this.stagnation} 步没有任何一方取得进展，<br>所有棋子都已难以再进入对角营地。<br>你可以<b>继续对局</b>寻找机会，或<b>重置</b>再来一局。`;
+                modal.style.display = 'block';
+            }
+
+            // 玩家选择“继续对局”：关闭弹窗、重新给一轮无进展宽限
+            continueAfterStalemate() {
+                document.getElementById('stalemateMessage').style.display = 'none';
+                this.awaitingStalemate = false;
+                this.stagnation = 0;
+                this.deselect();
+                this.isMoving = false;
+                if (this.aiEnabled && this.aiPlayers.includes(this.currentPlayer)) {
+                    this.tryExecuteAITurn();
+                }
+            }
+
+            handleWin(player) {
+                this.clearPendingAI();
+                this.awaitingContinue = false;
                 const modal = document.getElementById('winMessage');
                 const text = document.getElementById('winnerText');
-                text.innerHTML = `<div style="font-size: 1.3em; margin-bottom: 8px;"><span style="color: ${this.colorCodes[player]}; text-shadow: 0 0 20px currentColor;">${this.playerColors[player]}方</span></div><div style="color: #94a3b8; font-size: 0.9em;">率先占领对角！</div>`;
+                const btn = document.getElementById('winContinueBtn');
+                // 自由模式或 2 人：单局即止（原行为）
+                if (this.freeMode || this.playerCount === 2) {
+                    text.innerHTML = `<div style="font-size: 1.3em; margin-bottom: 8px;"><span style="color: ${this.colorCodes[player]}; text-shadow: 0 0 20px currentColor;">${this.playerColors[player]}方</span></div><div style="color: #94a3b8; font-size: 0.9em;">率先占领对角！</div>`;
+                    btn.textContent = '再来一局';
+                    modal.style.display = 'block';
+                    return;
+                }
+                // 多人：记录名次、棋子留在棋盘、其余玩家继续争夺 2/3…N 名
+                if (this.finishedSet.has(player)) return;
+                this.finishedPlayers.push(player);
+                this.finishedSet.add(player);
+                this.deselect();
+                this.isInJumpChain = false;
+                this.hideEndTurnButton();
+                this.stuckChain = 0;
+                const rank = this.finishedPlayers.length;
+                this.updatePlayersLegend();
+                this.updatePlayerDisplay();
+                text.innerHTML = `<div style="font-size: 1.3em; margin-bottom: 8px;"><span style="color: ${this.colorCodes[player]}; text-shadow: 0 0 20px currentColor;">${this.playerColors[player]}方</span></div><div style="color: #fbbf24; font-size: 1em; margin: 6px 0;">第 ${rank} 名 🏅</div><div style="color: #94a3b8; font-size: 0.85em;">棋子留在棋盘，其余玩家继续对局</div>`;
+                btn.textContent = '继续对局';
                 modal.style.display = 'block';
+                this.awaitingContinue = true;
+            }
+
+            continueAfterWin() {
+                document.getElementById('winMessage').style.display = 'none';
+                // 仅剩最后一名：补齐末名并展示总排名
+                if (this.finishedPlayers.length === this.playerCount - 1) {
+                    const last = this.getPlayOrder().find(p => !this.finishedSet.has(p));
+                    if (last !== undefined && !this.finishedSet.has(last)) {
+                        this.finishedPlayers.push(last);
+                        this.finishedSet.add(last);
+                    }
+                    this.showFinalRanking();
+                    return;
+                }
+                this.advanceTurn();
+            }
+
+            showFinalRanking() {
+                this.clearPendingAI();
+                this.awaitingContinue = false;
+                const modal = document.getElementById('winMessage');
+                const text = document.getElementById('winnerText');
+                const btn = document.getElementById('winContinueBtn');
+                const list = this.finishedPlayers.map((p, i) =>
+                    `<div style="margin: 5px 0;"><span style="color: ${this.colorCodes[p]}; text-shadow: 0 0 12px currentColor;">${this.playerColors[p]}方</span> <span style="color: #94a3b8;">第 ${i + 1} 名</span></div>`
+                ).join('');
+                text.innerHTML = `<div style="font-size: 1.3em; margin-bottom: 10px;">🏆 对局结束</div><div style="color: #fbbf24; font-size: 0.95em; margin-bottom: 8px;">最终排名</div>${list}`;
+                btn.textContent = '再来一局';
+                modal.style.display = 'block';
+            }
+
+            handleWinBtn() {
+                document.getElementById('winMessage').style.display = 'none';
+                if (this.awaitingContinue) {
+                    this.awaitingContinue = false;
+                    this.continueAfterWin();
+                } else {
+                    this.reset();
+                }
+            }
+
+            updateUndoButton() {
+                const btn = document.getElementById('undoBtn');
+                if (!btn) return;
+                if (!this.hasHuman()) { btn.disabled = true; return; }
+                btn.disabled = this.moveHistory.length === 0;
             }
 
             undo() {
                 if (this.isMoving || this.moveHistory.length === 0) return;
+                if (!this.hasHuman()) return; // 全 AI 观战：撤销禁用
                 if (this.isInJumpChain) {
                     this.isInJumpChain = false;
                     this.jumpChainCount = 0;
@@ -1678,15 +2099,18 @@
                 }
                 // 取消未决的 AI 走棋
                 this.clearPendingAI();
-                // 整轮回退：若顶部是 AI 的步，连同玩家的上一步一起撤销
-                let undoCount = 1;
-                const top = this.moveHistory[this.moveHistory.length - 1];
-                if (this.aiEnabled && this.playerCount === 2 && top.player === this.aiPlayer && this.moveHistory.length >= 2) {
-                    undoCount = 2;
-                }
                 const undone = [];
-                for (let i = 0; i < undoCount; i++) undone.push(this.moveHistory.pop());
-                // 依次还原棋子（先撤 AI 步，再撤玩家步）
+                // 弹出顶部所有 AI 步
+                while (this.moveHistory.length > 0) {
+                    const top = this.moveHistory[this.moveHistory.length - 1];
+                    if (this.aiEnabled && this.aiPlayers.includes(top.player)) {
+                        undone.push(this.moveHistory.pop());
+                    } else break;
+                }
+                // 再弹出人类的上一步
+                if (this.moveHistory.length > 0) undone.push(this.moveHistory.pop());
+                if (undone.length === 0) return;
+                // 依次还原棋子（先撤 AI 步，再撤人类步）
                 for (let i = undone.length - 1; i >= 0; i--) {
                     const m = undone[i];
                     this.boardState.delete(`${m.to.row}-${m.to.col}`);
@@ -1708,13 +2132,32 @@
                 const lastMove = undone[undone.length - 1];
                 if (!this.freeMode) {
                     this.currentPlayer = lastMove.player;
+                    this.rebuildFinished();
                     this.updatePlayerDisplay();
                     this.updatePlayersLegend();
                 }
-                this.deselect();
-                if (this.moveHistory.length === 0) {
-                    document.getElementById('undoBtn').disabled = true;
+                // 撤销会改变盘面，重新结算僵局计数并关闭僵局弹窗
+                this.stagnation = 0;
+                this.bestProgress = {};
+                for (const p of this.getPlayOrder()) {
+                    if (!this.finishedSet.has(p)) this.bestProgress[p] = this.progressScore(p);
                 }
+                this.awaitingStalemate = false;
+                document.getElementById('stalemateMessage').style.display = 'none';
+                this.deselect();
+                this.updateUndoButton();
+            }
+
+            // 撤销后按当前棋盘重建已夺冠玩家集合（保持名次先后，新增追加）
+            rebuildFinished() {
+                const playOrder = this.getPlayOrder();
+                const completed = new Set(playOrder.filter(p => this.checkWin(p)));
+                const kept = this.finishedPlayers.filter(p => completed.has(p));
+                for (const p of playOrder) {
+                    if (completed.has(p) && !kept.includes(p)) kept.push(p);
+                }
+                this.finishedPlayers = kept;
+                this.finishedSet = new Set(kept);
             }
 
             reset() {
@@ -1725,21 +2168,33 @@
                 this.jumpChainCount = 0;
                 this.originalPiece = null;
                 this.jumpStartPosition = null;
+                this.awaitingContinue = false;
+                this.awaitingStalemate = false;
+                this.stagnation = 0;
+                this.bestProgress = {};
+                this.finishedPlayers = [];
+                this.finishedSet = new Set();
+                this.stuckChain = 0;
                 this.clearPendingAI();
                 this.hideEndTurnButton();
-                document.getElementById('undoBtn').disabled = true;
+                this.updateUndoButton();
                 document.getElementById('winMessage').style.display = 'none';
+                document.getElementById('stalemateMessage').style.display = 'none';
                 document.getElementById('moveDetail').textContent = '选择棋子';
                 document.getElementById('statusBadge').style.display = 'none';
                 const activePlayers = this.getActivePlayers();
                 this.currentPlayer = activePlayers[0];
                 this.deselect();
                 this.setupPieces();
+                // 记录各方开局进展分，僵局计数从“未能突破开局”的走子开始累计
+                for (const p of this.getPlayOrder()) {
+                    if (!this.finishedSet.has(p)) this.bestProgress[p] = this.progressScore(p);
+                }
                 this.updatePlayerDisplay();
                 this.updatePlayersLegend();
-                // AI 先手时触发（仅 2 人模式）
-                if (this.aiEnabled && this.playerCount === 2 && this.currentPlayer === this.aiPlayer) {
-                    this.aiTimerId = setTimeout(() => this.triggerAI(), 600);
+                // AI 先手时触发（2/4/6 人通用）
+                if (this.aiEnabled && this.aiPlayers.includes(this.currentPlayer)) {
+                    this.aiTimerId = setTimeout(() => this.tryExecuteAITurn(), 400);
                 }
             }
         }
