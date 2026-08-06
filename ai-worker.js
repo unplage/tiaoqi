@@ -206,9 +206,11 @@ class ChineseCheckersAI {
             const inStart = startCorner.some(tp => tp.row === r && tp.col === c);
             if (inStart) score -= congestion * 4;
             if (!inStart) score += 15;
-            // 起始角入口阻塞惩罚：停留在此处会阻塞多角星走廊
-            for (const bp of this.BLOCKING_POSITIONS[player]) {
-                if (r === bp.row && c === bp.col) { score -= 30; break; }
+            // 起始角入口阻塞惩罚：仅在已有棋子入角后生效（开局时所有子都在起始角，不惩罚）
+            if (inTargetCount > 0) {
+                for (const bp of this.BLOCKING_POSITIONS[player]) {
+                    if (r === bp.row && c === bp.col) { score -= 30; break; }
+                }
             }
             // 中立角入口阻塞惩罚：未被任何活跃玩家使用的角，停留此处同样阻塞走廊
             for (let ci = 0; ci < 6; ci++) {
@@ -518,13 +520,7 @@ class ChineseCheckersAI {
             [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
         }
         candidates.sort((a, b) => a.progress - b.progress);
-        // 保护：如果最佳候选距离比当前更差，但有候选距离更优，优先选距离更优的
-        const curDist = this.distanceSum(boardState, player);
-        if (candidates.length > 0 && candidates[0].progress > curDist) {
-            const better = candidates.filter(s => s.progress <= curDist);
-            if (better.length > 0) {
-                better.sort((a, b) => b.value - a.value);
-                const mmMove = better[0].m;
+        const mmMove = candidates[0].m;
 
         // 根节点启发式平局检测：minimax 最佳候选间差异极小（≤5）时 minimax 无法可靠区分，
         // 用 MCTS 做更宽的探索破平
