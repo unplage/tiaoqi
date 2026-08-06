@@ -132,22 +132,37 @@ class ChineseCheckersAI {
     evaluate(boardState, player, playOrder) {
         const target = this.TARGET_MAP[player];
         const targetPositions = this.CORNER_POSITIONS[target];
+        const startCorner = this.CORNER_POSITIONS[player];
         let score = 0;
         for (const tp of targetPositions) {
             if (boardState.get(`${tp.row}-${tp.col}`) === player) score += 200;
         }
         boardState.forEach((p, key) => {
-            if (p === player) {
-                const [r, c] = key.split('-').map(Number);
-                let minDist = Infinity;
-                for (const tp of targetPositions) {
-                    const d = Math.abs(r - tp.row) + Math.abs(c - tp.col);
-                    if (d < minDist) minDist = d;
-                }
-                score -= minDist * 5;
+            if (p !== player) return;
+            const [r, c] = key.split('-').map(Number);
+            let minDist = Infinity;
+            for (const tp of targetPositions) {
+                const d = Math.abs(r - tp.row) + Math.abs(c - tp.col);
+                if (d < minDist) minDist = d;
             }
+            score -= minDist * 5;
+            let jumpPotential = 0;
+            for (const n of this.getNeighbors(r, c)) {
+                if (boardState.has(`${n.row}-${n.col}`)) {
+                    const mr = 2 * n.row - r, mc = 2 * n.col - c;
+                    if (this.isValid(mr, mc) && !boardState.has(`${mr}-${mc}`)) jumpPotential++;
+                }
+            }
+            score += jumpPotential * 10;
+            let congestion = 0;
+            for (const n of this.getNeighbors(r, c)) {
+                if (boardState.get(`${n.row}-${n.col}`) === player) congestion++;
+            }
+            score -= congestion * 8;
+            const inStart = startCorner.some(tp => tp.row === r && tp.col === c);
+            if (inStart) score -= congestion * 4;
+            if (!inStart) score += 15;
         });
-        // 仅剩两名活跃玩家时保留“占据对方起始角”加分；多玩家下该项语义不成立，跳过
         if (playOrder && playOrder.length === 2) {
             const opponent = playOrder.find(q => q !== player);
             if (opponent !== undefined) {
@@ -160,6 +175,15 @@ class ChineseCheckersAI {
                         }
                     }
                 });
+            }
+        }
+        if (playOrder && playOrder.length > 2) {
+            for (const opp of playOrder) {
+                if (opp === player) continue;
+                const oppTarget = this.CORNER_POSITIONS[this.TARGET_MAP[opp]];
+                for (const tp of oppTarget) {
+                    if (boardState.get(`${tp.row}-${tp.col}`) === player) { score += 20; break; }
+                }
             }
         }
         return score;
@@ -342,10 +366,11 @@ class ChineseCheckersAI {
             hard:   {iter: 1500, depth: 4, maxTime: 1500}
         };
         const cfg = base[difficulty] || base.medium;
-        // 多玩家搜索树更深：时间预算/迭代数随玩家数下调，保证单步响应不卡顿
         const nFactor = playOrder.length === 2 ? 1 : (playOrder.length <= 4 ? 0.75 : 0.6);
         const iterations = Math.max(60, Math.round(cfg.iter * nFactor));
-        const depth = cfg.depth;
+        // 多玩家时搜索树指数膨胀，深度随玩家数递减保证响应速度
+        const depthReduction = playOrder.length === 2 ? 0 : (playOrder.length <= 4 ? 1 : 1);
+        const depth = Math.max(1, cfg.depth - depthReduction);
         const maxTime = Math.round(cfg.maxTime * nFactor);
 
         // 主引擎：全阶段启发式 minimax（easy=深度2 / medium=3 / hard=4）。根节点做
@@ -356,7 +381,8 @@ class ChineseCheckersAI {
         // “跳跃优先排序”被挤出候选窗口）。
         const PROGRESS_WINDOW = 15;
         const CANDIDATE_LIMIT = 15;
-        const deadline = Date.now() + Math.round(800 * nFactor);
+        const deadlineMs = {easy: 400, medium: 700, hard: 1200};
+        const deadline = Date.now() + Math.round((deadlineMs[difficulty] || 700) * nFactor);
         const nextPlayer = this._getNextPlayer(player, playOrder);
         const scored = allMoves.slice(0, CANDIDATE_LIMIT).map((m) => {
             const child = this.applyMove(boardState, m);
@@ -368,20 +394,24 @@ class ChineseCheckersAI {
         });
         let best = -Infinity;
         for (const s of scored) best = Math.max(best, s.value);
-        const candidates = scored.filter(s => s.value >= best - PROGRESS_WINDOW);
-        candidates.sort((a, b) => a.progress - b.progress);
+const candidates = scored.filter(s => s.value >= best - PROGRESS_WINDOW);
+// 随机打乱等价候选，增加走棋多样性
+for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+}
+candidates.sort((a, b) => a.progress - b.progress);
         const mmMove = candidates[0].m;
 
-        // 根节点启发式平局检测：所有走法对当前玩家的启发式评分完全相同（典型于
-        // 极密集/极稀疏盘面），此时 minimax 无法区分走法，用 MCTS 做更宽的探索破平，
-        // 最后按结果位置的启发式评分取更优者
+        // 根节点启发式平局检测：minimax 最佳候选间差异极小（≤5）时 minimax 无法可靠区分，
+        // 用 MCTS 做更宽的探索破平
         let flat = true;
-        let firstEval = null;
-        for (const m of allMoves) {
-            const s = this.evaluate(this.applyMove(boardState, m), player, playOrder);
-            if (firstEval === null) firstEval = s;
-            else if (s !== firstEval) { flat = false; break; }
+        let flatBest = -Infinity, flatSecond = -Infinity;
+        for (const s of scored) {
+            if (s.value > flatBest) { flatSecond = flatBest; flatBest = s.value; }
+            else if (s.value > flatSecond) { flatSecond = s.value; }
         }
+        if (flatBest - flatSecond > 5) flat = false;
         if (flat) {
             const mctsMove = this.mcts(boardState, player, iterations, playOrder, maxTime);
             if (mctsMove) {
