@@ -399,17 +399,8 @@ function multiBoard(players) {
     ['13-0',0],['13-1',0],['13-2',0],['13-3',0],['14-0',0],['14-1',0],['14-2',0],['15-0',0],['15-1',0],['16-0',0],
     ['3-0',1],['3-1',1],['3-2',1],['3-3',1],['2-0',1],['2-1',1],['2-2',1],['1-0',1],['1-1',1],['0-0',1]
   ]);
-  const heur = (st, p) => {
-    const t = ai.TARGET_MAP[p]; let s = 0;
-    for (const tp of ai.CORNER_POSITIONS[t]) if (st.get(`${tp.row}-${tp.col}`) === p) s += 200;
-    st.forEach((q, k) => { if (q === p) {
-      const [r, c] = k.split('-').map(Number);
-      let md = 1e9;
-      for (const tp of ai.CORNER_POSITIONS[t]) md = Math.min(md, Math.abs(r - tp.row) + Math.abs(c - tp.col));
-      s -= md * 5;
-    }});
-    return s;
-  };
+  // 用 AI 自身的新几何启发式作为评分基准
+  const heur = (st, p) => ai.evaluate(st, p, playOrder);
   let neg = 0, count = 0, slowest = 0;
   for (let i = 0; i < 5; i++) {
     const st = makeBoard();
@@ -464,16 +455,7 @@ function multiBoard(players) {
     '13-0':0,'13-1':0,'13-2':0,'13-3':0,'14-0':0,'14-1':0,'14-2':0,'15-0':0,'15-1':0,'16-0':0,
     '3-0':1,'3-1':1,'3-2':1,'3-3':1,'2-0':1,'2-1':1,'2-2':1,'1-0':1,'1-1':1,'0-0':1
   });
-  const dsum = (st, p) => {
-    const t = ai.TARGET_MAP[p]; let s = 0;
-    st.forEach((q, k) => { if (q === p) {
-      const [r, c] = k.split('-').map(Number);
-      let md = 1e9;
-      for (const tp of ai.CORNER_POSITIONS[t]) md = Math.min(md, Math.abs(r - tp.row) + Math.abs(c - tp.col));
-      s += md;
-    }});
-    return s;
-  };
+  const dsum = (st, p) => ai.distanceSum(st, p);
   let st = mkPos(), cur = 0, fwd = 0, lat = 0;
   for (let i = 0; i < 100; i++) {
     const d0 = dsum(st, cur);
@@ -498,6 +480,55 @@ function multiBoard(players) {
   assert(ai._checkWinState(ai.applyMove(wb, wm), 0), 'AI 必抓制胜步（medium）');
   const wmH = ai.getBestMove(Object.fromEntries(wb), 0, 'hard', [0, 1]);
   assert(ai._checkWinState(ai.applyMove(wb, wmH), 0), 'AI 必抓制胜步（hard）');
+}
+
+// ================= 17. 全 AI 4P 完整对局：必决出名次、起始角无残留死棋 =================
+// 回归防护：旧版 AI 会留下慢棋在本方起始角，被对家当目标角填满后围死（0 步可动），
+// 导致对局无法完赛。新逻辑须以速胜推进、均衡清空起始角。
+{
+  const playOrder = [0, 1, 2, 5];
+  const initial = new Map();
+  for (const p of playOrder) {
+    for (const pos of ai.CORNER_POSITIONS[p]) initial.set(`${pos.row}-${pos.col}`, p);
+  }
+  const finished = [];
+  let st = new Map(initial);
+  let current = playOrder[0];
+  const nextActive = (cur) => {
+    const i = playOrder.indexOf(cur);
+    for (let k = 1; k <= playOrder.length; k++) {
+      const c = playOrder[(i + k) % playOrder.length];
+      if (!finished.includes(c)) return c;
+    }
+    return cur;
+  };
+  let steps = 0;
+  while (finished.length < playOrder.length - 1 && steps < 400) {
+    if (!finished.includes(current)) {
+      const active = playOrder.filter(p => !finished.includes(p));
+      const move = ai.getBestMove(Object.fromEntries(st), current, 'medium', active);
+      if (move) {
+        st = ai.applyMove(st, move);
+        if (ai._checkWinState(st, current)) finished.push(current);
+      }
+    }
+    current = nextActive(current);
+    steps++;
+  }
+  const last = playOrder.find(p => !finished.includes(p));
+  if (last !== undefined && !finished.includes(last)) finished.push(last);
+  assert(finished.length === playOrder.length, `全 AI 4P 完整对局决出名次（${finished.length}/${playOrder.length}，${steps} 步）`);
+  assert(steps < 400, `全 AI 4P 完整对局有限步内结束（${steps} 步）`);
+  // 无任何棋子永久封死在本方起始角（0 步可动）
+  let stuckHome = 0;
+  for (const p of playOrder) {
+    for (const pos of ai.CORNER_POSITIONS[p]) {
+      if (st.get(`${pos.row}-${pos.col}`) !== p) continue;
+      const moves = ai.getAllMoves(st, p).filter(m => m.from.row === pos.row && m.from.col === pos.col);
+      if (moves.length === 0) stuckHome++;
+    }
+  }
+  assert(stuckHome === 0, `起始角无残留死棋（死棋数 = ${stuckHome}）`);
 }
 
 console.log(process.exitCode ? '\n有 FAIL' : '\n全部通过（' + checks + ' 项检查）');

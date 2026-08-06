@@ -12,9 +12,13 @@ Static Chinese checkers (中国跳棋) PWA deployed on GitHub Pages at
   so the two files must stay consistent.
 - Supported modes: 2/4/6 人, 4/6 人支持可选 AI 数量（含全 AI 观战），每个 AI
   可独立设置 简单/中等/困难 难度；多人模式下夺冠玩家棋子留在棋盘、其余玩家
-  继续争夺 2/3…N 名。AI 全阶段用启发式 minimax（easy=深度2/medium=3/hard=4），
-  根节点做"深度值窗口+前进优先"选择（避免中盘横向平移占优），制胜步先快速
-  扫描必抓，仅在根节点启发式平局时以 MCTS（贪心复盘）破平。
+  继续争夺 2/3…N 名。AI 以速胜为唯一目的：全阶段用几何距离（棋子到目标角
+  质心的欧氏距离，斜向推进不被低估）做启发式评估，走法按"跳步优先 → 落子后
+  距离和升序"排序后再截断（保证推进跳步总在窗口内），根节点在启发式窗口内
+  取前进最多者。评估惩罚"最慢棋子"（maxD）与起始角残留（防止慢棋被对手占角
+  围死、永久判负）。难度差异化仅体现在候选窗口宽度（easy=15/medium=30/
+  hard=45）；hard 在末盘（≤2 子未入角）额外做 3 层自搜索找连走制胜序列。
+  制胜步先快速扫描必抓。
 - 僵局：无吃子规则下棋子可能永久封死目标角。连续 40 步无人取得进展时弹出
   "僵局"提示（仅提示不判和），玩家可选"继续对局"或"重置"。
 - UI text and comments are in Chinese — keep new text/comments in Chinese.
@@ -34,5 +38,5 @@ Static Chinese checkers (中国跳棋) PWA deployed on GitHub Pages at
   sync with the repo name.
 - `sw.js` derives its base path from its own URL; static assets are
   cache-first. When adding/changing precached assets, bump the version suffix
-  in `CACHE_NAME` (sw.js:10, currently `v8`), otherwise old cached versions
+  in `CACHE_NAME` (sw.js:10, currently `v11`), otherwise old cached versions
   persist. `sw.js` only cleans caches under its own `CACHE_PREFIX`.
