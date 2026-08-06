@@ -185,6 +185,15 @@ class ChineseCheckersAI {
                     if (boardState.get(`${tp.row}-${tp.col}`) === player) { score += 20; break; }
                 }
             }
+            // 占据非目标的其他玩家起始角 → 惩罚（避免堵死他人操作空间）
+            for (const q of playOrder) {
+                if (q === player) continue;
+                if (this.TARGET_MAP[player] === q) continue;
+                const qStart = this.CORNER_POSITIONS[q];
+                for (const tp of qStart) {
+                    if (boardState.get(`${tp.row}-${tp.col}`) === player) score -= 25;
+                }
+            }
         }
         return score;
     }
