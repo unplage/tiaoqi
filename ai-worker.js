@@ -16,6 +16,15 @@ class ChineseCheckersAI {
             [{row:12,col:0},{row:11,col:0},{row:12,col:1},{row:10,col:0},{row:11,col:1},{row:12,col:2},{row:9,col:0},{row:10,col:1},{row:11,col:2},{row:12,col:3}],
             [{row:12,col:12},{row:11,col:11},{row:12,col:11},{row:10,col:10},{row:11,col:10},{row:12,col:10},{row:9,col:9},{row:10,col:9},{row:11,col:9},{row:12,col:9}]
         ];
+        // 每个角的入口阻塞位置（基座行靠近中心的3个点，停留此处会阻塞走廊）
+        this.BLOCKING_POSITIONS = [
+            [{row:13,col:1},{row:13,col:2},{row:13,col:3}],
+            [{row:3,col:1},{row:3,col:2},{row:3,col:3}],
+            [{row:4,col:1},{row:4,col:2},{row:4,col:3}],
+            [{row:4,col:9},{row:4,col:10},{row:4,col:11}],
+            [{row:12,col:1},{row:12,col:2},{row:12,col:3}],
+            [{row:12,col:9},{row:12,col:10},{row:12,col:11}]
+        ];
     }
 
     isValid(row, col) {
@@ -63,6 +72,33 @@ class ChineseCheckersAI {
     _inTargetCorner(pos, player) {
         const target = this.TARGET_MAP[player];
         return this.CORNER_POSITIONS[target].some(tp => tp.row === pos.row && tp.col === pos.col);
+    }
+
+    _getOutOfTargetPieces(boardState, player) {
+        const targetPositions = this.CORNER_POSITIONS[this.TARGET_MAP[player]];
+        const result = [];
+        boardState.forEach((p, key) => {
+            if (p !== player) return;
+            const [r, c] = key.split('-').map(Number);
+            if (!targetPositions.some(tp => tp.row === r && tp.col === c)) {
+                result.push({row: r, col: c});
+            }
+        });
+        return result;
+    }
+
+    _minDistToTarget(boardState, player) {
+        const targetPositions = this.CORNER_POSITIONS[this.TARGET_MAP[player]];
+        let minDist = Infinity;
+        boardState.forEach((p, key) => {
+            if (p !== player) return;
+            const [r, c] = key.split('-').map(Number);
+            for (const tp of targetPositions) {
+                const d = Math.abs(r - tp.row) + Math.abs(c - tp.col);
+                if (d < minDist) minDist = d;
+            }
+        });
+        return minDist;
     }
 
     // 从序列化的 boardState（对象）生成 Map
@@ -134,8 +170,16 @@ class ChineseCheckersAI {
         const targetPositions = this.CORNER_POSITIONS[target];
         const startCorner = this.CORNER_POSITIONS[player];
         let score = 0;
+        // 统计目标角内棋子数（用于末盘加分）
+        let inTargetCount = 0;
         for (const tp of targetPositions) {
-            if (boardState.get(`${tp.row}-${tp.col}`) === player) score += 200;
+            if (boardState.get(`${tp.row}-${tp.col}`) === player) { score += 200; inTargetCount++; }
+        }
+        // 已使用角集合：起始角+目标角（用于中立角检测）
+        const usedCorners = new Set();
+        for (const p of playOrder) {
+            usedCorners.add(p);
+            usedCorners.add(this.TARGET_MAP[p]);
         }
         boardState.forEach((p, key) => {
             if (p !== player) return;
@@ -162,7 +206,34 @@ class ChineseCheckersAI {
             const inStart = startCorner.some(tp => tp.row === r && tp.col === c);
             if (inStart) score -= congestion * 4;
             if (!inStart) score += 15;
+            // 起始角入口阻塞惩罚：停留在此处会阻塞多角星走廊
+            for (const bp of this.BLOCKING_POSITIONS[player]) {
+                if (r === bp.row && c === bp.col) { score -= 30; break; }
+            }
+            // 中立角入口阻塞惩罚：未被任何活跃玩家使用的角，停留此处同样阻塞走廊
+            for (let ci = 0; ci < 6; ci++) {
+                if (usedCorners.has(ci)) continue;
+                for (const bp of this.BLOCKING_POSITIONS[ci]) {
+                    if (r === bp.row && c === bp.col) { score -= 15; break; }
+                }
+            }
         });
+        // 末盘加分：最后1-2子越接近目标角，奖励越大（非线性）
+        if (inTargetCount >= 8) {
+            const outCount = 10 - inTargetCount;
+            boardState.forEach((p, key) => {
+                if (p !== player) return;
+                const [r, c] = key.split('-').map(Number);
+                if (targetPositions.some(tp => tp.row === r && tp.col === c)) return;
+                let md = Infinity;
+                for (const tp of targetPositions) {
+                    const d = Math.abs(r - tp.row) + Math.abs(c - tp.col);
+                    if (d < md) md = d;
+                }
+                // 末盘时距离权重远大于普通距离惩罚
+                score += Math.max(0, (20 - md) * 15 * outCount);
+            });
+        }
         if (playOrder && playOrder.length === 2) {
             const opponent = playOrder.find(q => q !== player);
             if (opponent !== undefined) {
@@ -246,8 +317,21 @@ class ChineseCheckersAI {
                 if (moves.length === 0) break;
                 let bestMove = moves[0];
                 let bestScore = -Infinity;
+                // 末盘强化：走子者有1-2子未入角时，额外奖励入角走法
+                const simOut = this._getOutOfTargetPieces(simState, simPlayer).length;
+                const simEndgame = simOut <= 2;
                 for (const m of moves) {
-                    const s = this.evaluate(this.applyMove(simState, m), simPlayer, playOrder);
+                    let s = this.evaluate(this.applyMove(simState, m), simPlayer, playOrder);
+                    if (simEndgame) {
+                        const moved = this.applyMove(simState, m);
+                        const movedOut = this._getOutOfTargetPieces(moved, simPlayer).length;
+                        if (movedOut < simOut) s += 200; // 入角大幅加分
+                        else {
+                            const curDist = this._minDistToTarget(simState, simPlayer);
+                            const newDist = this._minDistToTarget(moved, simPlayer);
+                            s += Math.max(0, (curDist - newDist) * 30);
+                        }
+                    }
                     if (s > bestScore) { bestScore = s; bestMove = m; }
                 }
                 simState = this.applyMove(simState, bestMove);
@@ -298,7 +382,19 @@ class ChineseCheckersAI {
         const moves = this.getAllMoves(boardState, playerToMove);
         if (moves.length === 0) return {score: this.evaluate(boardState, aiPlayer, playOrder), move: null};
 
+        // 末盘检测：走子者有1-2子未入角时优先推进
+        const outCount = this._getOutOfTargetPieces(boardState, playerToMove).length;
+        const endgameSort = outCount <= 2;
+
         moves.sort((a, b) => {
+            if (endgameSort) {
+                // 末盘：优先选择让走子者最远子靠近目标的走法
+                const sa = this.applyMove(boardState, a);
+                const sb = this.applyMove(boardState, b);
+                const da = this._minDistToTarget(sa, playerToMove);
+                const db = this._minDistToTarget(sb, playerToMove);
+                return da - db;
+            }
             if (a.isJump !== b.isJump) return b.isJump - a.isJump;
             return b.jumpCount - a.jumpCount;
         });
@@ -369,6 +465,10 @@ class ChineseCheckersAI {
             if (this._checkWinState(this.applyMove(boardState, m), player)) return m;
         }
 
+        // 末盘检测：本方在目标角外的棋子数（<=2 视为末盘）
+        const outOfTarget = this._getOutOfTargetPieces(boardState, player);
+        const isEndgame = outOfTarget.length <= 2;
+
         const base = {
             easy:   {iter: 200,  depth: 2, maxTime: 500},
             medium: {iter: 800,  depth: 3, maxTime: 900},
@@ -377,23 +477,31 @@ class ChineseCheckersAI {
         const cfg = base[difficulty] || base.medium;
         const nFactor = playOrder.length === 2 ? 1 : (playOrder.length <= 4 ? 0.75 : 0.6);
         const iterations = Math.max(60, Math.round(cfg.iter * nFactor));
-        // 多玩家时搜索树指数膨胀，深度随玩家数递减保证响应速度
+        // 末盘时增加搜索深度（最后1-2子需要多步规划）
         const depthReduction = playOrder.length === 2 ? 0 : (playOrder.length <= 4 ? 1 : 1);
-        const depth = Math.max(1, cfg.depth - depthReduction);
+        const endgameBonus = isEndgame ? 2 : 0;
+        const depth = Math.max(1, cfg.depth - depthReduction + endgameBonus);
         const maxTime = Math.round(cfg.maxTime * nFactor);
 
-        // 主引擎：全阶段启发式 minimax（easy=深度2 / medium=3 / hard=4）。根节点做
-        // “深度值窗口 + 前进优先”选择：深度值相差不超过 PROGRESS_WINDOW 的走法视为
-        // 等价，从中挑让本方到目标距离和下降最多（前进最远）的走法，避免中盘横向平移
-        // 长期占优；真正的制胜/防守差异（超过窗口）仍由深度值决定。
-        // 候选集取 getAllMoves 生成顺序的前 N 个（天然混排走步/跳跃，保证前进步不因
-        // “跳跃优先排序”被挤出候选窗口）。
+        // 末盘：把最后一子的走法排到最前面，确保不被 CANDIDATE_LIMIT 截断
+        let orderedMoves = allMoves;
+        if (isEndgame && outOfTarget.length === 1) {
+            const s = outOfTarget[0];
+            const stragglerMoves = allMoves.filter(m =>
+                m.from.row === s.row && m.from.col === s.col
+            );
+            const otherMoves = allMoves.filter(m =>
+                !(m.from.row === s.row && m.from.col === s.col)
+            );
+            orderedMoves = [...stragglerMoves, ...otherMoves];
+        }
+
         const PROGRESS_WINDOW = 15;
         const CANDIDATE_LIMIT = 15;
         const deadlineMs = {easy: 400, medium: 700, hard: 1200};
         const deadline = Date.now() + Math.round((deadlineMs[difficulty] || 700) * nFactor);
         const nextPlayer = this._getNextPlayer(player, playOrder);
-        const scored = allMoves.slice(0, CANDIDATE_LIMIT).map((m) => {
+        const scored = orderedMoves.slice(0, CANDIDATE_LIMIT).map((m) => {
             const child = this.applyMove(boardState, m);
             return {
                 m,
@@ -403,14 +511,20 @@ class ChineseCheckersAI {
         });
         let best = -Infinity;
         for (const s of scored) best = Math.max(best, s.value);
-const candidates = scored.filter(s => s.value >= best - PROGRESS_WINDOW);
-// 随机打乱等价候选，增加走棋多样性
-for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-}
-candidates.sort((a, b) => a.progress - b.progress);
-        const mmMove = candidates[0].m;
+        const candidates = scored.filter(s => s.value >= best - PROGRESS_WINDOW);
+        // 随机打乱等价候选，增加走棋多样性
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+        candidates.sort((a, b) => a.progress - b.progress);
+        // 保护：如果最佳候选距离比当前更差，但有候选距离更优，优先选距离更优的
+        const curDist = this.distanceSum(boardState, player);
+        if (candidates.length > 0 && candidates[0].progress > curDist) {
+            const better = candidates.filter(s => s.progress <= curDist);
+            if (better.length > 0) {
+                better.sort((a, b) => b.value - a.value);
+                const mmMove = better[0].m;
 
         // 根节点启发式平局检测：minimax 最佳候选间差异极小（≤5）时 minimax 无法可靠区分，
         // 用 MCTS 做更宽的探索破平
