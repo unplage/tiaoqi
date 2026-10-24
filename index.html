@@ -6,6 +6,8 @@
     <meta name="theme-color" content="#0f172a">
     <title>中国跳棋 - 自由模式版</title>
     <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <style>
         * {
             margin: 0;
@@ -1013,11 +1015,13 @@
                 if (!this.aiPlayers.includes(this.currentPlayer)) return;
                 if (this.finishedSet.has(this.currentPlayer)) return;
                 this.aiThinking = true;
+                const generation = this.aiGeneration;
                 const moveDetail = document.getElementById('moveDetail');
                 moveDetail.innerHTML = '🤖 AI 思考中...<span class="ai-thinking">⏳</span>';
                 const player = this.currentPlayer;
                 this.getAIMoveAsync(player, this.getAIDifficulty(player), this.getActivePlayOrder()).then((bestMove) => {
                     try {
+                        if (this.aiGeneration !== generation) return;
                         if (!this.aiEnabled || this.isMoving) return;
                         if (!this.aiPlayers.includes(this.currentPlayer) || this.currentPlayer !== player) return;
                         if (this.finishedSet.has(this.currentPlayer)) return;
@@ -1034,7 +1038,7 @@
                         this.showMessage('AI 出现异常，自动跳过');
                         this.advanceTurn();
                     } finally {
-                        this.aiThinking = false;
+                        if (this.aiGeneration === generation) this.aiThinking = false;
                     }
                 });
             }
@@ -1081,9 +1085,12 @@
                 if (!this.aiPlayers.includes(this.currentPlayer)) return;
                 if (this.finishedSet.has(this.currentPlayer)) return;
                 const pc = this.precomputedTarget;
-                if (pc && pc.player === this.currentPlayer && pc.generation === this.aiGeneration && !pc.pending && pc.move) {
-                    // 预计算命中；但棋盘可能已被连跳等改变，需校验走法仍合法
-                    if (this.isLegalAIMove(pc.move, this.currentPlayer)) {
+                if (pc && pc.player === this.currentPlayer && pc.generation === this.aiGeneration) {
+                    if (pc.pending) {
+                        // 已有在途请求，避免重复触发
+                        return;
+                    }
+                    if (pc.move && this.isLegalAIMove(pc.move, this.currentPlayer)) {
                         this.precomputedTarget = null;
                         this.applyAIMove(pc.move);
                         return;
@@ -1102,8 +1109,9 @@
             }
 
             // 当前走子刚落定（棋盘已更新）即预计算下一手 AI，与动画并行
-            scheduleAIAfterMove() {
+            scheduleAIAfterMove(move) {
                 if (!this.aiEnabled || this.freeMode || this.awaitingContinue) return;
+                if (move && move.isJump && move.canContinue) return;
                 const playOrder = this.getPlayOrder();
                 const idx = playOrder.indexOf(this.currentPlayer);
                 if (idx === -1) return;
@@ -1114,7 +1122,7 @@
                 }
                 if (next === -1 || !this.aiPlayers.includes(next)) return;
                 const pc = this.precomputedTarget;
-                if (pc && pc.player === next && !pc.pending) return;
+                if (pc && pc.player === next) return;
                 const generation = this.aiGeneration;
                 this.precomputedTarget = { player: next, move: null, pending: true, generation };
                 this.getAIMoveAsync(next, this.getAIDifficulty(next), this.getActivePlayOrder()).then((move) => {
@@ -1749,7 +1757,7 @@
                 // 棋盘已落定：更新僵局计数，并在动画期间并行预计算下一手
                 this.updateStagnation(player);
                 this.stuckChain = 0;
-                this.scheduleAIAfterMove();
+                this.scheduleAIAfterMove(move);
                 const newPos = this.positions[newRow][newCol];
                 const pieceSize = Math.max(4, Math.round(13 * this.currentScale));
                 this.selectedPiece.style.transition = 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
