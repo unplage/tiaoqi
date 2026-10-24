@@ -284,6 +284,7 @@
 
         .status-badge {
             display: inline-block;
+            min-height: 1.3em;
             padding: 3px 10px;
             border-radius: 12px;
             font-size: 0.75em;
@@ -686,7 +687,7 @@
         <div class="move-info-panel">
             <div class="move-status">当前状态</div>
             <div class="move-detail" id="moveDetail">选择棋子开始游戏</div>
-            <div class="status-badge" id="statusBadge" style="display: none;"></div>
+            <div class="status-badge" id="statusBadge" style="visibility: hidden;"></div>
             <div class="players-legend" id="playersLegend"></div>
         </div>
     </div>
@@ -1627,7 +1628,7 @@
                     } else {
                         moveDetail.innerHTML = '🎲 自由模式 - 点击任意棋子可移动';
                     }
-                    statusBadge.style.display = 'none';
+                    statusBadge.style.visibility = 'hidden';
                     this.hideEndTurnButton();
                     return;
                 }
@@ -1637,13 +1638,13 @@
                         moveDetail.innerHTML = `连跳中！已跳 <span class="jump-badge">${this.jumpChainCount}</span> 次`;
                         statusBadge.textContent = '可继续跳跃';
                         statusBadge.className = 'status-badge continue';
-                        statusBadge.style.display = 'inline-block';
+                        statusBadge.style.visibility = 'visible';
                         this.showEndTurnButton();
                     } else {
                         moveDetail.innerHTML = `连跳结束！共 <span class="jump-badge">${this.jumpChainCount}</span> 次`;
                         statusBadge.textContent = '无可用跳跃';
                         statusBadge.className = 'status-badge';
-                        statusBadge.style.display = 'inline-block';
+                        statusBadge.style.visibility = 'visible';
                         statusBadge.style.background = 'rgba(107, 114, 128, 0.3)';
                         statusBadge.style.color = '#9ca3af';
                         this.hideEndTurnButton();
@@ -1654,12 +1655,12 @@
                 
                 if (!this.selectedPiece) {
                     moveDetail.textContent = '选择棋子';
-                    statusBadge.style.display = 'none';
+                    statusBadge.style.visibility = 'hidden';
                     return;
                 }
                 if (this.validMoves.length === 0) {
                     moveDetail.textContent = '无法移动';
-                    statusBadge.style.display = 'none';
+                    statusBadge.style.visibility = 'hidden';
                     return;
                 }
                 const jumpMoves = this.validMoves.filter(m => m.isJump);
@@ -1669,12 +1670,12 @@
                     moveDetail.innerHTML = `可${normalMoves.length > 0 ? '走或' : ''}跳 <span class="jump-badge">最多${maxJumps}跳</span>`;
                     statusBadge.textContent = '点击蓝色开始连跳';
                     statusBadge.className = 'status-badge';
-                    statusBadge.style.display = 'inline-block';
+                    statusBadge.style.visibility = 'visible';
                     statusBadge.style.background = 'rgba(59, 130, 246, 0.2)';
                     statusBadge.style.color = '#60a5fa';
                 } else {
                     moveDetail.textContent = `可移动 ${normalMoves.length} 处`;
-                    statusBadge.style.display = 'none';
+                    statusBadge.style.visibility = 'hidden';
                 }
             }
 
@@ -1892,7 +1893,7 @@
                 this.clearHighlights();
                 if (!this.isInJumpChain && !this.freeMode) {
                     document.getElementById('moveDetail').textContent = '选择棋子';
-                    document.getElementById('statusBadge').style.display = 'none';
+                    document.getElementById('statusBadge').style.visibility = 'hidden';
                 } else if (this.freeMode) {
                     document.getElementById('moveDetail').textContent = '自由模式 - 点击棋子';
                 }
@@ -1912,7 +1913,7 @@
                 this.jumpStartPosition = null;
                 // 回合移交时清除"AI 思考中"等残留提示
                 document.getElementById('moveDetail').textContent = '选择棋子';
-                document.getElementById('statusBadge').style.display = 'none';
+                document.getElementById('statusBadge').style.visibility = 'hidden';
                 this.updatePlayerDisplay();
                 this.updatePlayersLegend();
                 // 人类回合但无子可动：自动跳过（防止对局停滞）
@@ -2189,7 +2190,7 @@
                 document.getElementById('winMessage').style.display = 'none';
                 document.getElementById('stalemateMessage').style.display = 'none';
                 document.getElementById('moveDetail').textContent = '选择棋子';
-                document.getElementById('statusBadge').style.display = 'none';
+                document.getElementById('statusBadge').style.visibility = 'hidden';
                 const activePlayers = this.getActivePlayers();
                 this.currentPlayer = activePlayers[0];
                 this.deselect();
