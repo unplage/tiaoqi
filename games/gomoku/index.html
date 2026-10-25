@@ -226,7 +226,23 @@
                 if (mode === 'aivai') document.getElementById('autoBtn').disabled = false;
                 else document.getElementById('autoBtn').disabled = true;
                 this.newGame();
+                if (mode === 'aivai') {
+                    this.autoPlaying = true;
+                    document.getElementById('autoBtn').classList.add('active');
+                    setTimeout(() => { if (this.autoPlaying) this.runAutoStep(); }, 350);
+                } else {
+                    this.autoPlaying = false;
+                    document.getElementById('autoBtn').classList.remove('active');
+                }
                 this.flash(`模式：${mode==='pvp'?'双人':mode==='ai'?'人机':'AI对战'}`);
+            }
+
+            toggleAutoPlay() {
+                if (this.mode !== 'aivai') return;
+                this.autoPlaying = !this.autoPlaying;
+                document.getElementById('autoBtn').classList.toggle('active', this.autoPlaying);
+                this.flash(this.autoPlaying ? 'AI自动对弈开启' : '已暂停');
+                if (this.autoPlaying && !this.aiThinking && !this.gameOver) this.runAutoStep();
             }
 
             toggleForbidden() {
@@ -377,13 +393,7 @@
             }
 
             // resolvePending inside getAIMoveAsync handles pending object; override aiThinking there? already.
-            toggleAutoPlay() {
-                if (this.mode !== 'aivai') return;
-                this.autoPlaying = !this.autoPlaying;
-                document.getElementById('autoBtn').classList.toggle('active', this.autoPlaying);
-                this.flash(this.autoPlaying ? 'AI自动对弈开启' : '已暂停');
-                if (this.autoPlaying) this.maybeAI();
-            }
+
 
             stopAuto() { this.autoPlaying = false; document.getElementById('autoBtn').classList.remove('active'); }
 
