@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const htmlPath = path.join(__dirname, 'index.html');
+const htmlPath = path.join(__dirname, 'games', 'chinese-checkers', 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
 const mainScript = html.match(/<script>([\s\S]*?)<\/script>/g)
   .map(s => s.replace(/<\/?script>/g, ''))
@@ -37,7 +37,7 @@ const factory = new Function('document', 'window', 'navigator',
 const {Game, game} = factory(document, window, navigator);
 
 // AI 类位于 ai-worker.js（index.html 通过 Web Worker 委托，内联无此类）
-const workerSrc = fs.readFileSync(path.join(__dirname, 'ai-worker.js'), 'utf8');
+const workerSrc = fs.readFileSync(path.join(__dirname, 'games', 'chinese-checkers', 'ai-worker.js'), 'utf8');
 const selfStub = { onmessage: null, postMessage(){} };
 const aiFactory = new Function('self', workerSrc + '\n;return {AI: ChineseCheckersAI};');
 const {AI} = aiFactory(selfStub);

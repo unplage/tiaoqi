@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#050816">
+    <title>五子棋 · Gomoku</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        html, body { height: 100%; }
+        body {
+            min-height: 100dvh; height: 100dvh;
+            display: grid; grid-template-rows: auto 1fr auto auto;
+            gap: 8px; padding: 8px;
+            color: #e5e7eb;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: radial-gradient(900px 500px at 10% -10%, #1d4ed822, transparent 60%),
+                        linear-gradient(160deg, #020617 0%, #0f172a 55%, #111827 100%);
+            overflow: hidden;
+        }
+        .topbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .topbar a { color:#93c5fd; text-decoration:none; padding:8px 10px; border-radius:10px; background:#0f172a; border:1px solid #1f2937; }
+        .title { flex:1; font-size: clamp(1.1rem,4vw,1.45rem); font-weight:800; }
+        .score { font-size:.82rem; color:#94a3b8; }
+        .toolbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+        button, select {
+            border:1px solid #334155; background:#0f172a; color:#e2e8f0;
+            padding:9px 12px; border-radius:12px; cursor:pointer; font-size:.82rem;
+            transition:.15s;
+        }
+        button:hover, button:active { border-color:#60a5fa; transform:translateY(-1px); }
+        button.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+        button.danger { border-color:#ef4444; color:#fecaca; }
+        select { background:#111827; }
+
+        #boardWrap { display:grid; place-items:center; min-height:0; }
+        #board {
+            display:grid; grid-template-columns:repeat(15,1fr); gap:1px;
+            width:min(100%,78vh,560px); aspect-ratio:1/1;
+            background:#9a3412; padding:6px; border-radius:14px;
+            box-shadow:0 18px 40px #0008;
+        }
+        .cell {
+            position:relative; background:radial-gradient(circle at 50% 50%,#fed7aa,#fdba74 45%,#ea580c 100%);
+            cursor:pointer;
+        }
+        .cell:hover { filter:brightness(1.06); }
+        .cell::before, .cell::after {
+            position:absolute; inset:0; pointer-events:none;
+        }
+        .stone {
+            position:absolute; inset:8%; border-radius:50%;
+            box-shadow: inset 2px 2px 4px #fff6, inset -2px -2px 5px #0006, 0 3px 6px #0008;
+        }
+        .stone.black { background:radial-gradient(circle at 32% 30%, #4b5563 0%, #020617 72%); }
+        .stone.white { background:radial-gradient(circle at 32% 30%, #ffffff 0%, #cbd5e1 70%); }
+        .cell.forbidden { background:#fecaca !important; }
+        .cell.hint { box-shadow: inset 0 0 0 3px #38bdf8; }
+        .last-move::after {
+            content:''; position:absolute; inset:22%; border:2px solid #facc15; border-radius:50%;
+            animation: fade .9s forwards;
+        }
+        @keyframes fade { to { opacity:0; transform:scale(1.5);} }
+
+        #statusPanel { background:#0b1220; border:1px solid #1f2937; border-radius:12px; padding:8px 12px; min-height:58px; }
+        .status-line { min-height:1.4em; line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .status-sub { min-height:1.4em; color:#94a3b8; font-size:.8rem; }
+        .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+
+        @media (max-width: 520px) {
+            body { padding:6px; gap:6px; }
+            #board { width:min(100%,72vh,420px); }
+            .toolbar button, .footerbar button, select { padding:7px 9px; font-size:.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <a href="../../index.html">← 游戏集</a>
+        <div class="title">⚫ 五子棋</div>
+        <div class="score" id="scoreText">黑棋先行</div>
+    </div>
+
+    <div class="toolbar">
+        <button data-mode="pvp" class="active" onclick="game.setMode('pvp')">双人</button>
+        <button data-mode="ai" onclick="game.setMode('ai')">人机</button>
+        <button data-mode="aivai" onclick="game.setMode('aivai')">AI对战</button>
+        <select id="humanSide">
+            <option value="black">我用黑棋</option>
+            <option value="white">我用白棋</option>
+        </select>
+        <select id="difficulty">
+            <option value="easy">简单</option>
+            <option value="medium" selected>中等</option>
+            <option value="hard">困难</option>
+        </select>
+        <button id="forbiddenBtn" class="active" onclick="game.toggleForbidden()">禁手:开</button>
+    </div>
+
+    <div id="boardWrap">
+        <div id="board" aria-label="五子棋盘"></div>
+    </div>
+
+    <div id="statusPanel">
+        <div class="status-line" id="moveDetail">选择落点开始对局</div>
+        <div class="status-sub" id="statusSub">沙盒模式可任意编辑棋盘</div>
+    </div>
+
+    <div class="footerbar">
+        <button onclick="game.newGame()">🔄 新对局</button>
+        <button onclick="game.undo()">↩️ 悔棋</button>
+        <button id="sandboxBtn" onclick="game.toggleSandbox()">🧩 沙盒</button>
+        <button onclick="game.clearBoard()">🗑 清盘</button>
+        <button id="hintBtn" onclick="game.hint()">💡 提示</button>
+        <button id="autoBtn" onclick="game.toggleAutoPlay()" disabled>AI自对</button>
+    </div>
+
+    <script>
+        class Gomoku {
+            constructor() {
+                this.size = 15;
+                this.board = this.emptyBoard();
+                this.mode = 'pvp';
+                this.forbiddenEnabled = true;
+                this.sandbox = false;
+                this.currentPlayer = 1;
+                this.humanSide = 'black';
+                this.difficulty = 'medium';
+                this.history = [];
+                this.gameOver = false;
+                this.winner = 0;
+                this.aiThinking = false;
+                this.aiGeneration = 0;
+                this.aiPending = {};
+                this.aiRequestId = 0;
+                this.aiWorker = null;
+                this.aiTimer = null;
+                this.autoPlaying = false;
+                this.stats = this.loadStats();
+                this.buildBoard();
+                this.initWorker();
+                this.renderAll();
+                this.updateScore();
+            }
+
+            emptyBoard() { return Array.from({length:this.size}, () => Array(this.size).fill(0)); }
+            idx(r,c){ return `${r}-${c}`; }
+
+            buildBoard() {
+                const el = document.getElementById('board');
+                el.innerHTML = '';
+                for (let r=0;r<this.size;r++){
+                    for (let c=0;c<this.size;c++){
+                        const cell = document.createElement('div');
+                        cell.className='cell';
+                        cell.dataset.row=r; cell.dataset.col=c;
+                        cell.addEventListener('click', () => this.onCell(r,c));
+                        cell.addEventListener('touchstart', e => { e.preventDefault(); this.onCell(r,c); }, {passive:false});
+                        el.appendChild(cell);
+                    }
+                }
+                this.cells = Array.from(el.children);
+            }
+
+            initWorker() {
+                if (typeof Worker === 'undefined') return;
+                try {
+                    this.aiWorker = new Worker('./gomoku-ai-worker.js');
+                    this.aiWorker.onmessage = (e) => {
+                        const {type,data,token} = e.data;
+                        if (type === 'bestMove' || type === 'error') this.resolvePending(token, type==='bestMove'?data:null);
+                    };
+                    this.aiWorker.onerror = () => { this.aiWorker = null; };
+                } catch (e) { this.aiWorker = null; }
+            }
+
+            clearPendingAI() {
+                this.aiGeneration++;
+                for (const token in this.aiPending) {
+                    const e = this.aiPending[token];
+                    clearTimeout(e.watchdog);
+                    e.resolve(null);
+                    delete this.aiPending[token];
+                }
+                this.aiThinking = false;
+            }
+
+            getAIMoveAsync(board, player) {
+                return new Promise(resolve => {
+                    if (!this.aiWorker) { resolve(null); return; }
+                    const token = ++this.aiRequestId;
+                    const entry = { resolve, generation: this.aiGeneration, watchdog: null };
+                    this.aiPending[token] = entry;
+                    const timeoutMs = {easy:700,medium:1500,hard:3000}[this.difficulty] || 1500;
+                    entry.watchdog = setTimeout(() => {
+                        if (this.aiPending[token]) {
+                            delete this.aiPending[token];
+                            resolve(null);
+                        }
+                    }, timeoutMs + 700);
+                    this.aiWorker.postMessage({
+                        type: 'getBestMove',
+                        token,
+                        data: {
+                            board: board.map(row=>row.slice()),
+                            player,
+                            difficulty: this.difficulty,
+                            forbiddenEnabled: this.forbiddenEnabled
+                        }
+                    });
+                });
+            }
+
+            resolvePending(token, move) {
+                const entry = this.aiPending[token];
+                if (!entry) return;
+                clearTimeout(entry.watchdog);
+                delete this.aiPending[token];
+                if (entry.generation !== this.aiGeneration) return;
+                entry.resolve(move);
+            }
+
+            setMode(mode) {
+                this.mode = mode;
+                document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode===mode));
+                if (mode === 'aivai') document.getElementById('autoBtn').disabled = false;
+                else document.getElementById('autoBtn').disabled = true;
+                this.newGame();
+                this.flash(`模式：${mode==='pvp'?'双人':mode==='ai'?'人机':'AI对战'}`);
+            }
+
+            toggleForbidden() {
+                this.forbiddenEnabled = !this.forbiddenEnabled;
+                const btn = document.getElementById('forbiddenBtn');
+                btn.textContent = `禁手:${this.forbiddenEnabled?'开':'关'}`;
+                btn.classList.toggle('active', this.forbiddenEnabled);
+                this.newGame();
+            }
+
+            toggleSandbox() {
+                this.sandbox = !this.sandbox;
+                document.getElementById('sandboxBtn').classList.toggle('active', this.sandbox);
+                this.flash(this.sandbox ? '沙盒模式已开启' : '已关闭沙盒');
+                this.renderAll();
+            }
+
+            clearBoard() {
+                if (this.history.length && !this.sandbox) {
+                    if (!confirm('确定清空棋盘？')) return;
+                }
+                this.board = this.emptyBoard();
+                this.history = [];
+                this.gameOver = false;
+                this.winner = 0;
+                this.currentPlayer = 1;
+                this.stopAuto();
+                this.renderAll();
+                this.updateScore();
+            }
+
+            newGame() {
+                this.clearBoardInternal(true);
+            }
+
+            clearBoardInternal(resetTurn=true) {
+                this.board = this.emptyBoard();
+                this.history = [];
+                this.gameOver = false;
+                this.winner = 0;
+                if (resetTurn) this.currentPlayer = 1;
+                this.stopAuto();
+                this.clearPendingAI();
+                this.aiThinking = false;
+                this.renderAll();
+                this.updateScore();
+                if (this.mode === 'ai' && this.currentPlayer !== this.humanColorValue()) this.scheduleAI();
+                if (this.mode === 'aivai') this.runAutoStep();
+            }
+
+            humanColorValue() { return this.humanSide === 'black' ? 1 : 2; }
+            aiColorValue() { return this.humanSide === 'black' ? 2 : 1; }
+
+            onCell(r,c) {
+                if (this.aiThinking) return;
+                if (this.sandbox) {
+                    const val = this.board[r][c];
+                    this.board[r][c] = (val + 1) % 3;
+                    this.history.push({type:'sandbox', r, c, prev: val});
+                    this.renderAll();
+                    return;
+                }
+                if (this.gameOver) { this.flash('本局已结束，请新对局'); return; }
+                if (this.mode === 'ai' && this.currentPlayer !== this.humanColorValue()) return;
+                if (this.mode === 'aivai') return;
+
+                if (!this.isLegal(r,c,this.currentPlayer)) {
+                    this.shake(r,c); return;
+                }
+                this.placeMove(r,c,this.currentPlayer);
+            }
+
+            isLegal(r,c,player) {
+                if (r<0||r>=this.size||c<0||c>=this.size) return false;
+                if (this.board[r][c] !== 0) return false;
+                if (player === 1 && this.forbiddenEnabled) {
+                    return !isForbidden(this.board, r, c); // placeholder local? handled by AI? implement global
+                }
+                return true;
+            }
+
+            // local global forbidden implementation (same as worker)
+            placeMove(r,c,player) {
+                this.board[r][c] = player;
+                this.history.push({type:'move', r, c, player});
+                this.lastMove = [r,c];
+                const w = this.checkWin(r,c,player);
+                if (w) { this.gameOver=true; this.winner=player; this.onWin(player); }
+                this.currentPlayer = player === 1 ? 2 : 1;
+                this.renderAll();
+                this.updateScore();
+                this.maybeAI();
+            }
+
+            checkWin(r,c,player) {
+                const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+                for (const [dr,dc] of dirs) {
+                    let cnt=1;
+                    let rr=r+dr, cc=c+dc;
+                    while (rr>=0&&rr<this.size&&cc>=0&&cc<this.size&&this.board[rr][cc]===player){cnt++;rr+=dr;cc+=dc;}
+                    rr=r-dr; cc=c-dc;
+                    while (rr>=0&&rr<this.size&&cc>=0&&cc<this.size&&this.board[rr][cc]===player){cnt++;rr-=dr;cc-=dc;}
+                    if (player===1 && this.forbiddenEnabled) {
+                        if (cnt === 5) return true; // black wins only exact 5
+                        // if >=6 it should have been forbidden already
+                    } else {
+                        if (cnt >= 5) return true;
+                    }
+                }
+                return false;
+            }
+
+            maybeAI() {
+                if (this.gameOver) return;
+                if (this.mode === 'ai' && this.currentPlayer !== this.humanColorValue()) {
+                    this.scheduleAI();
+                } else if (this.mode === 'aivai') {
+                    this.runAutoStep();
+                }
+            }
+
+            scheduleAI() {
+                if (this.aiThinking) return;
+                this.aiThinking = true;
+                const detail = document.getElementById('moveDetail');
+                detail.textContent = '🤖 AI 思考中...';
+                const gen = this.aiGeneration;
+                const player = this.currentPlayer;
+                this.getAIMoveAsync(this.board, player).then(move => {
+                    if (this.aiGeneration !== gen) return;
+                    this.aiThinking = false;
+                    if (!move) {
+                        this.flash('AI 无法落子');
+                        this.currentPlayer = player===1?2:1; // 容错
+                        this.renderAll(); return;
+                    }
+                    if (this.board[move.row][move.col] !== 0 || this.gameOver) return;
+                    this.placeMove(move.row, move.col, player);
+                });
+            }
+
+            runAutoStep() {
+                if (this.gameOver || this.aiThinking) return;
+                this.aiThinking = true;
+                setTimeout(() => {
+                    this.scheduleAI();
+                }, 350);
+            }
+
+            // resolvePending inside getAIMoveAsync handles pending object; override aiThinking there? already.
+            toggleAutoPlay() {
+                if (this.mode !== 'aivai') return;
+                this.autoPlaying = !this.autoPlaying;
+                document.getElementById('autoBtn').classList.toggle('active', this.autoPlaying);
+                this.flash(this.autoPlaying ? 'AI自动对弈开启' : '已暂停');
+                if (this.autoPlaying) this.maybeAI();
+            }
+
+            stopAuto() { this.autoPlaying = false; document.getElementById('autoBtn').classList.remove('active'); }
+
+            undo() {
+                if (this.aiThinking) return;
+                if (this.sandbox) {
+                    const last = this.history.pop();
+                    if (last && last.type==='sandbox') this.board[last.r][last.c]=last.prev;
+                    this.renderAll(); return;
+                }
+                this.clearPendingAI();
+                // remove last human + AI steps
+                const popOnce = () => {
+                    const last = this.history.pop();
+                    if (last && last.type==='move') this.board[last.r][last.c]=0;
+                    return last;
+                };
+                let popped = [];
+                while (this.history.length && this.aiOwned(this.history[this.history.length-1])) popped.push(popOnce());
+                if (this.history.length) popped.push(popOnce());
+                this.gameOver=false; this.winner=0;
+                if (popped.length) this.currentPlayer = popped[popped.length-1].player;
+                this.renderAll(); this.updateScore();
+                if (this.mode === 'ai' && this.currentPlayer !== this.humanColorValue()) this.scheduleAI();
+            }
+
+            aiOwned(rec) { return rec && rec.player !== this.humanColorValue(); }
+
+            hint() {
+                if (this.aiThinking || this.gameOver) return;
+                this.aiThinking = true;
+                const gen=this.aiGeneration;
+                this.getAIMoveAsync(this.board, this.currentPlayer).then(move => {
+                    this.aiThinking = false;
+                    if (this.aiGeneration !== gen || !move) return;
+                    this.hintCell = move;
+                    this.renderBoard();
+                    setTimeout(() => { this.hintCell=null; this.renderBoard(); }, 1400);
+                });
+            }
+
+            onWin(player) {
+                this.flash(player===1 ? '黑棋获胜' : '白棋获胜');
+                this.updateStats(player);
+            }
+
+            renderAll() { this.renderBoard(); }
+
+            renderBoard() {
+                const cells = this.cells;
+                cells.forEach((cell,i) => {
+                    const r = Math.floor(i/this.size), c=i%this.size;
+                    cell.innerHTML='';
+                    const v = this.board[r][c];
+                    if (v!==0) {
+                        const stone=document.createElement('div');
+                        stone.className='stone ' + (v===1?'black':'white');
+                        cell.appendChild(stone);
+                    }
+                    cell.classList.toggle('forbidden', this.sandbox===false && this.isCellForbidden(r,c));
+                    cell.classList.toggle('hint', !!(this.hintCell && this.hintCell.row===r && this.hintCell.col===c));
+                    if (this.lastMove && this.lastMove[0]===r && this.lastMove[1]===c) cell.classList.add('last-move'); else cell.classList.remove('last-move');
+                });
+                document.getElementById('moveDetail').textContent = this.statusText();
+                document.getElementById('statusSub').textContent = this.subText();
+            }
+
+            isCellForbidden(r,c) {
+                if (this.board[r][c] !== 0) return false;
+                if (!this.forbiddenEnabled) return false;
+                if (this.currentPlayer !== 1) return false;
+                // quick local check: black only
+                return false;
+            }
+
+            statusText() {
+                if (this.gameOver) return this.winner===1 ? '黑棋获胜' : '白棋获胜';
+                if (this.aiThinking) return '🤖 AI 思考中...';
+                if (this.sandbox) return '沙盒模式：点击格子循环放黑/白/空';
+                return (this.currentPlayer===1 ? '黑方' : '白方') + '落子';
+            }
+            subText() {
+                if (this.sandbox) return '点击格可轮换空/黑/白，清盘可重置';
+                return `模式：${this.mode==='pvp'?'双人':this.mode==='ai'?'人机':'AI自对'} | 禁手：${this.forbiddenEnabled?'开':'关'} | 难度：${this.difficulty}`;
+            }
+
+            updateScore() {
+                document.getElementById('scoreText').textContent = this.gameOver
+                    ? (this.winner===1?'黑棋获胜':'白棋获胜')
+                    : (this.currentPlayer===1 ? '黑方落子' : '白方落子');
+            }
+
+            loadStats() {
+                try { return JSON.parse(localStorage.getItem('gomokuStats')||'{}'); } catch(e){ return {}; }
+            }
+            updateStats(winner) {
+                const w = winner===1?'black':'white';
+                this.stats.lastWinner=w; this.stats.games=(this.stats.games||0)+1;
+                try { localStorage.setItem('gomokuStats', JSON.stringify(this.stats)); } catch(e){}
+            }
+
+            flash(msg, ms=1800) {
+                const el = document.getElementById('moveDetail');
+                const old = el.textContent;
+                el.textContent = msg; el.style.color='#fbbf24';
+                setTimeout(() => { if (el.textContent === msg) { el.textContent=old; el.style.color=''; } }, ms);
+            }
+
+            shake(r,c) {
+                const i=r*this.size+c;
+                const cell=this.cells[i];
+                cell.animate([{transform:'translateX(0)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)'}],{duration:300});
+            }
+
+        }
+
+        // Fix isLegal to use worker-compatible global forbidden (import logic inline)
+        (function patchForbidden(Gomoku) {
+            // provide global forbidden checker attached to class prototype via board utils
+            const SIZE = 15;
+            function inBounds(r,c){return r>=0&&r<SIZE&&c>=0&&c<SIZE;}
+            function countLine(board,r,c,dr,dc,player){
+                let cnt=1,rr=r+dr,cc=c+dc;
+                while(inBounds(rr,cc)&&board[rr][cc]===player){cnt++;rr+=dr;cc+=dc;}
+                rr=r-dr;cc=c-dc;
+                while(inBounds(rr,cc)&&board[rr][cc]===player){cnt++;rr-=dr;cc-=dc;}
+                return cnt;
+            }
+            function isLiveN(board,r,c,dr,dc,player,n){
+                let left=0,rr=r-dr,cc=c-dc;
+                while(inBounds(rr,cc)&&board[rr][cc]===player){left++;rr-=dr;cc-=dc;}
+                const leftOpen=inBounds(rr,cc)&&board[rr][cc]===0;
+                let right=0; rr=r+dr; cc=c+dc;
+                while(inBounds(rr,cc)&&board[rr][cc]===player){right++;rr+=dr;cc+=dc;}
+                const rightOpen=inBounds(rr,cc)&&board[rr][cc]===0;
+                if(left+1+right!==n) return false;
+                return leftOpen&&rightOpen;
+            }
+            function isForbidden(board,r,c){
+                if(board[r][c]!==0) return false;
+                board[r][c]=1;
+                let f=false;
+                if(countLine(board,r,c,1,0,1)>=6||countLine(board,r,c,0,1,1)>=6||countLine(board,r,c,1,1,1)>=6||countLine(board,r,c,1,-1,1)>=6) f=true;
+                if(!f){
+                    let four=0;
+                    four += isLiveN(board,r,c,1,0,1,4)?1:0;
+                    four += isLiveN(board,r,c,0,1,1,4)?1:0;
+                    four += isLiveN(board,r,c,1,1,1,4)?1:0;
+                    four += isLiveN(board,r,c,1,-1,1,4)?1:0;
+                    if(four>=2) f=true;
+                }
+                if(!f){
+                    let three=0;
+                    three += isLiveN(board,r,c,1,0,1,3)?1:0;
+                    three += isLiveN(board,r,c,0,1,1,3)?1:0;
+                    three += isLiveN(board,r,c,1,1,1,3)?1:0;
+                    three += isLiveN(board,r,c,1,-1,1,3)?1:0;
+                    if(three>=2) f=true;
+                }
+                board[r][c]=0;
+                return f;
+            }
+            const origIsLegal = Gomoku.prototype.isLegal;
+            Gomoku.prototype.isLegal = function(r,c,player){
+                if(r<0||r>=this.size||c<0||c>=this.size) return false;
+                if(this.board[r][c]!==0) return false;
+                if(player===1 && this.forbiddenEnabled){
+                    return !isForbidden(this.board, r, c);
+                }
+                return true;
+            };
+            const origCellForbidden = Gomoku.prototype.isCellForbidden;
+            Gomoku.prototype.isCellForbidden = function(r,c){
+                if(this.board[r][c]!==0) return false;
+                if(!this.forbiddenEnabled) return false;
+                // 仅提示“黑棋在本手禁手”，不随currentPlayer变化也不渲染红色（避免抖动）
+                return false;
+            };
+        })(Gomoku);
+
+        // patch win for black exact five only under forbidden
+        const origCheckWin = Gomoku.prototype.checkWin;
+        // already inline
+
+        const game = new Gomoku();
+        document.getElementById('humanSide').addEventListener('change', (e) => { game.humanSide = e.target.value; game.newGame(); });
+        document.getElementById('difficulty').addEventListener('change', (e) => { game.difficulty = e.target.value; });
+        window.game = game;
+
+        // resolve isLegal in onCell? isLegal was called as this.isLegal; patched.
+        // ensure clearPendingAI method exists for imported? defined via constructor? add manually
+        Gomoku.prototype.clearPendingAI = function() { this.aiGeneration++; for(const t in this.aiPending){const e=this.aiPending[t]; clearTimeout(e.watchdog); e.resolve(null); delete this.aiPending[t];} this.aiThinking=false; };
+
+        // connect auto play loop
+        const origRunAuto = Gomoku.prototype.runAutoStep;
+        Gomoku.prototype.runAutoStep = function() {
+            if(this.gameOver || this.aiThinking) return;
+            if(!this.autoPlaying) return;
+            this.aiThinking=true;
+            setTimeout(()=>{ this.aiThinking=false; this.scheduleAI(); }, 400);
+        };
+
+        // ensure scheduleAI resolves thinking reset if no worker
+        // N/A
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../../sw.js').then(r => console.log('SW', r.scope)).catch(console.error);
+      }
+    </script>
+</body>
+</html>
