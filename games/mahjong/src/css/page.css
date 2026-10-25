@@ -122,3 +122,31 @@ h1 a:hover:before {
 h2 a:hover:before {
   bottom: -0.5em;
 }
+
+@media (max-width: 760px) {
+  body {
+    width: auto;
+    padding: 10px 8px 1em;
+  }
+
+  :root {
+    --w: min(88vw, 88vh);
+  }
+
+  .board {
+    width: var(--w);
+    height: var(--w);
+  }
+}
+
+@media (pointer: coarse) {
+  game-tile {
+    min-width: 30px;
+  }
+
+  .settings,
+  .theming,
+  .corner.wall.data {
+    cursor: pointer;
+  }
+}

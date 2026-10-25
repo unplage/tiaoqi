@@ -154,7 +154,8 @@ class BotPlayer extends Player {
 
     // Did we self-draw a limit hand?
     let allTiles = this.getTileFaces(true).filter(t => t<34);
-    let limithand = this.rules.checkForLimit(allTiles);
+    let lockedSize = Array.isArray(this.locked) ? this.locked.reduce((t, set) => t + (set && Array.isArray(set) ? set.length : 0), 0) : 0;
+    let limithand = this.rules.checkForLimit(allTiles, lockedSize);
     if (limithand) return resolve(undefined);
 
     // Now then. We haven't won, let's figure out which tiles are worth keeping,

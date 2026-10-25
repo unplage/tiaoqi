@@ -16,17 +16,16 @@ class FaakLaakTable {
 
     // base points:
     this.table[0] = this.no_point_score;
-    for(faan=1; faan < limits[0]; faan++) this.table[faan] = 2**faan;
+    for(faan=1; faan < limits[0]; faan++) this.table[faan] = 2**(faan-1);
 
     // tiered limits:
-    let laak = faan;
-    for (let i=0, e=limits.length-1; i<e; i++) {
+    for (let i = 0, e = limits.length - 1; i < e; i++) {
       let limit_s = limits[i];
-      let limit_e = limits[i+1];
-      for(let j=limit_s; j < limit_e; j++) this.table[j] = 2**laak;
-      laak++;
+      let limit_e = limits[i + 1];
+      let tierValue = 2 ** (4 + i);
+      for (let j = limit_s; j < limit_e; j++) this.table[j] = tierValue;
     }
-    this.table[limits.slice(-1)] = 2**laak;
+    this.table[limits.slice(-1)] = 2 ** 5;
   }
 
   get(points, selfdraw, limit) {

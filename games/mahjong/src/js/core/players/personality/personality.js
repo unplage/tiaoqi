@@ -207,7 +207,7 @@ class Personality {
     // Try not to chicken, part 2 don't go for pungs if we're going for a chow hand
     if (reason === CLAIM.PUNG || reason === CLAIM.KONG) {
       let canChicken =  this.allowScoringChicken && (stats.bigpungs > 0 || stats.locked.bigpungs > 0);
-      let isBig = (tileNumber + 27 === this.player.wind) || (tileNumber + 27 === this.player.windOfTheRound) || (tileNumber > 30);
+      let isBig = (tileNumber === 27 + this.player.wind) || (tileNumber === 27 + this.player.windOfTheRound) || (tileNumber > 30);
 
       if ((this.playChowHand || stats.locked.chows) > 0 && !canChicken && !isBig) {
         console.debug(this.player.id,'not claiming pung/kong because we have a chow, and',tileNumber,'is not scoring','(',tilesRemaining,'left)');

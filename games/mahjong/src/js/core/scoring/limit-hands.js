@@ -37,7 +37,7 @@ class LimitHands {
       let pos = tiles.indexOf(t);
       if (pos>-1) tiles.splice(pos,1);
     });
-    return (tiles.length === 1 && offset < tiles[0] && tiles[0] < offset+8);
+    return (tiles.length === 1 && offset <= tiles[0] && tiles[0] <= offset+8);
   }
 }
 

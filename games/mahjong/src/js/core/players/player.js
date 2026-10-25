@@ -1,5 +1,6 @@
 import { config, CLAIM } from "../../../config.js";
 import { PlayerMaster } from "./player-master.js";
+const convertSubtypeToClaim = config.convertSubtypeToClaim;
 import { TaskTimer } from "../utils/task-timer.js";
 
 

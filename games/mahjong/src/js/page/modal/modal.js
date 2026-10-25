@@ -103,7 +103,7 @@ class Modal {
       }
 
       row = document.createElement(`tr`);
-      let field = `<input class="${key} field" type"${
+      let field = `<input class="${key} field" type="${
         type || `text`
       }" value="${value}">`;
 

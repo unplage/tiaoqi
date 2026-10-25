@@ -264,10 +264,10 @@ class Game {
     // of actual play, has a kong in their hand, is given the
     // option to declare that kong before tiles start getting
     // discarded:
-
-    await Promise.all(players.map(p => {
-      return new Promise(done => this.resolveKongs(p, done));
-    }));
+    for (const p of players) {
+      const claim = await this.resolveKongs(p);
+      if (claim) return this.processKongRob(claim);
+    }
   }
 
   /**
@@ -278,17 +278,22 @@ class Game {
   async resolveKongs(player, done) {
     await this.continue("resolveKongs");
 
-    let players = this.players;
     let kong;
+    let claim;
     do {
       kong = await player.checkKong();
       if (kong) {
-        await this.processKong(player, kong);
+        claim = await this.processKong(player, kong);
+        if (claim) {
+          if (done) done();
+          return claim;
+        }
         // TODO: someone not-East COULD technically win at this point!
       }
     } while (kong);
 
-    done();
+    if (done) done();
+    return undefined;
   }
 
   /**
@@ -409,7 +414,9 @@ class Game {
         }
 
         // if no one can, then this player now needs a supplement tile.
-        await this.dealTile(player);
+        let supplementClaim = await this.dealTile(player);
+        if (supplementClaim) return this.processKongRob(supplementClaim);
+        if (!player.has_won) player.lastClaim = false;
       }
     }
 
@@ -509,6 +516,7 @@ class Game {
         }
       }
     } while (revealed);
+    return undefined;
   }
 
   /**

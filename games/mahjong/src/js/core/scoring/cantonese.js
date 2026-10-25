@@ -79,10 +79,11 @@ class Cantonese extends Ruleset {
     let r, g, w;
 
     scorePattern.forEach(set => {
-      let tile = set[0];
-      if (tile===31) g = set.length;
-      if (tile===32) r = set.length;
-      if (tile===33) w = set.length;
+      let tile = set.tilenumber !== undefined ? set.tilenumber : set[0];
+      let size = set.size ? set.size() : set.length;
+      if (tile===31) g = size;
+      if (tile===32) r = size;
+      if (tile===33) w = size;
     });
 
     if (r + g + w >= 8 && (r===2 || g===2 || w===2)) {

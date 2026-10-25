@@ -44,11 +44,11 @@ function buildStatsContainer(player) {
         stats.suits[suit(tileNumber)]++;
         stats.locked.suits[suit(tileNumber)]++;
       }
-      if (tileNumber + 27 === player.wind) {
+      if (tileNumber === 27 + player.wind) {
         stats.bigpungs++;
         stats.locked.bigpungs++;
       }
-      if (tileNumber + 27 === player.windOfTheRound) {
+      if (tileNumber === 27 + player.windOfTheRound) {
         stats.bigpungs++;
         stats.locked.bigpungs++;
       }
@@ -108,8 +108,8 @@ function buildStatsContainer(player) {
     if (count===2) stats.pairs++;
     if (count>=3) {
       stats.pungs++;
-      if (tileNumber + 27 === player.wind) { stats.bigpungs++; }
-      if (tileNumber + 27 === player.windOfTheRound) { stats.bigpungs++; }
+      if (tileNumber === 27 + player.wind) { stats.bigpungs++; }
+      if (tileNumber === 27 + player.windOfTheRound) { stats.bigpungs++; }
       if (tileNumber > 30) { stats.bigpungs++; }
     }
   });

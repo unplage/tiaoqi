@@ -107,7 +107,7 @@ class ChineseClassical extends Ruleset {
     // claimed kong (locked, concealed=3 for pung), or
     // a self-drawn kong (locked, concealed=4 for kong)?
     let prefix = ``;
-    let ccount = concealed;
+    let ccount = concealed ? Number(concealed) : 0;
     if (!ccount) prefix = `melded `;
     else if (ccount === 3) prefix = `claimed `;
     else if (ccount === 4) prefix = `concealed `;
@@ -167,10 +167,11 @@ class ChineseClassical extends Ruleset {
     let r, g, w;
 
     scorePattern.forEach(set => {
-      let tile = set[0];
-      if (tile===31) g = set.length;
-      if (tile===32) r = set.length;
-      if (tile===33) w = set.length;
+      let tile = set.tilenumber !== undefined ? set.tilenumber : set[0];
+      let size = set.size ? set.size() : set.length;
+      if (tile===31) g = size;
+      if (tile===32) r = size;
+      if (tile===33) w = size;
     });
 
     if (r + g + w >= 8 && (r===2 || g===2 || w===2)) {
@@ -306,12 +307,12 @@ class ChineseClassical extends Ruleset {
     }
 
     if (this.allFlowers(bonus)) {
-      result.doubles += 2;
+      result.doubles += 1;
       result.log.push(`1 double for having all flowers`);
     }
 
     if (this.allSeasons(bonus)) {
-      result.doubles += 2;
+      result.doubles += 1;
       result.log.push(`1 double for having all seasons`);
     }
   }

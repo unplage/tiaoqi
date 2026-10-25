@@ -11,6 +11,7 @@ class ColorModal {
   reset() {
     const style = document.querySelector(`style#mahjongCSS`);
     if (style) style.parentNode.removeChild(style);
+    localStorage.removeItem("mahjongCSS");
   }
 
   saveColor(entry) {

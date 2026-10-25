@@ -283,7 +283,8 @@ class ClientUI extends ClientUIMaster {
     // can we declare a limit hand?
     if (!canWin) {
       let allTiles = this.getTileFaces(true).filter(t => t<34);
-      canWin = this.player.rules.checkForLimit(allTiles);
+      let lockedSize = Array.isArray(this.player.locked) ? this.player.locked.reduce((t, set) => t + (Array.isArray(set) ? set.length : 0), 0) : 0;
+      canWin = this.player.rules.checkForLimit(allTiles, lockedSize);
     }
 
     // build the self-declare options for this action
@@ -506,14 +507,14 @@ class ClientUI extends ClientUIMaster {
     let tile = tiles[0].getTileFace();
     let claim = false;
 
-    if (suggestions && suggestions[0]) claim = suggestions[0];
+    if (suggestions) claim = suggestions;
     else {
       (() => {
         let { lookout, waiting } = this.player.tilesNeeded();
         if (!waiting) return;
         let need = lookout[tile];
         if (!need) return;
-        let reasons = need.filter(v => v.indexOf('32')!==0);
+        let reasons = need.filter(v => v.indexOf('32')===0);
         if (reasons.length === 0) return;
         claim = {
           from: pid,

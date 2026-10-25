@@ -167,7 +167,6 @@ class Ruleset {
           let paysAsEast = (i === eastplayer) ? 2 : 1;
           difference *= paysAsEast;
         }
-        console.debug(`${i} gets ${difference} from ${j}`);
         adjustments[i] += difference;
         console.debug(`${j} pays ${difference} to ${i}`);
         adjustments[j] -= difference;
@@ -344,23 +343,22 @@ class Ruleset {
         }
         else {
           state.outonPair = false;
+        }
 
-          if (tile > 26 && tile < 31) {
-            state.windPair = true;
-            state.majorPair = true;
-          }
-          if (tile > 30) {
-            state.dragonPair = true;
-            state.majorPair = true;
-          }
-          if (tile === windTile) {
-            state.ownWindPair = true;
-            state.majorPair = true;
-          }
-          if (tile === windOfTheRoundTile) {
-            state.wotrPair = true;
-            state.majorPair = true;
-          }
+        if (tile > 26 && tile < 31) {
+          state.windPair = true;
+        }
+        if (tile > 30) {
+          state.dragonPair = true;
+          state.majorPair = true;
+        }
+        if (tile === windTile) {
+          state.ownWindPair = true;
+          state.majorPair = true;
+        }
+        if (tile === windOfTheRoundTile) {
+          state.wotrPair = true;
+          state.majorPair = true;
         }
       }
 
