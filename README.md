@@ -13,6 +13,7 @@
 | 贪吃蛇进化论 | `games/tcs/` | 经典 / 限时 / 生存 / 竞技，道具、皮肤、任务 |
 | 打地鼠 | `games/dds/` | 并发地鼠、难度曲线、五类目标、纪录 |
 | 俄罗斯方块 | `games/elsfk/` | SRS、T-Spin、多模式、DAS/ARR、移动端手势 |
+| 麻将 | `games/mahjong/` | 2/3/4 人、国标/香港/四川基础、吃碰胡 |
 
 每个游戏目录都是独立应用，保留原版入口 `index.html`、Service Worker 与资源路径；主入口 `index.html` 只做游戏集主页与跳转。
 

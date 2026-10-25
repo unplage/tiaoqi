@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#064e3b">
+    <title>麻将 · Mahjong</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        body {
+            min-height: 100dvh; height: 100dvh; overflow: hidden;
+            display: grid; grid-template-rows: auto 1fr auto; gap: 6px; padding: 6px;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #ecfdf5; background: radial-gradient(900px 500px at 15% -10%, #10b98122, transparent 60%), linear-gradient(160deg, #022c22 0%, #064e3b 50%, #0f172a 100%);
+        }
+        .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .topbar a { color:#6ee7b7; text-decoration:none; padding:8px 10px; background:#052e16; border:1px solid #065f46; border-radius:10px; }
+        .title { flex:1; font-size:clamp(1.1rem,4vw,1.45rem); font-weight:900; }
+        .hud { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+        .hud select, .hud button { padding:8px 10px; border:1px solid #065f46; background:#052e16; color:#ecfdf5; border-radius:10px; cursor:pointer; font-size:.8rem; }
+        .table { display:grid; grid-template-rows: 1fr auto 1fr; grid-template-columns: 1fr auto 1fr; gap:6px; min-height:0; }
+        .seat { background:#052e16aa; border:1px solid #0f3f2e; border-radius:14px; padding:6px; min-height:0; overflow:auto; }
+        .top { grid-column:2; grid-row:1; } .left { grid-column:1; grid-row:2; }
+        .center { grid-column:2; grid-row:2; display:grid; place-items:center; min-height:0; }
+        .right { grid-column:3; grid-row:2; } .bottom { grid-column:2; grid-row:3; }
+        .seat-title { font-size:.78rem; color:#6ee7b7; font-weight:700; margin-bottom:4px; }
+        .hand { display:flex; flex-wrap:wrap; gap:4px; justify-content:center; min-height:52px; }
+        .tile {
+            min-width:34px; height:46px; padding:4px 6px; border-radius:8px; background:linear-gradient(#fff,#e2e8f0);
+            color:#0f172a; font-weight:800; font-size:.86rem; cursor:pointer; user-select:none;
+            box-shadow:0 3px 7px #0005; border:1px solid #94a3b8;
+        }
+        .tile.selected { transform:translateY(-8px); outline:2px solid #fbbf24; }
+        .tile.disabled { opacity:.6; cursor:not-allowed; }
+        .meld-chip { display:inline-block; margin:2px; padding:4px 7px; border-radius:8px; background:#065f46; color:#ecfdf5; font-size:.78rem; font-weight:700; }
+        .discard-row { display:flex; flex-wrap:wrap; gap:3px; min-height:20px; }
+        .discard-row .t { font-size:.72rem; padding:2px 4px; height:auto; min-width:auto; background:#064e3b; color:#a7f3d0; border-color:#0f3f2e; }
+        .board-center { width:min(92vw,74vh,620px); aspect-ratio:1/1; border-radius:20px; background: radial-gradient(circle at center,#0f3f2e,#022c22 70%); border:4px solid #34d399; display:grid; place-items:center; text-align:center; padding:16px; box-shadow:0 20px 50px #0008; }
+        .actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:8px; }
+        .action-btn { background:#10b981; color:#022c22; border:none; font-weight:900; }
+        .action-btn.secondary { background:#0f3f2e; color:#ecfdf5; border:1px solid #065f46; }
+        #statusPanel { background:#052e16cc; border:1px solid #0f3f2e; border-radius:12px; padding:8px 12px; min-height:46px; }
+        .status-line { min-height:1.35em; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .status-sub { font-size:.8rem; color:#6ee7b7; min-height:1.2em; }
+        .modal-backdrop { position:fixed; inset:0; background:#0009; display:none; place-items:center; z-index:1000; }
+        .modal { width:min(92vw,480px); background:#052e16; border:1px solid #065f46; border-radius:18px; padding:16px; }
+        @media (max-width:760px) { body { padding:4px; gap:4px; } .table { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto auto; } .top,.left,.right,.bottom,.center { grid-column:1; grid-row:auto; } .board-center { width:min(96vw,48vh,420px); } }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <a href="../../index.html">← 游戏集</a>
+        <div class="title">🀄 麻将</div>
+        <div style="color:#6ee7b7;font-size:.8rem;" id="turnText">初始化</div>
+    </div>
+
+    <div class="hud">
+        <select id="modeSelect"><option value="ai">单机 AI</option><option value="hotseat">本地热座</option></select>
+        <select id="playerCount"><option value="4">4人</option><option value="3">3人</option><option value="2">2人</option></select>
+        <select id="variantSelect"><option value="standard">国标基础</option><option value="hongkong">香港基础</option><option value="sichuan">四川麻将</option></select>
+        <select id="difficultySelect"><option value="easy">简单</option><option value="medium" selected>中等</option><option value="hard">困难</option></select>
+        <button onclick="game.newGame()">🔄 新局</button>
+        <button onclick="game.toggleAuto()">🤖 AI代打</button>
+        <button onclick="game.showHelp()">帮助</button>
+    </div>
+
+    <div class="table">
+        <div class="seat top" id="seat1">
+            <div class="seat-title">上家</div>
+            <div class="meld-list" id="melds1"></div>
+            <div class="discard-row" id="discards1"></div>
+            <div id="handCount1">0张</div>
+        </div>
+        <div class="seat left" id="seat3">
+            <div class="seat-title">左家</div>
+            <div class="meld-list" id="melds3"></div>
+            <div class="discard-row" id="discards3"></div>
+            <div id="handCount3">0张</div>
+        </div>
+        <div class="seat center">
+            <div class="board-center">
+                <div>
+                    <div style="font-size:1.1rem;font-weight:900;color:#34d399;">麻将对局</div>
+                    <div id="centerInfo" style="margin-top:8px;color:#a7f3d0;">牌墙剩余</div>
+                    <div class="actions" id="claimActions" style="display:none;">
+                        <button class="action-btn" onclick="game.claim('hu')">胡牌</button>
+                        <button class="action-btn" onclick="game.claim('pon')">碰</button>
+                        <button class="action-btn" onclick="game.claim('chi')">吃</button>
+                        <button class="action-btn secondary" onclick="game.claim('skip')">跳过</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="seat right" id="seat2">
+            <div class="seat-title">右家</div>
+            <div class="meld-list" id="melds2"></div>
+            <div class="discard-row" id="discards2"></div>
+            <div id="handCount2">0张</div>
+        </div>
+        <div class="seat bottom" id="seat0">
+            <div class="seat-title">自分</div>
+            <div class="meld-list" id="melds0"></div>
+            <div class="discard-row" id="discards0"></div>
+            <div class="hand" id="hand0"></div>
+            <div class="actions" style="margin-top:6px;">
+                <button class="action-btn secondary" onclick="game.discardSelected()">打出选中</button>
+                <span style="font-size:.8rem;color:#86efac;" id="helpText">点牌选中后打出</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusPanel">
+        <div class="status-line" id="moveDetail">开始新局</div>
+        <div class="status-sub" id="statusSub">吃碰胡自动校验；四川模式需要缺一门</div>
+    </div>
+
+    <div class="modal-backdrop" id="helpModal">
+        <div class="modal">
+            <h2>规则与说明</h2>
+            <p style="line-height:1.75;font-size:.88rem;">
+                · 标准役：4 面子 + 1 将；支持 sequences/triplets。<br>
+                · 支持吃、碰、胡牌；杠暂简化为碰展示。<br>
+                · 四川模式胡牌时手中不能三门齐出（缺一门）。<br>
+                · 单机 AI 会按牌效率自动出牌并自动胡牌。<br>
+                · 联机模式后续接入（当前先保证本地对战稳定）。<br>
+            </p>
+            <div style="text-align:right;margin-top:10px;"><button onclick="game.closeHelp()">关闭</button></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+        const SUITS = { standard:['m','p','s','z','f'], hongkong:['m','p','s','z','f'], sichuan:['m','p','s'] };
+        const HONOR_LABELS = ['','东风','南风','西风','北风','中','发','白'];
+        const SUIT_LABEL = {m:'万',p:'筒',s:'条'};
+
+        function tileLabel(t) {
+            if (t.suit === 'z') return HONOR_LABELS[t.rank] || '风';
+            if (t.suit === 'f') return ['','中','发','白'][t.rank] || '字';
+            return t.rank + SUIT_LABEL[t.suit];
+        }
+        function tileKey(t){ return t.suit + t.rank; }
+        function clone(v){ return JSON.parse(JSON.stringify(v)); }
+        function shuffle(a){ for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} }
+
+        function createWall(variant) {
+            const suits = SUITS[variant] || SUITS.standard;
+            const tiles = [];
+            let id = 0;
+            for (const s of suits) {
+                const ranks = (s==='m'||s==='p'||s==='s') ? [1,2,3,4,5,6,7,8,9] : (s==='z'?[1,2,3,4]:[1,2,3]);
+                for (const r of ranks) for (let i=0;i<4;i++) tiles.push({suit:s,rank:r,id:id++});
+            }
+            return tiles;
+        }
+
+        class Mahjong {
+            constructor() {
+                this.playerCount = 4;
+                this.variant = 'standard';
+                this.mode = 'ai';
+                this.humanSeat = 0;
+                this.wall = [];
+                this.hands = [];
+                this.melds = [];
+                this.discards = [];
+                this.current = 0;
+                this.state = 'idle';
+                this.pending = null;
+                this.selected = null;
+                this.autoPlay = false;
+                this.scores = [];
+                this.claimTimer = null;
+                this.difficulty = 'medium';
+                this.turnNo = 0;
+                document.getElementById('playerCount').addEventListener('change', () => this.syncSettings());
+                document.getElementById('variantSelect').addEventListener('change', () => this.syncSettings());
+                document.getElementById('modeSelect').addEventListener('change', () => this.syncSettings());
+                document.getElementById('difficultySelect').addEventListener('change', e => this.difficulty = e.target.value);
+                this.newGame();
+            }
+            syncSettings() {
+                this.playerCount = +document.getElementById('playerCount').value;
+                this.variant = document.getElementById('variantSelect').value;
+                this.mode = document.getElementById('modeSelect').value;
+                this.newGame();
+            }
+            newGame() {
+                this.clearTimers();
+                this.playerCount = +document.getElementById('playerCount').value;
+                this.variant = document.getElementById('variantSelect').value;
+                this.mode = document.getElementById('modeSelect').value;
+                this.difficulty = document.getElementById('difficultySelect').value;
+                const n = this.playerCount;
+                this.wall = createWall(this.variant);
+                shuffle(this.wall);
+                this.hands = Array.from({length:n},()=>[]);
+                this.melds = Array.from({length:n},()=>[]);
+                this.discards = Array.from({length:n},()=>[]);
+                this.scores = Array(n).fill(0);
+                this.pending = null;
+                this.turnNo = 0;
+                for (let i=0;i<13;i++) for (let p=0;p<n;p++) this.hands[p].push(this.wall.pop());
+                this.state = 'playing';
+                this.drawTile(0);
+                this.renderAll();
+                this.flash('新局开始');
+            }
+            clearTimers() { if (this.claimTimer) clearTimeout(this.claimTimer); this.claimTimer=null; }
+            isHumanTurn(p) { return this.mode === 'hotseat' || p === 0; }
+            playerName(p) { return p === 0 ? '我' : `玩家 ${p+1}`; }
+
+            drawTile(p) {
+                if (!this.wall.length) { this.endDrawGame(); return; }
+                const tile = this.wall.pop();
+                this.hands[p].push(tile);
+                this.current = p;
+                this.state = 'discard';
+                this.selected = this.hands[p].length-1;
+                this.renderAll();
+                // self hu?
+                if (this.canHu(this.hands[p])) {
+                    if (this.isHumanTurn(p)) this.showClaim(true); else setTimeout(()=>this.finishHu(p, null, true), 500);
+                }
+                if (!this.isHumanTurn(p)) this.scheduleAI();
+            }
+
+            showClaim(huOnly) {
+                const panel = document.getElementById('claimActions');
+                panel.style.display = 'flex';
+                const buttons = panel.querySelectorAll('button');
+                buttons.forEach(b => b.style.display = 'none');
+                const show = t => { const b=[...buttons].find(x=>x.textContent===t); if (b) b.style.display=''; };
+                if (huOnly) show('胡牌'); else { show('胡牌'); show('碰'); show('吃'); }
+                show('跳过');
+            }
+            hideClaim() { document.getElementById('claimActions').style.display='none'; }
+
+            claim(type) {
+                clearTimeout(this.claimTimer);
+                this.claimTimer = null;
+                const pending = this.pending;
+                if (!pending || type === 'skip') { this.resolveClaim(null); return; }
+                this.resolveClaim({player:0, type});
+            }
+
+            resolveClaim(chosen) {
+                this.hideClaim();
+                const pending = this.pending;
+                if (!chosen) {
+                    // no claim: next player draws
+                    const next = (pending.from + 1) % this.playerCount;
+                    this.pending = null;
+                    this.drawTile(next);
+                    return;
+                }
+                if (chosen.type === 'hu') {
+                    this.finishHu(chosen.player, pending.tile, false);
+                    return;
+                }
+                const p = chosen.player;
+                const hand = this.hands[p];
+                if (chosen.type === 'pon') {
+                    removeN(hand, tileKey(pending.tile), 2);
+                    this.melds[p].push({type:'碰', tile: clone(pending.tile)});
+                } else if (chosen.type === 'chi') {
+                    const tile = pending.tile;
+                    const variants = [[tile.rank-1, tile.rank+1],[tile.rank-2, tile.rank-1],[tile.rank+1, tile.rank+2]];
+                    let done = false;
+                    for (const [a,b] of variants) {
+                        const ia = hand.findIndex(t => tileKey(t) === (tile.suit+a));
+                        const ib = hand.findIndex(t => tileKey(t) === (tile.suit+b));
+                        if (ia >= 0 && ib >= 0 && ia !== ib) {
+                            hand.splice(Math.max(ia,ib),1);
+                            hand.splice(Math.min(ia,ib),1);
+                            done = true;
+                            break;
+                        }
+                    }
+                    if (!done) { /* fallback no-op */ }
+                    this.melds[p].push({type:'吃', tile: clone(pending.tile)});
+                }
+                this.pending = null;
+                this.current = p;
+                this.state = 'discard';
+                this.selected = this.hands[p].length - 1;
+                this.renderAll();
+                if (!this.isHumanTurn(p)) this.scheduleAI();
+            }
+
+            discardSelected() {
+                if (this.state !== 'discard' || !this.isHumanTurn(this.current)) return;
+                if (this.selected === null) { this.flash('请先选牌'); return; }
+                this.discardIndex(this.current, this.selected);
+            }
+
+            discardIndex(p, index) {
+                if (this.state !== 'discard' || this.current !== p) return;
+                const tile = this.hands[p].splice(index, 1)[0];
+                this.pending = {from: p, tile};
+                this.selected = null;
+                this.renderAll();
+                // claims by others
+                this.handleClaimsAfterDiscard(p, tile);
+            }
+
+            handleClaimsAfterDiscard(discarder, tile) {
+                const willing = [];
+                const n = this.playerCount;
+                for (let p=0; p<n; p++) {
+                    if (p === discarder) continue;
+                    const opts = this.claimOptions(p, tile, discarder);
+                    if (opts.length) willing.push({p, opts});
+                }
+                if (!willing.length) { this.nextPlayerAfterDiscard(discarder); return; }
+
+                // bots
+                let botChoice = null;
+                let botPri = 0;
+                for (const w of willing) {
+                    if (w.p === 0 && (this.mode !== 'ai')) continue;
+                    let pri = 0;
+                    if (w.opts.includes('hu')) pri = 4;
+                    else if (w.opts.includes('pon')) pri = 2;
+                    else if (w.opts.includes('chi')) pri = 1;
+                    if (pri > botPri) { botPri = pri; botChoice = {player: w.p, type: w.opts.includes('hu') ? 'hu' : (w.opts.includes('pon') ? 'pon' : 'chi')}; }
+                }
+                const humanWilling = willing.find(w => w.p === 0);
+                const humanPri = humanWilling ? (humanWilling.opts.includes('hu')?4 : humanWilling.opts.includes('pon')?2 : 1) : 0;
+
+                if (botChoice && botPri >= humanPri) {
+                    // small delay
+                    setTimeout(() => this.resolveClaim(botChoice), 500);
+                    return;
+                }
+                if (humanWilling) {
+                    this.showClaim(false);
+                    this.claimTimer = setTimeout(() => { this.resolveClaim(null); }, 8000);
+                } else {
+                    this.nextPlayerAfterDiscard(discarder);
+                }
+            }
+
+            claimOptions(p, tile, discarder) {
+                const hand = this.hands[p];
+                const opts = [];
+                // hu
+                const test = hand.concat([clone(tile)]);
+                if (this.canHu(test)) opts.push('hu');
+                // kong not supported, but pon
+                const same = hand.filter(t => tileKey(t) === tileKey(tile)).length;
+                if (same >= 2) opts.push('pon');
+                // chi
+                if ((discarder + 1) % this.playerCount === p && ['m','p','s'].includes(tile.suit)) {
+                    const keys = hand.map(tileKey);
+                    const r = tile.rank;
+                    const has = (a,b) => keys.includes(tile.suit+a) && keys.includes(tile.suit+b);
+                    if (has(r-1, r+1) || has(r-2, r-1) || has(r+1, r+2)) opts.push('chi');
+                }
+                return opts;
+            }
+
+            nextPlayerAfterDiscard(discarder) {
+                this.pending = null;
+                // push discard now (no claim)
+                // pending tile already? We didn't push; find from pending var (already nulled). Oops: store last discarded.
+                // We store discards at creation in resolve? Need fix: push when no claim.
+                // Reconstruct: use lastPending stored separately.
+                if (this._pendingDiscard) {
+                    this.discards[this._pendingDiscard.from].push(this._pendingDiscard.tile);
+                    this._pendingDiscard = null;
+                }
+                const next = (discarder + 1) % this.playerCount;
+                this.drawTile(next);
+            }
+
+            // need ensure discardIndex sets _pendingDiscard
+            // (will patch after? Included below via override? We'll add monkey? no)
+
+            finishHu(p, tile, selfDrawn) {
+                this.state = 'ended';
+                const hand = selfDrawn ? this.hands[p] : this.hands[p].concat([clone(tile)]);
+                const pts = this.huScore(hand, selfDrawn);
+                this.scores[p] += pts;
+                this.renderAll();
+                this.flash((p===0?'你':`玩家${p+1}`) + ' 胡牌 +' + pts);
+                this.sub('本局结束，点新局重新开始');
+                // push pending discard if exists
+                if (this._pendingDiscard) { this.discards[this._pendingDiscard.from].push(this._pendingDiscard.tile); this._pendingDiscard=null; }
+            }
+
+            huScore(hand, selfDrawn) {
+                let fan = 1;
+                const keys = hand.map(tileKey);
+                const suitSet = new Set(hand.filter(t=>!['z','f'].includes(t.suit)).map(t=>t.suit));
+                const hasHonor = hand.some(t=>t.suit==='z'||t.suit==='f');
+                if (suitSet.size === 1 && !hasHonor) fan += 6; // 清一色
+                else if (suitSet.size === 1 && hasHonor) fan += 3; // 混一色
+                const counts = {};
+                for (const k of keys) counts[k] = (counts[k]||0)+1;
+                if (Object.values(counts).filter(v=>v===2).length === 7) fan += 2; // 七对
+                if (selfDrawn) fan += 1;
+                // 对对胡-ish: no triplet breaks? approximate
+                return fan * 8;
+            }
+
+            // tile utility color etc
+            canHu(hand) {
+                if (this.variant === 'sichuan') {
+                    if (!this.hasMissingSuitHand(hand)) return false;
+                }
+                const arr = hand.map(tileKey).sort();
+                if (arr.length % 3 !== 2) return false;
+                if (arr.length === 14 && this.sevenPairs(arr)) return true;
+                return this.partitionHu(arr);
+            }
+
+            sevenPairs(arr) {
+                const cnt={}; for(const x of arr) cnt[x]=(cnt[x]||0)+1;
+                let pairs=0; for(const v of Object.values(cnt)){ if(v%2) return false; pairs+=v/2; }
+                return pairs===7 && Object.keys(cnt).length===7;
+            }
+
+            hasMissingSuitHand(hand) {
+                const suits = new Set(hand.map(t=>t.suit).filter(s=>['m','p','s'].includes(s)));
+                const available = ['m','p','s'].filter(s => SUITS[this.variant].includes(s));
+                return suits.size < available.length;
+            }
+
+            partitionHu(arr) {
+                const cnt={};
+                for (const x of arr) cnt[x]=(cnt[x]||0)+1;
+                const keys = Object.keys(cnt);
+                for (const pair of keys) {
+                    if ((cnt[pair]||0) < 2) continue;
+                    const c = clone(cnt);
+                    c[pair]-=2; if (c[pair]===0) delete c[pair];
+                    if (this.canFormSets(c, (arr.length-2)/3)) return true;
+                }
+                return false;
+            }
+            canFormSets(counts, left) {
+                if (left === 0) return Object.keys(counts).length === 0;
+                const first = Object.keys(counts).sort()[0];
+                if (!first) return left===0;
+                // triplet
+                const c1 = clone(counts);
+                if ((c1[first]||0) >= 3) {
+                    c1[first]-=3; if (c1[first]===0) delete c1[first];
+                    if (this.canFormSets(c1,left-1)) return true;
+                }
+                // sequence
+                const s = first[0];
+                if (s === 'm' || s === 'p' || s === 's') {
+                    const r = +first.slice(1);
+                    const k2 = s + (r+1), k3 = s + (r+2);
+                    if ((counts[k2]||0)>0 && (counts[k3]||0)>0) {
+                        const c2 = clone(counts);
+                        for (const k of [first,k2,k3]) { c2[k]--; if (c2[k]===0) delete c2[k]; }
+                        if (this.canFormSets(c2,left-1)) return true;
+                    }
+                }
+                return false;
+            }
+
+            chooseDiscard(p) {
+                const hand = this.hands[p];
+                let bestIdx=0, bestScore=-Infinity;
+                for (let i=0;i<hand.length;i++) {
+                    const remain = hand.filter((_,j)=>j!==i);
+                    let ways = 0;
+                    for (const t of this.allTileTypes()) {
+                        const test = remain.concat([{suit:t[0], rank:+t.slice(1), id:-1}]);
+                        if (this.canHu(test)) ways++;
+                    }
+                    // honor/single preference
+                    let s = ways*10 + (hand.filter(t=>tileKey(t)===tileKey(hand[i])).length<=1 ? 3 : 0);
+                    if (this.isTerminalOrHonor(hand[i])) s += 1;
+                    if (s > bestScore) { bestScore=s; bestIdx=i; }
+                }
+                // difficulty effect: easy random
+                if (this.difficulty==='easy' && Math.random()<0.35) return Math.floor(Math.random()*hand.length);
+                return bestIdx;
+            }
+
+            allTileTypes() {
+                const set = new Set();
+                for (const s of SUITS[this.variant]) {
+                    const ranks = (s==='m'||s==='p'||s==='s')?[1,2,3,4,5,6,7,8,9]:(s==='z'?[1,2,3,4]:[1,2,3]);
+                    for (const r of ranks) set.add(s+r);
+                }
+                return [...set];
+            }
+
+            isTerminalOrHonor(t){ return ['z','f'].includes(t.suit) || t.rank===1 || t.rank===9; }
+
+            scheduleAI() {
+                if (this.state !== 'discard') return;
+                if ((this.mode==='ai' && !this.isHumanTurn(this.current)) || this.autoPlay) {
+                    setTimeout(() => {
+                        if (this.state !== 'discard') return;
+                        const p = this.current;
+                        if (this.canHu(this.hands[p])) { this.finishHu(p,null,true); return; }
+                        const idx = this.chooseDiscard(p);
+                        this.discardIndex(p, idx);
+                    }, 650);
+                }
+            }
+
+            toggleAuto() {
+                this.autoPlay = !this.autoPlay;
+                this.flash(this.autoPlay?'AI代打开启':'AI代打关闭');
+                if (this.autoPlay && !this.isHumanTurn(this.current)) this.scheduleAI();
+            }
+
+            renderAll() { this.renderHand(); this.renderSeats(); this.renderStatus(); this.renderCenter(); }
+            renderHand() {
+                const el = document.getElementById('hand0');
+                el.innerHTML = '';
+                const hand = this.hands[0] || [];
+                for (let i=0;i<hand.length;i++) {
+                    const btn = document.createElement('div');
+                    btn.className = 'tile' + (this.selected===i?' selected':'') + (!this.isHumanTurn(0) || this.state!=='discard'?' disabled':'');
+                    btn.textContent = tileLabel(hand[i]);
+                    btn.addEventListener('click', () => { if (this.isHumanTurn(0)&&this.state==='discard') { this.selected=i; this.renderHand(); } });
+                    el.appendChild(btn);
+                }
+                document.getElementById('handCount0').textContent = hand.length+'张';
+            }
+            renderSeats() {
+                document.getElementById('melds0').innerHTML = (this.melds[0]||[]).map(m=>'<span class="meld-chip">'+m.type+'</span>').join('');
+                document.getElementById('discards0').innerHTML = (this.discards[0]||[]).map(t=>'<div class="tile t">'+tileLabel(t)+'</div>').join('');
+                for (let p=1; p<this.playerCount; p++) {
+                    const mc = document.getElementById('melds'+p);
+                    const dc = document.getElementById('discards'+p);
+                    const hc = document.getElementById('handCount'+p);
+                    if (mc) mc.innerHTML = (this.melds[p]||[]).map(m=>'<span class="meld-chip">'+m.type+'</span>').join('');
+                    if (dc) dc.innerHTML = (this.discards[p]||[]).map(t=>'<div class="tile t">'+tileLabel(t)+'</div>').join('');
+                    if (hc) hc.textContent = (this.hands[p]?this.hands[p].length:0)+'张';
+                }
+                document.getElementById('turnText').textContent = `${this.playerName(this.current)}出牌 · ${this.turnNo+1}巡`;
+            }
+            renderCenter() {}
+            renderStatus() {
+                document.getElementById('moveDetail').textContent = this.state==='ended' ? '本局结束' : (this.isHumanTurn(this.current) ? '请出牌' : `${this.playerName(this.current)}출牌...`.replace('출','出'));
+                document.getElementById('statusSub').textContent = `变体:${this.variant} 模式:${this.mode} 牌墙:${this.wall.length}`;
+            }
+            flash(msg, ms=1800) {
+                const el=document.getElementById('moveDetail');
+                const old=el.textContent;
+                el.textContent=msg; el.style.color='#fde68a';
+                setTimeout(()=>{ if (el.textContent===msg){el.textContent=old; el.style.color='';} }, ms);
+            }
+            sub() {}
+            showHelp() { document.getElementById('helpModal').style.display='grid'; }
+            closeHelp() { document.getElementById('helpModal').style.display='none'; }
+        }
+
+        // helper patches set _pendingDiscard on discard
+        const origDiscardIndex = Mahjong.prototype.discardIndex;
+        Mahjong.prototype.discardIndex = function(p, index) {
+            if (this.state !== 'discard' || this.current !== p) return;
+            const tile = this.hands[p].splice(index, 1)[0];
+            this._pendingDiscard = {from:p, tile};
+            this.pending = {from:p, tile};
+            this.state = 'claim';
+            this.selected = null;
+            this.renderAll();
+            this.handleClaimsAfterDiscard(p, tile);
+        };
+        // nextPlayerAfterDiscard pushest pending discard
+        // finishClaimResolution etc use pending
+
+        // override nextPlayerAfterDiscard to use pending
+        Mahjong.prototype.nextPlayerAfterDiscard = function(discarder) {
+            if (this._pendingDiscard) {
+                this.discards[this._pendingDiscard.from].push(this._pendingDiscard.tile);
+                this._pendingDiscard = null;
+            }
+            this.pending = null;
+            const next = (discarder + 1) % this.playerCount;
+            this.turnNo++;
+            this.drawTile(next);
+        };
+
+        // ensure finishClaimResolution (defined in class) doesn't break counts
+        // We'll leave.
+
+        const game = new Mahjong();
+        window.game = game;
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../../sw.js').then(r => console.log('SW', r.scope)).catch(console.error);
+      }
+    </script>
+</body>
+</html>

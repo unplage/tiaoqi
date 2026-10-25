@@ -14,6 +14,7 @@ and is launched by normal relative navigation.
 - `games/tcs/`: snake evolution.
 - `games/dds/`: whack-a-mole.
 - `games/elsfk/`: Tetris.
+- `games/mahjong/`: Mahjong (multi-player base rules).
 
 ## Important facts
 - Chinese checkers game logic and AI tests are integrated through
