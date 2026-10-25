@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>离线 - 终极方块</title>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+        min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:18px; padding:24px; text-align:center; color:#fff; font-family:'Segoe UI',Tahoma,sans-serif;
+        background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+    }
+    .logo { width:96px; height:96px; border-radius:22px; box-shadow:0 8px 32px rgba(0,0,0,.5); }
+    h1 { font-size:19px; font-weight:700; color:#4fc3f7; }
+    p { font-size:14px; opacity:.8; line-height:1.7; max-width:280px; }
+    button {
+        padding:10px 22px; font-size:15px; font-weight:600; cursor:pointer;
+        color:#0f1525; background:linear-gradient(145deg,#4fc3f7,#039be5);
+        border:none; border-radius:10px; box-shadow:0 4px 14px rgba(79,195,247,.35);
+    }
+    button:active { transform:translateY(1px); }
+</style>
+</head>
+<body>
+    <img class="logo" src="./icons/icon-192.png" alt="终极方块">
+    <h1>当前处于离线状态</h1>
+    <p>游戏本体已缓存在本地，但尚未完成首次加载。请连接网络后重新打开一次，之后即可完全离线游玩。</p>
+    <button onclick="location.reload()">重试</button>
+</body>
+</html>

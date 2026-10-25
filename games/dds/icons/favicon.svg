@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="打地鼠">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#4ade80"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#c98f52"/>
+      <stop offset="1" stop-color="#7b4718"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <ellipse cx="32" cy="50" rx="27" ry="10" fill="#6b4423"/>
+  <ellipse cx="32" cy="49" rx="22" ry="7" fill="#2c1a0b"/>
+  <circle cx="16" cy="30" r="6" fill="url(#fur)"/>
+  <circle cx="48" cy="30" r="6" fill="url(#fur)"/>
+  <ellipse cx="32" cy="34" rx="17" ry="16" fill="url(#fur)"/>
+  <ellipse cx="32" cy="39" rx="12" ry="10" fill="#f0c48f"/>
+  <circle cx="26" cy="31" r="3.6" fill="#ffffff"/>
+  <circle cx="38" cy="31" r="3.6" fill="#ffffff"/>
+  <circle cx="26.6" cy="31.6" r="1.9" fill="#2b1a10"/>
+  <circle cx="38.6" cy="31.6" r="1.9" fill="#2b1a10"/>
+  <ellipse cx="32" cy="38" rx="4.2" ry="3" fill="#ff8fa3"/>
+  <rect x="28.6" y="42" width="3.2" height="4.4" rx="1.4" fill="#ffffff"/>
+  <rect x="32.2" y="42" width="3.2" height="4.4" rx="1.4" fill="#ffffff"/>
+  <path d="M9 48 A27 10 0 0 0 55 48 A22 7 0 0 1 9 48 Z" fill="#6b4423"/>
+</svg>

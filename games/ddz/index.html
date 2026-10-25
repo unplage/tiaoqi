@@ -1,0 +1,2644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>像素斗地主</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="ai_core.js"></script>
+    <script src="ai_learner.js"></script>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="像素风格斗地主：单机公平 AI 对战 + P2P 联机，离线可玩">
+    <style>
+        * { image-rendering: pixelated; font-family: 'Press Start 2P', cursive; -webkit-tap-highlight-color: transparent; touch-action: manipulation; box-sizing: border-box; }
+        body { background-color: #1a1a2e; background-image: radial-gradient(circle at 50% 50%, #16213e 0%, #0f0f23 100%); overflow: hidden; position: fixed; width: 100%; height: 100%; overscroll-behavior: none; }
+        .game-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; }
+        .pixel-border { box-shadow: -3px 0 0 0 #000, 3px 0 0 0 #000, 0 -3px 0 0 #000, 0 3px 0 0 #000, inset -3px -3px 0 0 rgba(0,0,0,0.2), inset 3px 3px 0 0 rgba(255,255,255,0.2); }
+        .card { background: #fff; border: 2px solid #000; border-radius: 4px; position: relative; cursor: pointer; transition: all 0.15s ease; box-shadow: 2px 2px 0 rgba(0,0,0,0.3); flex-shrink: 0; user-select: none; -webkit-user-drag: element; overflow: hidden; }
+        .card .corner { position: absolute; top: 2px; left: 3px; display: flex; flex-direction: column; align-items: flex-start; line-height: 1.02; pointer-events: none; }
+        .card .corner .rk { font-weight: bold; letter-spacing: -1px; }
+        .card .corner .st { font-weight: bold; }
+        @media (max-width: 380px) { .card { width: 44px; height: 62px; font-size: 10px; margin-left: -18px; } }
+        @media (min-width: 381px) and (max-width: 768px) { .card { width: 50px; height: 70px; font-size: 12px; margin-left: -20px; } }
+        @media (min-width: 769px) { .card { width: 64px; height: 90px; font-size: 14px; margin-left: -22px; } }
+        .card:first-child { margin-left: 0 !important; }
+        .card:active { transform: scale(0.95); }
+        .card.selected { transform: translateY(-12px) scale(1.05); box-shadow: 0 4px 8px rgba(0,0,0,0.4), 0 0 10px #ffd700; z-index: 20; border-color: #ffd700; background: #fffacd; }
+        .card.dragging { opacity: 0.6; z-index: 100; }
+        .card-back { background: #2a2a4a; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, #3a3a5a 5px, #3a3a5a 10px); }
+        .suit-red { color: #e74c3c; }
+        .suit-black { color: #2c3e50; }
+        .pixel-btn { background: #4a90e2; border: 3px solid #000; padding: 10px 16px; font-size: 11px; cursor: pointer; box-shadow: 0 4px 0 #2c5aa0, 0 6px 8px rgba(0,0,0,0.3); transition: all 0.1s; text-transform: uppercase; min-width: 64px; min-height: 44px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+        .pixel-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #2c5aa0, 0 3px 4px rgba(0,0,0,0.3); }
+        .pixel-btn:disabled { background: #666; box-shadow: 0 4px 0 #444; opacity: 0.6; }
+        .retro-text { text-shadow: 2px 2px 0 #000; }
+        @keyframes bounce { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-3px); } }
+        .ani-bounce { animation: bounce 0.5s infinite; }
+        @keyframes shake { 0%,100%{ transform: translateX(0); } 25%{ transform: translateX(-3px); } 75%{ transform: translateX(3px); } }
+        .ani-shake { animation: shake 0.3s; }
+        @keyframes flash { 0%,100%{ opacity:1; } 50%{ opacity:0.2; background:#ff0; } }
+        .spring-flash { animation: flash 0.6s ease-in-out; background: radial-gradient(circle, gold, transparent); pointer-events: none; }
+        .hand-wrapper { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 5px; max-width: 100%; touch-action: pan-y; }
+        .card-row { display: flex; justify-content: center; align-items: flex-start; }
+        .card-row.second { margin-top: -10px; }
+        .status-bar { background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); border-bottom: 2px solid #333; padding: 8px 12px; height: 50px; }
+        .player-area { position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 60%, transparent 100%); padding-bottom: env(safe-area-inset-bottom, 10px); z-index: 40; padding-top: 10px; }
+        .opponent-top { position: fixed; top: calc(70px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; align-items: center; gap: 5px; z-index: 30; }
+        .opponent-left { left: 10px; } .opponent-right { right: 10px; }
+        .opponent-avatar { width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; position: relative; background: #2c3e50; }
+        .card-count { position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+        .play-area { position: fixed; top: calc(50% + env(safe-area-inset-top, 0px) / 2); left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 450px; height: 160px; display: flex; align-items: center; justify-content: center; z-index: 55; }
+        .toast { position: fixed; top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); color: #fff; padding: 12px 24px; border: 3px solid #fff; border-radius: 8px; font-size: 12px; z-index: 100; pointer-events: none; white-space: nowrap; }
+        .start-btn { font-size: 16px; padding: 16px 32px; min-height: 56px; }
+        .difficulty-select, .speed-select { background: #2a2a3e; color: #fff; border: 2px solid #fff; padding: 8px; font-size: 10px; border-radius: 4px; min-height: 40px; margin-left: 5px; }
+        .quick-actions { display: flex; gap: 10px; margin-bottom: 8px; justify-content: center; }
+        .icon-btn { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; touch-action: manipulation; }
+        .icon-btn:active { background: rgba(255,255,255,0.4); transform: scale(0.9); }
+        .scanlines { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.05)); background-size: 100% 4px; pointer-events: none; z-index: 9999; opacity: 0.2; }
+        .safe-area-top { padding-top: env(safe-area-inset-top); }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .voice-btn, .stats-btn { background: rgba(0,0,0,0.5); border-radius: 20px; padding: 4px 8px; font-size: 8px; cursor: pointer; margin-left: 5px; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 1000; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .modal-content { background: #2a2a3e; border: 4px solid #fff; border-radius: 8px; width: 90%; max-width: 400px; margin: 20px auto; padding: 16px; }
+        .history-item { background: #1e1e2e; margin: 8px 0; padding: 8px; border-left: 4px solid; font-size: 8px; word-break: break-word; }
+        .history-win { border-left-color: #4ade80; }
+        .history-lose { border-left-color: #f87171; }
+        .connect-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); border: 3px solid #fff; border-radius: 16px; padding: 20px; z-index: 200; width: 90%; max-width: 400px; text-align: center; }
+        .connect-panel input { background: #1e1e2e; border: 2px solid #fff; color: #fff; padding: 8px; font-size: 10px; border-radius: 4px; width: 100%; min-height: 40px; text-align: center; margin: 8px 0; }
+        .timer-bar { width: 100%; height: 4px; background: #555; margin-top: 4px; border-radius: 2px; overflow: hidden; }
+        .timer-fill { width: 100%; height: 100%; background: #facc15; transition: width 0.1s linear; }
+        .preview-panel { position: fixed; bottom: 180px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); border-radius: 20px; padding: 4px 12px; font-size: 10px; z-index: 50; pointer-events: none; white-space: nowrap; }
+        .input-group { margin: 8px 0; }
+        .peer-id { background: #1e1e2e; border: 1px solid #555; border-radius: 4px; padding: 8px; font-size: 10px; word-break: break-all; margin: 8px 0; }
+        .badge { background: rgba(0,0,0,0.6); border-radius: 12px; padding: 2px 8px; font-size: 9px; }
+        .status-online { color: #4ade80; }
+        .lord-card { background: #ffd700 !important; border-color: #b8860b !important; box-shadow: 0 0 20px rgba(255,215,0,0.6); transform: scale(1.05); margin-left: 0 !important; }
+        /* CDN(Tailwind) 不可用时的兜底：显隐不依赖外部 CSS，且优先级高于任何工具类 */
+        [class~="hidden"] { display: none !important; }
+    </style>
+</head>
+<body class="text-white safe-area-top safe-area-bottom">
+<div class="scanlines"></div>
+<div class="game-container">
+    <div class="status-bar fixed top-0 left-0 right-0 flex items-center justify-between z-50 safe-area-top px-3">
+        <div class="flex items-center gap-2">
+            <div class="text-yellow-400 text-[10px] retro-text">💰<span id="coins">1000</span></div>
+            <div id="connStatus" class="hidden text-[8px] bg-green-700 px-2 py-1 rounded">未连接</div>
+        </div>
+        <div class="flex items-center gap-2" id="topRightControls">
+            <select id="difficulty" class="difficulty-select" onchange="changeDifficulty(this.value)">
+                <option value="easy">简单</option>
+                <option value="medium">中等</option>
+                <option value="hard" selected>大师级</option>
+                <option value="grandmaster">宗师级</option>
+                <option value="legendary">传奇级</option>
+            </select>
+            <select id="aiSpeed" class="speed-select" onchange="changeSpeed(this.value)"><option value="fast">快速</option><option value="normal" selected>中等</option><option value="slow">慢速</option></select>
+            <div id="voiceToggle" class="voice-btn pixel-btn" style="background:#333; padding:4px 8px;" onclick="toggleVoice()">🔊 开</div>
+            <div class="stats-btn pixel-btn" style="background:#333; padding:4px 8px;" onclick="ParamExporter.showUI()">🤖 AI</div>
+        </div>
+    </div>
+    <div class="relative w-full h-full pt-12 pb-36" id="gameArea">
+        <div class="opponent-top opponent-left"><div class="opponent-avatar bg-blue-600 pixel-border">🧑‍🌾<div class="card-count" id="leftCount">0</div></div><div class="text-[10px] bg-black/50 px-2 py-1 rounded">农民A</div><div class="text-[10px] text-yellow-400 h-4" id="leftStatus"></div><div class="timer-bar w-16"><div id="leftTimerFill" class="timer-fill" style="width:0"></div></div></div>
+        <div class="opponent-top opponent-right"><div class="opponent-avatar bg-blue-600 pixel-border">👩‍🌾<div class="card-count" id="rightCount">0</div></div><div class="text-[10px] bg-black/50 px-2 py-1 rounded">农民B</div><div class="text-[10px] text-yellow-400 h-4" id="rightStatus"></div><div class="timer-bar w-16"><div id="rightTimerFill" class="timer-fill" style="width:0"></div></div></div>
+        <div class="play-area"><div id="playTable" class="flex flex-col items-center gap-2 w-full"><div class="text-[10px] text-yellow-400 mb-1" id="scoreDisplay">底分: 1</div><div class="flex gap-1 justify-center min-h-[50px] items-center bg-black/20 rounded-lg p-2 w-full" id="playArea"><span class="text-gray-500 text-[10px]">等待出牌...</span></div><div class="text-[10px] text-white/70" id="actionLog"></div><div class="text-[10px] text-white/70" id="lastPlayer"></div></div></div>
+        <div class="player-area safe-area-bottom">
+            <div class="text-yellow-400 text-[11px] retro-text text-center mb-1 h-5" id="playerStatus">点击选牌，拖动排序（桌面端）</div>
+            <div class="quick-actions">
+                <div class="icon-btn" onclick="showHint()" title="提示">💡</div>
+                <div class="icon-btn" onclick="resetSelection()" title="重置">🔄</div>
+                <div class="icon-btn" onclick="toggleRules()" title="规则">📋</div>
+                <div class="icon-btn" onclick="toggleSound()" title="音效">🔊</div>
+                <div class="icon-btn hidden" id="emojiBtn" onclick="toggleQuickChat()" title="快捷发言">💬</div>
+                <div class="icon-btn hidden" id="autoPassBtn" onclick="toggleAutoPass()" title="要不起自动过牌">⏭</div>
+            </div>
+            <div id="quickChatBar" class="hidden flex-wrap justify-center gap-1 mb-1" style="display:none">
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('😀')">😀</button>
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('👍 打得不错')">👍</button>
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('😭 要不起')">😭</button>
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('🤔 让我想想')">🤔</button>
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('⏰ 快点吧')">⏰</button>
+                <button class="pixel-btn bg-gray-700 text-[10px] py-1 px-2" onclick="sendQuick('💣 小心炸弹')">💣</button>
+            </div>
+            <div class="hand-wrapper" id="handContainer"><div id="playerHand"></div></div>
+            <div class="flex justify-center gap-2 p-2" id="controls">
+                <button id="callBtn" class="pixel-btn bg-green-500 text-[10px]" onclick="callScore(0)">不叫</button>
+                <button id="oneBtn" class="pixel-btn bg-blue-500 text-[10px]" onclick="callScore(1)">1分</button>
+                <button id="twoBtn" class="pixel-btn bg-yellow-500 text-[10px]" onclick="callScore(2)">2分</button>
+                <button id="threeBtn" class="pixel-btn bg-red-500 text-[10px]" onclick="callScore(3)">3分</button>
+            </div>
+            <div class="preview-panel" id="previewPanel" style="display:none"></div>
+            <div class="timer-bar w-full max-w-[200px] mx-auto mt-1" id="playerTimerBar" style="display:none"><div id="playerTimerFill" class="timer-fill" style="width:0"></div></div>
+        </div>
+        <div id="startScreen" class="fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[60] safe-area-top safe-area-bottom">
+            <h1 class="text-2xl text-yellow-400 retro-text mb-6 ani-bounce text-center px-4">像素斗地主</h1>
+            <div class="bg-gray-800/90 p-6 pixel-border mx-4 max-w-[90%] text-center backdrop-blur">
+                <p class="text-[10px] leading-6 mb-6 text-gray-300">选择模式开始游戏</p>
+                <button onclick="startSingleMode()" class="pixel-btn start-btn bg-green-500 block w-full mb-3">🎮 单机模式</button>
+                <button onclick="showOnlinePanel()" class="pixel-btn start-btn bg-blue-500 block w-full">🌐 联机模式</button>
+                <div class="mt-3 text-[8px] text-gray-500 text-center">v74 · 公平AI · 断线重连 · 2人AI</div>
+            </div>
+        </div>
+        <div id="connectPanel" class="connect-panel hidden">
+            <h2 class="text-yellow-400 text-sm mb-2">🃏 斗地主联机</h2>
+            <div class="text-[10px] text-gray-400 mb-2">房主创建房间，其余两人输入房间码加入</div>
+            <div id="createRoomSection">
+                <div class="text-[10px] text-yellow-400 mb-1">── 创建房间 ──</div>
+                <div class="text-[10px] text-gray-400 mb-1">人数模式</div>
+                <select id="onlineModeSelect" class="pixel-btn w-full mb-1 text-[10px] bg-gray-700">
+                    <option value="3">3人（全真人）</option>
+                    <option value="2">2人 + 1 AI</option>
+                </select>
+                <div class="input-group"><input type="text" id="roomCodeInput" placeholder="自定义房间码（2-20字符）" maxlength="20"><button onclick="createRoom()" class="pixel-btn bg-blue-500 w-full mt-1">创建房间</button></div>
+            </div>
+            <div id="myPeerSection" class="hidden mt-2">
+                <div class="peer-id">🔑 房间码：<span id="myPeerId">生成中...</span><button onclick="copyPeerId()" class="ml-2 text-[8px] pixel-btn py-0 px-2 inline-flex">复制</button><button onclick="shareRoomLink()" class="ml-2 text-[8px] pixel-btn py-0 px-2 inline-flex">分享链接</button></div>
+                <div class="text-[8px] text-gray-400 mt-1">分享链接，好友点开后自动加入房间</div>
+            </div>
+            <div class="text-[10px] text-gray-400 mt-2 mb-1">── 加入房间 ──</div>
+            <div class="input-group"><input type="text" id="targetPeerId" placeholder="输入对方房间码"><button onclick="joinGame()" class="pixel-btn bg-green-500 w-full mt-1">加入房间</button></div>
+            <button onclick="hideOnlinePanel()" class="pixel-btn bg-gray-600 w-full mt-2 text-[10px]">返回</button>
+        </div>
+        <div id="rulesModal" class="hidden fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"><div class="bg-gray-800 p-4 pixel-border w-full max-w-sm max-h-[80vh] overflow-y-auto"><h2 class="text-lg text-yellow-400 mb-4 retro-text text-center">游戏规则</h2><div class="text-[10px] leading-6 text-gray-300 space-y-2"><p>• 发牌：每人17张，留3张底牌</p><p>• 叫分：1-3分或不叫，高分当地主</p><p>• 牌型：单张、对子、三带一/对、顺子(5+)、连对(3+)、飞机(不带/带单/带对)、四带二、炸弹、王炸</p><p>• 春天/反春天：底分×2</p></div><button onclick="toggleRules()" class="pixel-btn bg-red-500 mt-4 w-full text-[12px]">关闭</button></div></div>
+        <div id="gameOverScreen" class="hidden fixed inset-0 bg-black/95 flex flex-col items-center justify-center z-[60] p-4 overflow-y-auto"><h2 id="resultTitle" class="text-2xl retro-text mb-4 text-center"></h2><div id="resultContent" class="text-center mb-6 text-[12px]"></div><button onclick="resetGame()" class="pixel-btn bg-green-500 w-full max-w-[200px]">再来一局</button><button onclick="backToMenu()" class="pixel-btn bg-gray-500 w-full max-w-[200px] mt-2">返回菜单</button></div>
+        <div id="statsModal" class="modal hidden">
+            <div class="modal-content">
+                <h2 class="text-lg text-yellow-400 mb-4 retro-text text-center">📊 历史战绩</h2>
+                <div id="statsList" class="space-y-2 mb-4"></div>
+                <div class="flex gap-2"><button onclick="clearHistory()" class="pixel-btn bg-red-500 flex-1 text-[10px]">清空记录</button><button onclick="closeStatsModal()" class="pixel-btn bg-gray-500 flex-1 text-[10px]">关闭</button></div>
+            </div>
+        </div>
+    </div>
+    <div id="debugStrip" class="fixed bottom-0 left-0 right-0 z-[70] bg-black/70 text-[8px] text-green-300 px-2 py-0.5 leading-tight font-mono" style="display:none;pointer-events:none"></div>
+</div>
+<script>
+    // ======================== 全局设置 ========================
+    // ---- 存储访问兜底（隐私模式/禁用存储时不能让整站脚本崩溃） ----
+    const SafeStore = {
+        get(key, fallback) {
+            try { const v = localStorage.getItem(key); return v === null ? fallback : v; }
+            catch (e) { return fallback; }
+        },
+        set(key, value) {
+            try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+        },
+        getJSON(key, fallback) {
+            const raw = this.get(key, null);
+            if (raw === null || raw === undefined) return fallback;
+            try { const v = JSON.parse(raw); return (v === null || v === undefined) ? fallback : v; }
+            catch (e) { return fallback; }
+        }
+    };
+    // ---- 全局错误兜底：任何未捕获异常都必须可见，而不是"按钮点了没反应" ----
+    (function installGlobalErrorGuard() {
+        let shown = 0;
+        const report = (msg) => {
+            try { console.error(msg); } catch (e) {}
+            if (shown >= 3) return;
+            shown++;
+            try { if (typeof showToast === 'function') showToast('发生异常: ' + String(msg).slice(0, 60)); } catch (e) {}
+        };
+        window.addEventListener('error', (e) => {
+            report((e && e.message) ? e.message : '未知错误');
+            if (e) e.preventDefault?.();
+        }, false);
+        window.addEventListener('unhandledrejection', (e) => {
+            const r = e && e.reason;
+            report((r && r.message) ? r.message : String(r || 'Promise异常'));
+            if (e) e.preventDefault?.();
+        }, false);
+    })();
+
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', e => { const now = Date.now(); if (now - lastTouchEnd <= 300) e.preventDefault(); lastTouchEnd = now; }, false);
+    document.addEventListener('touchmove', e => {
+        if (e.target.closest('.hand-wrapper')) return;
+        if (e.target.closest('.modal')) return;
+        if (e.target.closest('.connect-panel')) return;
+        if (e.target.closest('#gameOverScreen')) return;
+        e.preventDefault();
+    }, { passive: false });
+
+    let audioEnabled = true;
+    let aiSpeed = 'normal';
+    let voiceEnabled = true;
+    let selectedVoice = null;
+    let callTimeout = null;
+    let timerInterval = null;
+    let timerTarget = null;
+    let playLog = [];
+    let remainingSeconds = 0;
+    let timerPlayerId = -1;
+    let timerTotalSeconds = 15; // 修复: 动态记录总时间
+    let matchHistory = [];
+    let gameTimeouts = [];
+    let dealInterval = null;
+    function trackTimeout(fn, ms) {
+        let id = setTimeout(() => { gameTimeouts = gameTimeouts.filter(t => t !== id); fn(); }, ms);
+        gameTimeouts.push(id);
+        return id;
+    }
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let prevLastPlayId = -1;
+    let prevLastPlayType = null;
+    let prevPassIdx = -1;
+    let bottomCardsShown = false;
+    let hbTimer = null;
+    let debugErrCount = 0;
+    let lastSyncInfo = '未收到同步';
+
+    // ======================== 联机体验配置 ========================
+    const ONLINE_CALL_SECONDS = 10;
+    const ONLINE_TURN_SECONDS = 15;
+    let autoPassEnabled = SafeStore.get('landlord_autopass', '1') !== '0';
+    let clientReconnecting = false;
+    let clientReconnectAttempts = 0;
+    let clientIntentionalLeave = false;
+    function getClientSessionId() {
+        let sid = SafeStore.get('landlord_session_id', null);
+        if (!sid) {
+            sid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            SafeStore.set('landlord_session_id', sid);
+        }
+        return sid;
+    }
+
+    function changeSpeed(val) { aiSpeed = val; }
+    function toggleSound() { 
+        audioEnabled = !audioEnabled; 
+        showToast(audioEnabled ? '音效开' : '音效关'); 
+        if (audioEnabled && !audioCtx) initAudio();
+    }
+
+    function getChineseVoice() {
+        if (!window.speechSynthesis) return null;
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length === 0) return null;
+        const names = ['Microsoft Kangkang', 'Google 普通话', 'Tingting', 'Huihui', 'Chinese', 'zh'];
+        for (let name of names) {
+            let found = voices.find(v => v.name.includes(name) && v.lang.includes('zh'));
+            if (found) return found;
+        }
+        return voices.find(v => v.lang.includes('zh')) || null;
+    }
+
+    function speakNow(text) {
+        try {
+            if (!voiceEnabled) return false;
+            if (!window.speechSynthesis) return false;
+            if (!selectedVoice) {
+                selectedVoice = getChineseVoice();
+                if (!selectedVoice) {
+                    window.speechSynthesis.getVoices();
+                    selectedVoice = getChineseVoice();
+                }
+            }
+            window.speechSynthesis.cancel();
+            if (typeof SpeechSynthesisUtterance === 'undefined') return false;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.9;
+            if (selectedVoice) utterance.voice = selectedVoice;
+            utterance.onerror = (e) => console.error("语音错误", e);
+            window.speechSynthesis.speak(utterance);
+            return true;
+        } catch (e) {
+            console.error("语音播报被忽略:", e);
+            return false;
+        }
+    }
+
+    function toggleVoice() {
+        voiceEnabled = !voiceEnabled;
+        document.getElementById('voiceToggle').innerHTML = voiceEnabled ? '🔊 开' : '🔇 关';
+        showToast(voiceEnabled ? '语音播报开' : '语音播报关');
+        try { if (!voiceEnabled && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+    }
+
+    function speakPlay(cards) {
+        try {
+            if (!voiceEnabled) return;
+            if (!cards || cards.length === 0) return;
+            let type = getCardType(cards);
+        if (!type) return;
+        let text = "";
+        const valueToChinese = (v) => {
+            if (v <= 10) return (v+3).toString();
+            if (v === 11) return "A";
+            if (v === 12) return "2";
+            if (v === 13) return "小王";
+            if (v === 14) return "大王";
+            return "?";
+        };
+        switch (type.type) {
+            case CardType.SINGLE: text = valueToChinese(type.value); break;
+            case CardType.PAIR: text = "对" + valueToChinese(type.value); break;
+            case CardType.TRIPLE: text = "三张" + valueToChinese(type.value); break;
+            case CardType.TRIPLE_WITH_SINGLE: {
+                let cnt = countValues(cards.map(c=>c.value));
+                let singleVal = parseInt(Object.keys(cnt).find(k=>cnt[k]===1));
+                text = "三个" + valueToChinese(type.value) + "带一个" + valueToChinese(singleVal);
+                break;
+            }
+            case CardType.TRIPLE_WITH_PAIR: {
+                let cnt = countValues(cards.map(c=>c.value));
+                let pairVal = parseInt(Object.keys(cnt).find(k=>cnt[k]===2));
+                text = "三个" + valueToChinese(type.value) + "带一对" + valueToChinese(pairVal);
+                break;
+            }
+            case CardType.STRAIGHT: text = "顺子"; break;
+            case CardType.STRAIGHT_PAIR: text = "连对"; break;
+            case CardType.PLANE: text = "飞机" + valueToChinese(type.value) + "起"; break;
+            case CardType.PLANE_WITH_SINGLE: {
+                let cnt = countValues(cards.map(c=>c.value));
+                let kickers = Object.keys(cnt).filter(k=>cnt[k]===1).map(Number);
+                text = "飞机带" + kickers.length + "张"; break;
+            }
+            case CardType.PLANE_WITH_PAIR: {
+                let cnt = countValues(cards.map(c=>c.value));
+                let pairCount = Object.keys(cnt).filter(k=>cnt[k]===2).length;
+                text = "飞机带" + pairCount + "对"; break;
+            }
+            case CardType.FOUR_WITH_TWO_SINGLE: text = "四带二"; break;
+            case CardType.FOUR_WITH_TWO_PAIR: text = "四带两对"; break;
+            case CardType.BOMB: text = "炸弹"; break;
+            case CardType.ROCKET: text = "王炸"; break;
+            default: text = "出牌";
+        }
+        if (text) speakNow(text);
+        } catch (e) { console.error("出牌播报被忽略:", e); }
+    }
+
+    // ========== 战绩存储 ==========
+    function loadHistory() {
+        let data = SafeStore.getJSON('landlord_stats', null);
+        if (data && typeof data === 'object') {
+            matchHistory = Array.isArray(data.history) ? data.history : [];
+            GameState.coins = (data.coins !== undefined && data.coins !== null) ? data.coins : 1000;
+            GameState.stats = (data.stats && typeof data.stats === 'object') ? data.stats : { total: 0, win: 0 };
+            if (typeof GameState.stats.total !== 'number') GameState.stats.total = 0;
+            if (typeof GameState.stats.win !== 'number') GameState.stats.win = 0;
+            updateStats();
+        } else { matchHistory = []; }
+    }
+    function saveHistory() {
+        SafeStore.set('landlord_stats', JSON.stringify({
+            coins: GameState.coins,
+            stats: GameState.stats,
+            history: matchHistory.slice(0, 50)
+        }));
+    }
+    function addMatchRecord(result, multiplier, delta, coinsAfter) {
+        let now = new Date();
+        let timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        matchHistory.unshift({ time: timeStr, result: result, multiplier: multiplier, delta: delta, coinsAfter: coinsAfter });
+        if (matchHistory.length > 50) matchHistory.pop();
+        saveHistory();
+    }
+    function showStatsModal() {
+        let modal = document.getElementById('statsModal');
+        if (!modal) return;
+        let container = document.getElementById('statsList');
+        if (!container) return;
+        if (matchHistory.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-[10px] py-4">暂无对局记录</div>';
+        } else {
+            let html = '';
+            for (let rec of matchHistory) {
+                let resultClass = rec.result === 'win' ? 'history-win' : 'history-lose';
+                let deltaStr = rec.delta > 0 ? `+${rec.delta}` : `${rec.delta}`;
+                html += `<div class="history-item ${resultClass} text-[10px]"><div>${rec.time}</div><div>${rec.result === 'win' ? '🎉 胜利' : '💔 失败'} (倍数:${rec.multiplier})</div><div>筹码变化: ${deltaStr} → ${rec.coinsAfter}</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+        modal.classList.remove('hidden');
+    }
+    function closeStatsModal() {
+        const modal = document.getElementById('statsModal');
+        if (modal) modal.classList.add('hidden');
+    }
+    function clearHistory() {
+        if (confirm('确定清空所有历史战绩吗？')) {
+            matchHistory = [];
+            GameState.stats = {total:0, win:0};
+            saveHistory();
+            updateStats();
+            if (typeof ParamExporter !== 'undefined') ParamExporter._refreshUI();
+            showToast('历史记录已清空');
+        }
+    }
+
+    function initAudio() { try { if (!audioCtx && audioEnabled) { audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); } } catch (e) { audioCtx = null; } }
+    function playSound(type) {
+        try {
+            if (!audioEnabled) return;
+            if (!audioCtx) initAudio();
+            if (!audioCtx) return;
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        if (type === 'deal') { osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(400, now+0.05); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.05); osc.start(now); osc.stop(now+0.05); }
+        else if (type === 'play') { osc.frequency.setValueAtTime(600, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.1); osc.start(now); osc.stop(now+0.1); }
+        else if (type === 'win') { [523.25, 659.25, 783.99].forEach((freq,i)=>{ const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.frequency.value=freq; g.gain.setValueAtTime(0.1, now+i*0.1); g.gain.exponentialRampToValueAtTime(0.01, now+i*0.1+0.15); o.start(now+i*0.1); o.stop(now+i*0.1+0.15); }); }
+        else if (type === 'bomb') { osc.frequency.setValueAtTime(200, now); gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.2); osc.start(now); osc.stop(now+0.2); if (navigator.vibrate) navigator.vibrate(200); }
+        } catch (e) { /* 音效被忽略 */ }
+    }
+
+    // ======================== 浏览器 AI 包装（共享内核 ai_core.js + Worker 池） ========================
+    // 所有 AI 逻辑已统一到 ai_core.js；此处仅负责：难度同步、Worker 池调度、推理记录。
+    class MasterAI {
+        constructor(id, difficulty, memory) {
+            this.id = id;
+            this.difficulty = difficulty;
+            this.memory = memory;
+            this.core = new AICore(id, difficulty, memory);
+        }
+        _syncCore() {
+            this.core.id = this.id;
+            this.core.difficulty = this.difficulty;
+            this.core.memory = this.memory;
+        }
+        async think(phase, state) {
+            if (typeof AiWorkerPool !== 'undefined' && AiWorkerPool.ready &&
+                (this.difficulty === 'hard' || this.difficulty === 'grandmaster' || this.difficulty === 'legendary')) {
+                try {
+                    let res = await AiWorkerPool.think(phase, state, this.id, this.difficulty, this.memory);
+                    if (res !== undefined && res !== null) return res;
+                } catch (e) { /* 回退本地内核 */ }
+            }
+            // 主线程同步决策：预算砍半，避免移动端无 Worker 时界面"卡住不动"
+            this._syncCore();
+            this.core.budgetScale = 0.5;
+            try {
+                return (phase === 'call') ? this.callDecision(state) : this.playDecision(state);
+            } finally {
+                this.core.budgetScale = 1;
+            }
+        }
+        callDecision(state) {
+            this._syncCore();
+            return this.core.callDecision(state);
+        }
+        playDecision(state) {
+            this._syncCore();
+            let r = this.core.playDecision(state);
+            if (this.core.lastReasoning) {
+                let reasoning = this.core.lastReasoning;
+                if (typeof GameRecorder !== 'undefined' && GameRecorder.currentGame) {
+                    reasoning.turn = GameRecorder.currentGame.actions.length;
+                }
+                window.__lastAIPlayReasoning = reasoning;
+            }
+            return r;
+        }
+    }
+
+
+    // ======================== 游戏状态 ========================
+    const GameState = {
+        phase: 'idle', mode: 'single',
+        deck: [], players: [[],[],[]], lordCards: [], landlord: -1, currentPlayer: 0,
+        lastPlay: null, lastPlayerId: -1, lastPassIdx: -1, baseScore: 1, selectedCards: new Set(), bombCount: 0,
+        difficulty: 'hard', coins: 1000, stats: { total: 0, win: 0 }, passCount: 0,
+        firstPlayMade: false, lordPlayCount: 0, farmerPlayed: false,
+        cardMemory: null, aiList: [], processing: false,
+        myRole: null, myIndex: -1, hostPeerId: null,
+        peer: null, connections: [], callScores: [0,0,0], stateSeq: 0,
+        autoTakeover: -1,
+        // 联机稳定性扩展字段
+        disconnected: [false, false, false],  // 掉线托管标记（房主权威，随 sync 下发）
+        onlineHumans: 3,                        // 联机人类玩家数（2=2人+AI，3=3人）
+        takeoverStarted: [false, false, false], // 当前回合是否已进入 AI 接管（拒绝其后晚到的人工操作）
+        aborted: false,                     // 本局已中止（拒绝 AI 代打）
+        turnSerial: 0,                        // 回合流水号（房主每次开表 +1）
+        turnRemainMs: null,                   // 房主下发的本回合剩余毫秒
+        takeoverToken: 0,                     // 托管决策作废令牌
+        lastAppliedSeq: 0,                    // 客户端已应用的最大 seq（防倒序/重复）
+        lordGiven: false                      // becomeLandlord 幂等保护
+    };
+    // 是否处于联机对局：以会话角色为唯一真值源（mode 仅作兼容字段）
+    function isOnlineMode() { return GameState.myRole === 'host' || GameState.myRole === 'client'; }
+    function isTwoPlayerOnlineMode() { return isOnlineMode() && (GameState.onlineHumans || 3) === 2; }
+    function onlineMaxClients() { return Math.max(1, (GameState.onlineHumans || 3) - 1); }
+
+    function createDeck() {
+        const suits = ['♠','♥','♣','♦'], ranks = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+        let deck = [];
+        for (let suit of suits) for (let i=0;i<ranks.length;i++) deck.push({ suit, rank: ranks[i], value: i, id: suit+ranks[i] });
+        deck.push({ suit:'JOKER', rank:'小王', value:13, id:'joker1' }, { suit:'JOKER', rank:'大王', value:14, id:'joker2' });
+        return shuffle(deck);
+    }
+    function shuffle(arr) { for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+    // ======================== 模式切换 ========================
+    function showOnlinePanel() {
+        document.getElementById('startScreen').classList.add('hidden');
+        document.getElementById('connectPanel').classList.remove('hidden');
+        document.getElementById('createRoomSection').classList.remove('hidden');
+        document.getElementById('myPeerSection').classList.add('hidden');
+        document.getElementById('connStatus').classList.add('hidden');
+        document.getElementById('roomCodeInput').value = '';
+        document.getElementById('targetPeerId').value = '';
+    }
+    // 统一的计时器清理：resetGame / backToMenu 共用，杜绝"返回菜单后还有僵尸回调在跑"
+    function clearAllTimers() {
+        gameTimeouts.forEach(id => clearTimeout(id));
+        gameTimeouts = [];
+        if (dealInterval) { clearInterval(dealInterval); dealInterval = null; }
+        if (callTimeout) { clearTimeout(callTimeout); callTimeout = null; }
+        clearTimer();
+        autoPassScheduledFor = null;
+        lastTurnRenderKey = null;
+    }
+    function shareRoomLink() {
+        let code = (document.getElementById('myPeerId') && document.getElementById('myPeerId').innerText || '').trim();
+        if (!code || code === '生成中...') { showToast('房间码未就绪'); return; }
+        let url = location.origin + location.pathname + '?mode=online&room=' + encodeURIComponent(code);
+        if (navigator.share) {
+            navigator.share({ title: '像素斗地主联机房间', text: '房间码：' + code, url: url }).catch(() => {
+                copyTextToClipboard(url);
+                showToast('链接已复制');
+            });
+        } else {
+            copyTextToClipboard(url);
+            showToast('链接已复制');
+        }
+    }
+    function copyTextToClipboard(text) {
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text); ok = true; }
+        } catch (e) { ok = false; }
+        if (!ok) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (e) { ok = false; }
+        }
+        return ok;
+    }
+    function hideOnlinePanel() {
+        document.getElementById('connectPanel').classList.add('hidden');
+        document.getElementById('startScreen').classList.remove('hidden');
+        document.getElementById('createRoomSection').classList.remove('hidden');
+        document.getElementById('myPeerSection').classList.add('hidden');
+        if (GameState.peer) { try { GameState.peer.destroy(); } catch (e) {} GameState.peer = null; }
+        GameState.connections = [];
+        // 只在未进入对局时才允许重置角色，否则会把进行中的会话拆掉
+        if (!isOnlineMode() || !GameState.phase || GameState.phase === 'idle' || GameState.phase === 'waiting') {
+            GameState.myRole = null;
+            GameState.mode = 'single';
+            GameState.hostPeerId = null;
+            clientIntentionalLeave = true;
+            clientReconnecting = false;
+            clientReconnectAttempts = 0;
+        }
+    }
+    function backToMenu() {
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('startScreen').classList.remove('hidden');
+        document.getElementById('topRightControls').classList.remove('hidden');
+        document.getElementById('connStatus').classList.add('hidden');
+        document.getElementById('emojiBtn').classList.add('hidden');
+        { let _ap = document.getElementById('autoPassBtn'); if (_ap) _ap.classList.add('hidden'); }
+        toggleQuickChat(false);
+        clearAllTimers();
+        stopHeartbeat();
+        document.getElementById('debugStrip').style.display = 'none';
+        clientIntentionalLeave = true;
+        clientReconnecting = false;
+        clientReconnectAttempts = 0;
+        if (GameState.peer) {
+            try { GameState.peer.destroy(); } catch (e) {}
+            GameState.peer = null;
+            GameState.connections = [];
+        }
+        GameState.phase = 'idle';
+        GameState.myRole = null;
+        GameState.mode = 'single';
+        GameState.hostPeerId = null;
+        GameState.disconnected = [false, false, false];
+        GameState.takeoverToken++;
+        GameState.lastAppliedSeq = 0;
+        GameState.processing = false;
+        bottomCardsShown = false;
+    }
+
+    // ======================== 游戏初始化 ========================
+    function initGame() {
+        initAudio();
+        if (voiceEnabled && window.speechSynthesis) {
+            if (!selectedVoice) selectedVoice = getChineseVoice();
+        }
+        GameState.selectedCards.clear();
+        GameState.autoTakeover = -1;
+        GameState.lordGiven = false;
+        GameState.turnRemainMs = null;
+        updateStats();
+        GameState.phase = 'dealing';
+        GameState.deck = createDeck();
+        GameState.players = [[],[],[]];
+        GameState.lordCards = [];
+        GameState.landlord = -1;
+        GameState.currentPlayer = 0;
+        GameState.lastPlay = null;
+        GameState.baseScore = 1;
+        GameState.bombCount = 0;
+        GameState.firstPlayMade = false; GameState.lordPlayCount = 0; GameState.farmerPlayed = false;
+        GameState.passCount = 0;
+        GameState.lastPlayerId = -1;
+        GameState.lastPassIdx = -1;
+        GameState.processing = false;
+        GameState.takeoverStarted = [false, false, false];
+        GameState.aborted = false;
+        singleCallCount = 0;
+        bottomCardsShown = false;
+        GameState.cardMemory = new MasterMemory();
+        GameState.aiList = [null, new MasterAI(1, GameState.difficulty, GameState.cardMemory), new MasterAI(2, GameState.difficulty, GameState.cardMemory)];
+        dealCards();
+    }
+
+    function startSingleMode() {
+        if (voiceEnabled && window.speechSynthesis) {
+            if (!selectedVoice) selectedVoice = getChineseVoice();
+        }
+        GameState.mode = 'single';
+        GameState.myIndex = 0;
+        document.getElementById('startScreen').classList.add('hidden');
+        document.getElementById('topRightControls').classList.remove('hidden');
+        document.getElementById('connStatus').classList.add('hidden');
+        document.getElementById('emojiBtn').classList.add('hidden');
+        { let _ap = document.getElementById('autoPassBtn'); if (_ap) _ap.classList.add('hidden'); }
+        initGame();
+    }
+
+    function dealCards() {
+        if (dealInterval) clearInterval(dealInterval);
+        let count = 0;
+        dealInterval = setInterval(()=>{
+            if (count < 51) {
+                let idx = count % 3, card = GameState.deck.pop();
+                GameState.players[idx].push(card);
+                if (idx === GameState.myIndex) playSound('deal');
+                if (idx === GameState.myIndex) renderPlayerHand(); else updateOpponentCount(idx);
+                count++;
+            } else { 
+                clearInterval(dealInterval);
+                dealInterval = null;
+                GameState.lordCards = GameState.deck.slice(0,3); 
+                GameState.players[0].sort((a,b)=>a.value-b.value);
+                GameState.players[1].sort((a,b)=>a.value-b.value);
+                GameState.players[2].sort((a,b)=>a.value-b.value);
+                renderPlayerHand();
+                // 发牌结束立刻同步：客户端能看到完整手牌，而不是空等 startCallPhase
+                if (isOnlineMode() && GameState.myRole === 'host') broadcastFullState();
+                trackTimeout(startCallPhase, 500);
+            }
+        }, 30);
+    }
+
+    // ======================== 叫分阶段 ========================
+    function startCallPhase() {
+        GameState.phase = 'calling';
+        GameState.currentPlayer = Math.floor(Math.random() * 3);
+        GameState.callScores = [0,0,0];
+        if (!isOnlineMode()) processSingleCall();
+        else { broadcastFullState(); processOnlineCallTurn(); }
+    }
+
+    function processSingleCall() {
+        if (GameState.phase !== 'calling') return;
+        let id = GameState.currentPlayer;
+        updateCallStatusText(id);
+        updateCallBtns();
+        if (id === GameState.myIndex) {
+            startOnlineTimer(10, null, GameState.myIndex);
+            return;
+        }
+        startOnlineTimer(3, null, id);
+        trackTimeout(() => {
+            let ai = GameState.aiList[id];
+            let _callStrength = evaluateHandStrength(GameState.players[id], GameState.cardMemory, false, id);
+            let result = ai.think('call', GameState);
+            let finalize = (score) => {
+                if (GameState.currentPlayer !== id || GameState.phase !== 'calling') return;
+                window.__lastAICallReasoning = { player: id, strength: _callStrength, decision: score };
+                callScore(score);
+            };
+            if (result && typeof result.then === 'function') result.then(finalize);
+            else finalize(result);
+        }, 1000);
+    }
+
+    function updateCallBtns() {
+        if (isOnlineMode()) return;
+        let isPlayer = (GameState.currentPlayer === GameState.myIndex);
+        ['callBtn','oneBtn','twoBtn','threeBtn'].forEach(id=>{ let btn=document.getElementById(id); if(btn) btn.style.display = isPlayer ? 'flex' : 'none'; });
+        if (isPlayer) {
+            document.getElementById('oneBtn').disabled = (GameState.baseScore >= 1);
+            document.getElementById('twoBtn').disabled = (GameState.baseScore >= 2);
+            document.getElementById('threeBtn').disabled = (GameState.baseScore >= 3);
+        }
+    }
+
+    let singleCallCount = 0;
+    function callScore(score) {
+        if (GameState.phase !== 'calling') return;
+        clearTimer();
+        if (isOnlineMode()) {
+            sendAction({ type: 'call', score });
+            return;
+        }
+        let id = GameState.currentPlayer;
+        singleCallCount++;
+        GameState.callScores[id] = score;
+        if (score === 0) showToast(getPlayerName(id)+' 不叫');
+        else { GameState.baseScore = Math.max(GameState.baseScore, score); GameState.landlord = id; document.getElementById('scoreDisplay').textContent = '底分: '+GameState.baseScore; showToast(getPlayerName(id)+' '+score+'分'); }
+        if (score === 3) trackTimeout(becomeLandlord, 500);
+        else if (singleCallCount >= 3) {
+            if (GameState.landlord >= 0) trackTimeout(becomeLandlord, 500);
+            else { showToast("无人叫地主，重新发牌"); trackTimeout(()=>{ initGame(); }, 500); }
+        }
+        else { GameState.currentPlayer = (id+1)%3; trackTimeout(processSingleCall, 500); }
+    }
+
+    // ======================== 成为地主 ========================
+    function becomeLandlord() {
+        if (GameState.phase !== 'calling') return;   // 幂等：防止 500ms 窗口内二次调度导致地主拿 21 张
+        if (GameState.lordGiven) return;
+        let lordIdx = GameState.landlord;
+        if (lordIdx < 0) { showToast("无人叫地主，重新发牌"); initGame(); return; }
+        GameState.lordGiven = true;
+        GameState.players[lordIdx].push(...GameState.lordCards);
+        GameState.players[lordIdx].sort((a,b)=>a.value-b.value);
+        showToast(getPlayerName(lordIdx)+' 成为地主！');
+        if (lordIdx === GameState.myIndex) renderPlayerHand(); else updateOpponentCount(lordIdx);
+        document.getElementById('controls').innerHTML =
+            '<button id="playBtn" class="pixel-btn bg-green-500 min-w-[80px]" onclick="playCards()">出牌</button>' +
+            '<button id="passBtn" class="pixel-btn bg-gray-500 min-w-[80px]" onclick="passTurn()">不出</button>' +
+            '<button class="pixel-btn bg-blue-500 text-[10px]" onclick="showHint()">提示</button>';
+        GameState.phase = 'playing';
+        GameState.currentPlayer = lordIdx;
+        GameState.firstPlayMade = false; GameState.lordPlayCount = 0; GameState.farmerPlayed = false;
+        GameState.passCount = 0;
+        GameState.processing = false;
+        
+        showLordCards();
+        
+        if (isOnlineMode()) broadcastFullState();
+        trackTimeout(processPlayPhase, 3000);
+    }
+
+    // 中央牌区（底牌/出牌）通用迷你牌：左上角大点数，便于小尺寸下辨认
+    function createMiniCard(card, size) {
+        size = size || 40;
+        let div = document.createElement('div');
+        let isRed = card.suit==='♥'||card.suit==='♦'||card.suit==='JOKER';
+        div.className = `card ${isRed?'suit-red':'suit-black'}`;
+        div.style.width = size + 'px';
+        div.style.height = Math.round(size * 1.42) + 'px';
+        div.style.boxShadow = '1px 1px 0 rgba(0,0,0,0.35)';
+        let rk = Math.max(11, Math.round(size * 0.44));
+        let st = Math.max(9, Math.round(size * 0.30));
+        if (card.suit === 'JOKER') {
+            div.innerHTML = `<div class="corner"><span class="rk" style="font-size:${rk}px">${card.rank==='大王'?'大':'小'}</span><span class="st" style="font-size:${st}px">王</span></div>`;
+            if (card.rank === '大王') div.style.background = '#ffebee';
+        } else {
+            div.innerHTML = `<div class="corner"><span class="rk" style="font-size:${rk}px">${card.rank}</span><span class="st" style="font-size:${st}px">${card.suit}</span></div>`;
+        }
+        return div;
+    }
+    function renderPlayedCards(cards) {
+        const area = document.getElementById('playArea');
+        if (!area) return;
+        area.innerHTML = '';
+        area.style.flexWrap = 'wrap';
+        area.style.gap = '4px';
+        let size = cards.length <= 6 ? 46 : (cards.length <= 10 ? 38 : 28);
+        cards.forEach(card => area.appendChild(createMiniCard(card, size)));
+    }
+
+    function showLordCards() {
+        if (!GameState.lordCards || GameState.lordCards.length === 0) return;
+        const area = document.getElementById('playArea');
+        area.innerHTML = '';
+        area.style.flexWrap = 'wrap';
+        GameState.lordCards.forEach(card => {
+            let div = createMiniCard(card, 46);
+            div.classList.add('lord-card');
+            area.appendChild(div);
+        });
+        document.getElementById('lastPlayer').textContent = '底牌揭晓！';
+        bottomCardsShown = true;
+    }
+
+    // ======================== 出牌阶段 ========================
+    function getAIDelay() { let at = ParamConfig.get('aiTiming'); return at.delayMs[aiSpeed] || 700; }
+
+    function processPlayPhase() {
+        if (GameState.phase !== 'playing') return;
+        if (GameState.processing) return;
+        let id = GameState.currentPlayer;
+        if (GameState.lastPlayerId !== -1 && (Array.isArray(GameState.players[GameState.lastPlayerId]) ? GameState.players[GameState.lastPlayerId].length : 0) === 0) { endGame(GameState.lastPlayerId); return; }
+        if (GameState.passCount === 2) {
+            GameState.lastPlay = null; GameState.lastPlayerId = -1;
+            document.getElementById('playArea').innerHTML = '<span class="text-gray-500 text-[10px]">自由出牌</span>';
+            GameState.passCount = 0;
+            bottomCardsShown = false;
+            if (isOnlineMode()) broadcastFullState();
+        }
+        if (isOnlineMode()) {
+            processOnlinePlay(id);
+            return;
+        }
+        processSinglePlay(id);
+    }
+
+    function processSinglePlay(id) {
+        updatePlayStatusText(id);
+        let playBtn = document.getElementById('playBtn'), passBtn = document.getElementById('passBtn');
+        if (id === GameState.myIndex) {
+            if (playBtn) playBtn.disabled = (GameState.selectedCards.size === 0);
+            if (passBtn) passBtn.disabled = (!GameState.lastPlay || GameState.lastPlayerId === GameState.myIndex);
+            startOnlineTimer(15, null, GameState.myIndex);
+        } else {
+            if (playBtn) playBtn.disabled = true; if (passBtn) passBtn.disabled = true;
+            GameState.processing = true;
+            let delay = getAIDelay();
+            let at = ParamConfig.get('aiTiming');
+            // 思考看门狗：取"标称思考上限"与"实际可用预算(已按设备速度缩放)+余量"的较大者。
+            // 固定 3/5 秒在移动端偏紧，会把 AI 算好的着法当超时丢弃（等价于强制过牌）。
+            let speedFactor = (typeof AI_PERF !== 'undefined' && AI_PERF.factor) ? AI_PERF.factor : 1;
+            let budgetSec = ((cfg('blind.endgameTimeBudgetMs.' + GameState.difficulty) || 0) +
+                              (cfg('blind.mctsTimeBudgetMs.' + GameState.difficulty) || 0)) / 1000 * speedFactor;
+            let thinkingTime = Math.max(at.thinkingSeconds[GameState.difficulty] || 3, budgetSec + 2.5);
+            setAiThinkingHint(id, true);
+            // 倒计时必须覆盖 delay + 思考两段，否则慢速档会在 AI 还在算的时候判定"思考超时"强制过牌
+            startOnlineTimer(thinkingTime + delay / 1000, () => {
+                if (GameState.processing && GameState.currentPlayer === id) {
+                    showToast(getPlayerName(id)+' 思考超时');
+                    setAiThinkingHint(id, false);
+                    executePlayCards(id, []);
+                    GameState.processing = false;
+                }
+            }, id);
+            
+            trackTimeout(() => {
+                if (GameState.currentPlayer !== id || GameState.phase !== 'playing') return;
+                let ai = GameState.aiList[id];
+                let processResult = (cards) => {
+                    if (GameState.currentPlayer !== id || GameState.phase !== 'playing') return;
+                    if (!GameState.processing) return;
+                    if (cards && cards.length > 0) {
+                        let isValid = cards.every(c => GameState.players[id].some(hc => hc.id === c.id));
+                        let typeValid = getCardType(cards) !== null;
+                        if (!isValid || !typeValid) cards = [];
+                    }
+                    GameState.processing = false;
+                    clearTimer();
+                    setAiThinkingHint(id, false);
+                    executePlayCards(id, cards || []);
+                };
+                let result = ai.think('play', GameState);
+                if (result && typeof result.then === 'function') result.then(processResult).catch(() => processResult([]));
+                else processResult(result);
+            }, delay);
+        }
+    }
+
+    // AI 思考指示：让玩家看到"AI 正在算"，而不是以为界面卡死
+    function setAiThinkingHint(aiId, on) {
+        try {
+            let myIdx = GameState.myIndex;
+            let el = null;
+            if (aiId === (myIdx + 1) % 3) el = document.getElementById('rightStatus');
+            else if (aiId === (myIdx + 2) % 3) el = document.getElementById('leftStatus');
+            if (!el) return;
+            if (on) el.textContent = '思考中…';
+            else updatePlayStatusText(GameState.currentPlayer);
+        } catch (e) { /* 忽略 */ }
+    }
+
+    function describePlay(cards) {
+        if (!cards || cards.length === 0) return '不出';
+        let type = getCardType(cards);
+        if (!type) return '不出';
+        const vn = (v) => { if (v<=7) return (v+3); if (v===8) return 'J'; if (v===9) return 'Q'; if (v===10) return 'K'; if (v===11) return 'A'; if (v===12) return '2'; if (v===13) return '小王'; if (v===14) return '大王'; return '?'; };
+        switch (type.type) {
+            case 'single': return '单张'+vn(type.value);
+            case 'pair': return '对'+vn(type.value);
+            case 'triple': return '三张'+vn(type.value);
+            case 'triple_single': {
+                let cnt = countValues(cards.map(c=>c.value));
+                let singleVal = parseInt(Object.keys(cnt).find(k=>cnt[k]===1));
+                return '三带一'+vn(singleVal);
+            }
+            case 'triple_pair': {
+                let cnt = countValues(cards.map(c=>c.value));
+                let pairVal = parseInt(Object.keys(cnt).find(k=>cnt[k]===2));
+                return '三带对'+vn(pairVal);
+            }
+            case 'straight': return '顺子';
+            case 'straight_pair': return '连对';
+            case 'plane': return '飞机';
+            case 'plane_single': return '飞机带单';
+            case 'plane_pair': return '飞机带对';
+            case 'four_two_single': return '四带二';
+            case 'four_two_pair': return '四带两对';
+            case 'bomb': return '💣炸弹';
+            case 'rocket': return '🚀王炸';
+            default: return '出牌';
+        }
+    }
+    function updateActionLog(playerId, cards) {
+        let name = getPlayerName(playerId);
+        let desc = describePlay(cards);
+        playLog.unshift({ player: name, action: desc });
+        if (playLog.length > 3) playLog.pop();
+        let el = document.getElementById('actionLog');
+        if (el) el.textContent = playLog.map(a => a.player+': '+a.action).join(' | ');
+    }
+
+    function executePlayCards(player, cards) {
+        if (Array.isArray(GameState.takeoverStarted)) GameState.takeoverStarted[player] = false;
+        clearTimer();
+        updateActionLog(player, cards);
+        let isPlay = (cards && cards.length > 0);
+        if (!isPlay) {
+            GameState.passCount++;
+            GameState.lastPassIdx = player;
+            document.getElementById('lastPlayer').textContent = getPlayerName(player) + ' 不出';
+            speakNow(getPlayerName(player) + ' 不出');
+        } else {
+            let type = getCardType(cards);
+            // 非法牌型：直接忽略，绝不当作"过牌"处理（否则伪造出牌者白送一次 pass，污染状态机）
+            if (!type) { showToast('牌型非法'); return; }
+            let playedIds = new Set(cards.map(c => c.id));
+            GameState.players[player] = GameState.players[player].filter(c => !playedIds.has(c.id));
+            GameState.lastPlay = type;
+            GameState.lastPlayerId = player;
+            GameState.lastPassIdx = -1;
+            GameState.passCount = 0;
+            
+            if (!GameState.firstPlayMade) GameState.firstPlayMade = true;
+            if (player === GameState.landlord) GameState.lordPlayCount++;
+            else GameState.farmerPlayed = true;
+            
+            if (type.type === CardType.BOMB || type.type === CardType.ROCKET) {
+                GameState.bombCount++;
+                GameState.baseScore *= 2;
+                document.getElementById('scoreDisplay').textContent = '底分: '+GameState.baseScore;
+                playSound('bomb');
+                triggerBombFlash(); 
+            } else {
+                playSound('play');
+            }
+            if (GameState.cardMemory) GameState.cardMemory.recordPlayerPlay(player, cards);
+            displayPlayed(cards);
+            speakPlay(cards);
+            if (player !== GameState.myIndex) {
+                document.getElementById('lastPlayer').textContent = getPlayerName(player) + ': ' + describePlay(cards);
+                showToast(getPlayerName(player) + ': ' + describePlay(cards));
+            }
+            
+            if (player === GameState.myIndex) renderPlayerHand();
+            else updateOpponentCount(player);
+            
+            if (GameState.players[player].length === 0) { endGame(player); return; }
+            if (GameState.players[player].length <= 3) showToast(getPlayerName(player)+' 剩'+GameState.players[player].length+'张！');
+        }
+        GameState.currentPlayer = (player+1)%3;
+        nextPlayStep();
+    }
+
+    function triggerBombFlash() {
+        const area = document.getElementById('playArea');
+        area.classList.add('spring-flash');
+        trackTimeout(() => area.classList.remove('spring-flash'), 400);
+    }
+
+    function nextPlayStep() {
+        if (isOnlineMode()) broadcastFullState();
+        trackTimeout(processPlayPhase, 600);
+    }
+
+    function displayPlayed(cards) {
+        renderPlayedCards(cards);
+        bottomCardsShown = false;
+        document.getElementById('lastPlayer').textContent = '';
+    }
+
+    // ======================== UI ========================
+    let dragIndex = null;
+
+    function enableDragSort() {
+        if (isOnlineMode()) return;
+        const cards = document.querySelectorAll('#playerHand .card');
+        cards.forEach((card, idx) => {
+            card.setAttribute('draggable', 'true');
+            card.ondragstart = (e) => { dragIndex = idx; e.dataTransfer.setData('text/plain', idx); e.target.classList.add('dragging'); };
+            card.ondragend = (e) => { e.target.classList.remove('dragging'); dragIndex = null; };
+            card.ondragover = (e) => { e.preventDefault(); };
+            card.ondrop = (e) => {
+                e.preventDefault();
+                let targetIdx = idx;
+                if (dragIndex !== null && dragIndex !== targetIdx) {
+                    let hand = GameState.players[GameState.myIndex];
+                    let [removed] = hand.splice(dragIndex, 1);
+                    hand.splice(targetIdx, 0, removed);
+                    renderPlayerHand();
+                    enableDragSort();
+                }
+            };
+        });
+    }
+
+    // 自适应手牌布局：在可用宽度/高度内尽量放大牌面，按手牌数量选择 1~3 行
+    function computeHandLayout(total) {
+        const vw = window.innerWidth;
+        const avail = Math.min(vw, 900) - 12;
+        const ratio = 0.32;
+        const maxW = vw >= 769 ? 84 : (vw <= 380 ? 66 : 74);
+        const heightBudget = Math.min(vw >= 769 ? 360 : window.innerHeight * 0.42, 340);
+        let best = null;
+        for (let rows = 1; rows <= 3; rows++) {
+            const perRow = Math.ceil(total / rows);
+            const denom = perRow - ratio * (perRow - 1);
+            let w = Math.min(maxW, Math.floor(avail / denom));
+            w = Math.max(34, w);
+            const cardH = Math.round(w * 1.42);
+            const rowOverlap = rows >= 3 ? Math.round(cardH * 0.42) : Math.round(cardH * 0.16);
+            const totalH = cardH + (rows - 1) * (cardH - rowOverlap);
+            const fitsH = totalH <= heightBudget;
+            const score = w * 10 - rows * 8 + (fitsH ? 1000 : -1000);
+            if (!best || score > best.score) best = { rows, perRow, cardW: w, cardH, rowOverlap, score };
+        }
+        return { rows: best.rows, perRow: best.perRow, cardW: best.cardW, cardH: best.cardH, overlap: Math.round(best.cardW * ratio), rowOverlap: best.rowOverlap };
+    }
+
+    function renderPlayerHand() {
+        const container = document.getElementById('playerHand'); container.innerHTML = '';
+        let hand = GameState.players[GameState.myIndex] || [];
+        if (hand.length === 0) return;
+        let total = hand.length;
+        let layout = computeHandLayout(total);
+        for (let r = 0; r < layout.rows; r++) {
+            let row = document.createElement('div');
+            row.className = 'card-row' + (r > 0 ? ' second' : '');
+            if (r > 0) row.style.marginTop = -layout.rowOverlap + 'px';
+            let start = r * layout.perRow;
+            let slice = hand.slice(start, start + layout.perRow);
+            slice.forEach((card, idx) => { row.appendChild(createCardElement(card, start + idx, idx, layout)); });
+            container.appendChild(row);
+        }
+        enableDragSort();
+    }
+    function createCardElement(card, index, idxInRow, layout) {
+        let div = document.createElement('div');
+        div.className = `card ${GameState.selectedCards.has(card)?'selected':''}`;
+        layout = layout || computeHandLayout(1);
+        div.style.width = layout.cardW + 'px';
+        div.style.height = layout.cardH + 'px';
+        if (idxInRow > 0) div.style.marginLeft = -layout.overlap + 'px';
+        let rankSize = Math.max(12, Math.round(layout.cardW * 0.36));
+        let suitSize = Math.max(10, Math.round(layout.cardW * 0.28));
+        let isRed = card.suit==='♥'||card.suit==='♦'||card.suit==='JOKER';
+        div.className += isRed ? ' suit-red' : ' suit-black';
+        if (card.suit === 'JOKER') {
+            let ch = card.rank === '大王' ? '大' : '小';
+            div.innerHTML = `<div class="corner"><span class="rk" style="font-size:${rankSize}px">${ch}</span><span class="st" style="font-size:${suitSize}px">王</span></div>`;
+            if (card.rank === '大王') div.style.background = '#ffebee';
+        } else {
+            div.innerHTML = `<div class="corner"><span class="rk" style="font-size:${rankSize}px">${card.rank}</span><span class="st" style="font-size:${suitSize}px">${card.suit}</span></div>`;
+        }
+        div.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); toggleCard(card.id); };
+        return div;
+    }
+    function toggleCard(cardId) {
+        if (GameState.phase !== 'playing' || GameState.currentPlayer !== GameState.myIndex || GameState.processing) return;
+        let card = GameState.players[GameState.myIndex].find(c=>c.id===cardId);
+        if (!card) return;
+        if (GameState.selectedCards.has(card)) GameState.selectedCards.delete(card);
+        else GameState.selectedCards.add(card);
+        renderPlayerHand();
+        let playBtn = document.getElementById('playBtn'); if (playBtn) playBtn.disabled = (GameState.selectedCards.size === 0);
+        updateOnlinePreview();
+    }
+    function updateOnlinePreview() {
+        if (!isOnlineMode()) return;
+        let panel = document.getElementById('previewPanel');
+        let cards = Array.from(GameState.selectedCards);
+        if (cards.length===0) { panel.innerText=''; panel.style.display='none'; return; }
+        let type = getCardType(cards);
+        panel.innerText = type ? `牌型: ${type.type}` : '无效牌型';
+        panel.style.display = '';
+    }
+    
+    function updateOpponentCount(player) {
+        if (player === GameState.myIndex) return;
+        let leftIdx = (GameState.myIndex + 2) % 3;
+        let rightIdx = (GameState.myIndex + 1) % 3;
+        let p = GameState.players[player];
+        let count = Array.isArray(p) ? p.length : (p || 0); // 兼容瘦身后的数字
+        if (player === leftIdx) document.getElementById('leftCount').textContent = count;
+        else if (player === rightIdx) document.getElementById('rightCount').textContent = count;
+    }
+    
+    function seatTag(idx) {
+        if (GameState.disconnected && GameState.disconnected[idx]) return '🤖托管中';
+        if (GameState.myRole === 'client' && clientReconnecting && idx === GameState.myIndex) return '📡重连中';
+        return '';
+    }
+    function updatePlayStatusText(currentPlayerId) {
+        let myIdx = GameState.myIndex;
+        let leftIdx = (myIdx + 2) % 3;
+        let rightIdx = (myIdx + 1) % 3;
+
+        let myText = seatTag(myIdx), leftText = seatTag(leftIdx), rightText = seatTag(rightIdx);
+        if (!myText && currentPlayerId === myIdx) myText = GameState.landlord === myIdx ? '地主出牌' : '出牌';
+        if (!leftText && currentPlayerId === leftIdx) leftText = '出牌...';
+        if (!rightText && currentPlayerId === rightIdx) rightText = '出牌...';
+
+        document.getElementById('playerStatus').textContent = myText;
+        document.getElementById('leftStatus').textContent = leftText;
+        document.getElementById('rightStatus').textContent = rightText;
+    }
+
+    function updateCallStatusText(currentPlayerId) {
+        let myIdx = GameState.myIndex;
+        let leftIdx = (myIdx + 2) % 3;
+        let rightIdx = (myIdx + 1) % 3;
+
+        let myText = seatTag(myIdx), leftText = seatTag(leftIdx), rightText = seatTag(rightIdx);
+        if (!myText && currentPlayerId === myIdx) myText = '你的回合 (' + ONLINE_CALL_SECONDS + '秒)';
+        if (!leftText && currentPlayerId === leftIdx) leftText = '思考...';
+        if (!rightText && currentPlayerId === rightIdx) rightText = '思考...';
+
+        document.getElementById('playerStatus').textContent = myText;
+        document.getElementById('leftStatus').textContent = leftText;
+        document.getElementById('rightStatus').textContent = rightText;
+    }
+
+    function formatRemainingCards(playerIdx) {
+        let cards = GameState.players[playerIdx];
+        if (!Array.isArray(cards)) return (cards || 0) > 0 ? '剩' + cards + '张' : '已出完';
+        if (!cards || cards.length === 0) return '已出完';
+        let cnt = countValues(cards.map(c => c.value));
+        let sorted = Object.keys(cnt).map(Number).sort((a, b) => a - b);
+        return sorted.map(v => {
+            let name = v <= 7 ? (v + 3).toString() : v === 8 ? 'J' : v === 9 ? 'Q' : v === 10 ? 'K' : v === 11 ? 'A' : v === 12 ? '2' : v === 13 ? '小王' : '大王';
+            return cnt[v] > 1 ? name + 'x' + cnt[v] : name;
+        }).join(' ');
+    }
+
+    function getPlayerName(idx) {
+        if (idx === GameState.myIndex) return '你';
+        if (idx === GameState.landlord) return '地主';
+        let leftIdx = (GameState.myIndex + 2) % 3;
+        if (idx === leftIdx) return '左农';
+        return '右农';
+    }
+
+    function updateStats() { document.getElementById('coins').textContent = GameState.coins; }
+    function showToast(msg) { let existing = document.querySelector('.toast'); if(existing) existing.remove(); let div = document.createElement('div'); div.className = 'toast'; div.textContent = msg; document.body.appendChild(div); trackTimeout(()=>div.remove(),2000); }
+    function toggleRules() { document.getElementById('rulesModal').classList.toggle('hidden'); }
+    function changeDifficulty(val) { GameState.difficulty = val; if(GameState.aiList[1]) { GameState.aiList[1].difficulty = val; GameState.aiList[2].difficulty = val; } }
+
+    function playCards() {
+        if (GameState.processing) { showToast('请等待AI思考...'); return; }
+        if (GameState.phase !== 'playing' || GameState.currentPlayer !== GameState.myIndex) return;
+        let cards = Array.from(GameState.selectedCards);
+        if (cards.length === 0) { showToast('请选择牌'); return; }
+        let type = getCardType(cards);
+        if (!type) { showToast('无效的牌型'); document.getElementById('handContainer').classList.add('ani-shake'); trackTimeout(()=>document.getElementById('handContainer').classList.remove('ani-shake'),300); return; }
+        if (!canBeat(type, GameState.lastPlay)) { showToast('需要大过上一手'); document.getElementById('handContainer').classList.add('ani-shake'); trackTimeout(()=>document.getElementById('handContainer').classList.remove('ani-shake'),300); return; }
+        if (isOnlineMode()) {
+            clearTimer();
+            displayPlayed(cards);
+            document.getElementById('lastPlayer').textContent = '你: ' + describePlay(cards);
+            sendAction({ type: 'play', cards });
+            let playBtn = document.getElementById('playBtn'); if (playBtn) playBtn.disabled = true;
+            GameState.selectedCards.clear();
+            renderPlayerHand();
+        } else {
+            executePlayCards(GameState.myIndex, cards);
+            GameState.selectedCards.clear();
+        }
+    }
+    function passTurn() {
+        if (GameState.processing) { showToast('请等待AI思考...'); return; }
+        if (GameState.phase !== 'playing' || GameState.currentPlayer !== GameState.myIndex) return;
+        if (!GameState.lastPlay || GameState.lastPlayerId === GameState.myIndex) { showToast('你必须出牌'); return; }
+        if (isOnlineMode()) {
+            clearTimer();
+            document.getElementById('lastPlayer').textContent = '你 不出';
+            sendAction({ type: 'pass' });
+        }
+        else executePlayCards(GameState.myIndex, []);
+    }
+    function resetSelection() { GameState.selectedCards.clear(); renderPlayerHand(); let btn = document.getElementById('playBtn'); if(btn) btn.disabled = true; }
+    function showHint() {
+        if (GameState.phase !== 'playing' || GameState.currentPlayer !== GameState.myIndex) return;
+        if (isOnlineMode()) { showToast("联机模式无AI提示"); return; }
+        let plays = getAllValidPlays(GameState.players[GameState.myIndex], GameState.lastPlay);
+        if (plays.length > 0) { GameState.selectedCards = new Set(plays[0]); renderPlayerHand(); showToast('已选推荐牌'); document.getElementById('playBtn').disabled = false; }
+        else { if (GameState.lastPlay) showToast('建议：不出'); else showToast('请自由出牌'); }
+    }
+
+    // ======================== 联机模式 ========================
+    function initPeer(customId) {
+        if (GameState.peer) { GameState.peer.destroy(); GameState.peer = null; }
+        return new Promise((resolve, reject) => {
+            GameState.peer = customId ? new Peer(customId) : new Peer();
+            let peerConnected = false;
+            let peerTimeout = trackTimeout(() => {
+                if (!peerConnected) {
+                    showToast('连接超时，请检查网络');
+                    reject(new Error('peer connection timeout'));
+                    if (GameState.peer) { GameState.peer.destroy(); GameState.peer = null; }
+                }
+            }, 10000);
+            GameState.peer.on('open', id => {
+                peerConnected = true;
+                clearTimeout(peerTimeout);
+                document.getElementById('myPeerId').innerText = id;
+                document.getElementById('connStatus').classList.remove('hidden');
+                document.getElementById('connStatus').innerHTML = `📡 房间码:${id}`;
+                document.getElementById('createRoomSection').classList.add('hidden');
+                document.getElementById('myPeerSection').classList.remove('hidden');
+                resolve(id);
+            });
+            GameState.peer.on('connection', conn => {
+                conn._sessionId = null;
+                conn._disconnected = false;
+                conn.on('data', d => onConnectionData(conn, d));
+                conn.on('close', () => onHostConnClosed(conn));
+                conn.on('error', () => onHostConnClosed(conn));
+                // 槽位分配推迟到收到 hello（含持久 sessionId）之后，以支持断线重连
+            });
+            GameState.peer.on('error', e => {
+                console.warn(e);
+                if (e.type === 'unavailable-id') {
+                    showToast('房间码已被使用，请换一个');
+                    if (GameState.peer) { GameState.peer.destroy(); GameState.peer = null; }
+                    document.getElementById('createRoomSection').classList.remove('hidden');
+                    document.getElementById('myPeerSection').classList.add('hidden');
+                    reject(e);
+                } else if (e.type === 'peer-unavailable') {
+                    // 房间码不存在 / 房主已下线：立即反馈，不要干等 10s joinTimeout
+                    showToast('房间不存在或房主已离线');
+                    if (GameState.peer) { try { GameState.peer.destroy(); } catch (err) {} GameState.peer = null; }
+                    reject(e);
+                } else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') {
+                    showToast('网络连接失败，请检查网络');
+                    reject(e);
+                } else if (e.type === 'browser-incompatible') {
+                    showToast('当前浏览器不支持联机(WebRTC)');
+                    reject(e);
+                } else {
+                    // 其余错误不能静默：至少让 Promise 落定，避免调用方永久 pending
+                    reject(e);
+                }
+            });
+            // 信令 socket 掉线（切网/休眠）→ 房间从此不可加入。必须主动 reconnect，
+            // 否则房主自己也不知道房间已经"失踪"。
+            GameState.peer.on('disconnected', () => {
+                if (GameState.peer && GameState.myRole === 'host') {
+                    try { GameState.peer.reconnect(); } catch (e) {}
+                }
+            });
+        });
+    }
+    function createRoom() {
+        if (GameState.myRole === 'host' || GameState.myRole === 'client') return;
+        if (typeof Peer === 'undefined') { showToast('联机组件加载失败，请联网后刷新页面'); return; }
+        let code = document.getElementById('roomCodeInput').value.trim();
+        if (!code) { showToast('请输入房间码'); return; }
+        if (code.length < 2 || code.length > 20) { showToast('房间码需要2-20个字符'); return; }
+        if (!/^[a-zA-Z0-9\u4e00-\u9fff_-]+$/.test(code)) { showToast('仅支持中英文、数字、下划线和短横线'); return; }
+        // 关键：房主必须在建房时就认领角色，否则 handleHello 的 myRole 守卫会把所有 hello 拒之门外
+        GameState.myRole = 'host';
+        GameState.myIndex = 0;
+        GameState.mode = 'online';
+        let _om = document.getElementById('onlineModeSelect');
+        GameState.onlineHumans = (_om && parseInt(_om.value)) === 2 ? 2 : 3;
+        initPeer(code).catch((e) => {
+            GameState.myRole = null;
+            GameState.mode = 'single';
+            const t = e && e.type;
+            const known = ['unavailable-id', 'peer-unavailable', 'network', 'server-error', 'socket-error', 'browser-incompatible'];
+            if (e instanceof Error && !t) showToast('创建房间失败：' + (e.message || '网络异常'));
+            else if (t && known.indexOf(t) < 0) showToast('创建房间失败：' + t);
+        });
+    }
+    function joinGame() {
+        if (GameState.myRole === 'host' || GameState.myRole === 'client') return;
+        if (typeof Peer === 'undefined') { showToast('联机组件加载失败，请联网后刷新页面'); return; }
+        let target = document.getElementById('targetPeerId').value.trim();
+        if (!target) return;
+        clientIntentionalLeave = false;
+        clientReconnecting = false;
+        clientReconnectAttempts = 0;
+        if (GameState.peer) { connectToHost(target); return; }
+        initPeer(null).catch(() => {}).then(() => { if (GameState.peer) connectToHost(target); });
+    }
+    function connectToHost(target, isReconnect) {
+        if (!GameState.peer) return;
+        if (typeof Peer === 'undefined') { showToast('联机组件加载失败，请联网后刷新页面'); return; }
+        let conn;
+        try { conn = GameState.peer.connect(target, { reliable: true, serialization: 'json' }); }
+        catch (e) { showToast('无法连接，请重试'); clientReconnecting = false; return; }
+
+        // 关键：客户端必须自己注册 data 监听（房主侧在 peer.on('connection') 里注册）。
+        // 52dc5ca 重构时从 open 回调里漏掉了这行，导致客户端收不到任何 sync/action，
+        // 表现为加入房间后永远停在"等待房主开局"。
+        conn.on('data', d => onConnectionData(conn, d));
+
+        // 建连生命周期：opened 标记是否已建立，done 标记本次尝试是否已终结。
+        // 三条失败路径（超时 / close / error）都必须 release 重连锁，
+        // 否则 scheduleClientReconnect 的 `if (clientReconnecting) return` 会让重连只跑一次就永久卡死。
+        let opened = false, done = false;
+        let finish = () => { if (done) return false; done = true; clearTimeout(joinTimeout); return true; };
+        let failJoin = (msg) => {
+            if (opened) return;
+            if (!finish()) return;
+            if (msg) showToast(msg);
+            try { conn.close(); } catch (e) {}
+            if (isReconnect) { clientReconnecting = false; trackTimeout(scheduleClientReconnect, 1200); }
+        };
+        let joinTimeout = setTimeout(() => failJoin('连接超时，请检查房间号'), 10000);
+
+        conn.on('open', () => {
+            if (opened) return;
+            opened = true; finish();
+            clientReconnectAttempts = 0;
+            clientReconnecting = false;
+            GameState.connections = [conn];
+            GameState.myRole = 'client';
+            GameState.mode = 'online';
+            GameState.hostPeerId = target;
+            conn._disconnected = false;
+            conn._hbWait = 0;
+            startHeartbeat();
+            try { conn.send({ type: 'hello', sessionId: getClientSessionId() }); } catch (e) {}
+            document.getElementById('connectPanel').style.display = 'none';
+            document.getElementById('connStatus').innerHTML = '🔗 已连接房主';
+            document.getElementById('debugStrip').style.display = 'block';
+            updateDebugStrip('已连接，等待房主开局...');
+            showToast(isReconnect ? '重连成功！' : '加入成功，等待房主开局');
+        });
+        conn.on('close', () => { if (!opened) failJoin(''); else onClientConnLost(); });
+        conn.on('error', () => { if (!opened) failJoin('连接失败，请重试'); else onClientConnLost(); });
+    }
+    function onClientConnLost() {
+        if (GameState.myRole !== 'client') return;
+        if (clientIntentionalLeave) return;
+        stopHeartbeat();
+        clearTimer();
+        if (GameState.connections[0]) GameState.connections[0]._disconnected = true;
+        if (GameState.phase === 'gameover') {
+            showToast('房主已断开连接，返回菜单');
+            trackTimeout(backToMenu, 1500);
+            return;
+        }
+        scheduleClientReconnect();
+    }
+    function scheduleClientReconnect() {
+        if (clientIntentionalLeave) { clientReconnecting = false; return; }
+        if (clientReconnecting) return;
+        if (clientReconnectAttempts >= 6) {
+            clientReconnecting = false;
+            showToast('重连失败，返回菜单');
+            trackTimeout(backToMenu, 1500);
+            return;
+        }
+        clientReconnecting = true;
+        clientReconnectAttempts++;
+        let delay = Math.min(1000 * clientReconnectAttempts, 4000);
+        showToast('连接断开，' + Math.round(delay / 1000) + '秒后重连(' + clientReconnectAttempts + '/6)…');
+        updateDebugStrip('重连中 ' + clientReconnectAttempts + '/6…');
+        clearTimer();
+        trackTimeout(() => {
+            if (clientIntentionalLeave) { clientReconnecting = false; return; }
+            let target = GameState.hostPeerId;
+            if (!target) { clientReconnecting = false; return; }
+            if (GameState.peer) { try { GameState.peer.destroy(); } catch (e) {} GameState.peer = null; }
+            initPeer(null).then(() => {
+                if (clientIntentionalLeave) { clientReconnecting = false; return; }
+                if (GameState.peer) connectToHost(target, true);
+                else { clientReconnecting = false; trackTimeout(scheduleClientReconnect, 1500); }
+            }).catch(() => { clientReconnecting = false; trackTimeout(scheduleClientReconnect, 1500); });
+        }, delay);
+    }
+    function startOnlineGame() {
+        initAudio();
+        GameState.mode = 'online';
+        GameState.myRole = 'host';
+        GameState.myIndex = 0;
+        // 2 人模式：空出的 AI 席位从开局即视为掉线，交由主机 AI 接管
+        if ((GameState.onlineHumans || 3) === 2) {
+            GameState.disconnected = [false, false, true];
+        } else {
+            GameState.disconnected = [false, false, false];
+        }
+        document.getElementById('topRightControls').classList.add('hidden');
+        document.getElementById('connStatus').classList.remove('hidden');
+        document.getElementById('connStatus').innerHTML = '👑 房主';
+        document.getElementById('emojiBtn').classList.remove('hidden');
+        let _ap = document.getElementById('autoPassBtn');
+        if (_ap) { _ap.classList.remove('hidden'); _ap.style.background = autoPassEnabled ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.2)'; }
+        document.getElementById('connectPanel').style.display = 'none';
+        document.getElementById('startScreen').classList.add('hidden');
+        showToast((GameState.onlineHumans || 3) === 2 ? "已连1人，AI补位，游戏开始" : "两人已满，游戏开始");
+        startHeartbeat();
+        updateDebugStrip('👑 房主 · ' + GameState.connections.map(c => 'P' + (c.playerIdx || '?') + '已连').join(' '));
+        document.getElementById('debugStrip').style.display = 'block';
+        initGame();
+    }
+    function copyPeerId() {
+        let id = document.getElementById('myPeerId').innerText;
+        if (!id || id === '生成中...') return;
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(id); ok = true; }
+        } catch (e) { ok = false; }
+        if (!ok) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = id; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (e) { ok = false; }
+        }
+        showToast(ok ? '已复制房间码' : '复制失败，请长按房间码手动复制');
+    }
+    function broadcastToPeers(msg) {
+        if (GameState.myRole === 'host') {
+            for (let c of GameState.connections) { if (c && !c._disconnected) { try { c.send(msg); } catch (e) {} } }
+        } else if (GameState.connections[0]) {
+            try { GameState.connections[0].send(msg); } catch (e) {}
+        }
+    }
+    function sendEmoji(emoji) {
+        broadcastToPeers({ type: 'emoji', from: GameState.myIndex, emoji });
+        showToast(`你: ${emoji}`);
+    }
+    function sendQuick(text) {
+        broadcastToPeers({ type: 'emoji', from: GameState.myIndex, emoji: text });
+        showToast(`你: ${text}`);
+        toggleQuickChat(false);
+    }
+    function toggleQuickChat(force) {
+        let bar = document.getElementById('quickChatBar');
+        if (!bar) return;
+        let show = force !== undefined ? force : (bar.style.display === 'none' || !bar.style.display);
+        bar.style.display = show ? 'flex' : 'none';
+    }
+    function toggleAutoPass() {
+        autoPassEnabled = !autoPassEnabled;
+        SafeStore.set('landlord_autopass', autoPassEnabled ? '1' : '0');
+        let btn = document.getElementById('autoPassBtn');
+        if (btn) btn.style.background = autoPassEnabled ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.2)';
+        showToast(autoPassEnabled ? '要不起时自动过牌：开' : '要不起时自动过牌：关');
+    }
+    function onConnectionData(conn, data) {
+        try {
+            if (!data || typeof data !== 'object') return;
+            if (data.type === 'hello') handleHello(conn, data.sessionId);
+            else if (data.type === 'action') handleAction(data.action, conn);
+            else if (data.type === 'resync' && GameState.myRole === 'host') broadcastFullState();
+            else if (data.type === 'restart' && GameState.myRole === 'host') {
+                if (GameState.phase === 'gameover' || GameState.phase === 'idle') {
+                    showToast('对方请求再来一局，开始新对局');
+                    resetGame();
+                } else {
+                    showToast('对方请求再来一局，请先结束当前对局');
+                }
+            }
+            else if (data.type === 'sync' && GameState.myRole !== 'host') handleSync(data.state);
+            else if (data.type === 'full') { clientIntentionalLeave = true; showToast('房间已满，最多' + (data.humans || 3) + '人'); }
+            else if (data.type === 'reject') showToast(data.reason || '操作被房主拒绝');
+            else if (data.type === 'ping') { try { conn.send({ type: 'pong' }); } catch (e) {} }
+            else if (data.type === 'pong') { if (conn) conn._hbWait = 0; }
+            else if (data.type === 'emoji') {
+                if (!data.emoji) return;
+                let name = (GameState.myRole === 'host' && conn && conn.playerIdx !== undefined)
+                    ? getPlayerName(conn.playerIdx) : getPlayerName(data.from);
+                showToast(`${name}: ${data.emoji}`);
+                if (GameState.myRole === 'host') {
+                    GameState.connections.forEach(c => { if (c !== conn) { try { c.send(data); } catch (e) {} } });
+                }
+            }
+        } catch (e) {
+            debugErrCount++;
+            console.error('[消息处理] 被忽略:', e);
+        }
+    }
+
+function broadcastFullState() {
+        if (GameState.myRole !== 'host') return;
+        let takeOver = GameState.autoTakeover;
+        // 房主是唯一的计时权威：把"本回合剩余毫秒"下发，客户端只渲染不自创时钟
+        let remainMs = null;
+        if (timerInterval && typeof timerDeadline === 'number' && timerDeadline > 0) {
+            remainMs = Math.max(0, timerDeadline - Date.now());
+        }
+        let base = {
+            phase: GameState.phase, players: GameState.players.map(p=>[...p]),
+            landlord: GameState.landlord, currentPlayer: GameState.currentPlayer,
+            lastPlay: GameState.lastPlay, lastPlayerId: GameState.lastPlayerId,
+            lastPassIdx: GameState.lastPassIdx,
+            baseScore: GameState.baseScore, bombCount: GameState.bombCount,
+            passCount: GameState.passCount, firstPlayMade: GameState.firstPlayMade,
+            lordPlayCount: GameState.lordPlayCount, farmerPlayed: GameState.farmerPlayed,
+            callScores: GameState.callScores, lordCards: GameState.lordCards,
+            autoTakeover: takeOver,
+            aborted: GameState.aborted,
+            disconnected: GameState.disconnected.slice(),
+            turnSerial: GameState.turnSerial,
+            turnRemainMs: remainMs,
+            seq: ++GameState.stateSeq
+        };
+        GameState.autoTakeover = -1;
+        GameState.connections.forEach((conn) => {
+            if (!conn || conn._disconnected) return;
+            if (conn.playerIdx === undefined || conn.playerIdx === null || conn.playerIdx < 0 || conn.playerIdx > 2) return;
+            let myIdx = conn.playerIdx;
+            let safeState = JSON.parse(JSON.stringify(base));
+            safeState.players = base.players.map((p, idx) => {
+                if (idx === myIdx) return [...p];
+                return p.length; // 瘦身: 对方手牌只传张数(农民端渲染与判定仅需要张数)
+            });
+            if (safeState.phase === 'calling') {
+                safeState.lordCards = safeState.lordCards.map(c => ({ suit: 'back', rank: '?', value: 0, id: 'back' }));
+            }
+            safeSend(conn, { type: 'sync', state: { ...safeState, myIndex: myIdx } });
+        });
+        updateDebugStrip('👑 房主 · ' + GameState.connections.filter(c => c).map(c => {
+            if (c._disconnected) return 'P' + (c.playerIdx || '?') + ':掉线AI';
+            let st = (c._sendFail || 0) > 0 ? '发送失败x' + c._sendFail : '正常';
+            return 'P' + (c.playerIdx || '?') + ':' + st;
+        }).join(' ') + ' · 广播#' + GameState.stateSeq);
+    }
+    function liveConnCount() {
+        return GameState.connections.filter(c => c && !c._disconnected && !c._closed && c.send).length;
+    }
+    // 房主：连接关闭 → 标记为掉线占位（保留槽位供重连），并触发 AI 托管
+    function onHostConnClosed(conn) {
+        if (GameState.myRole !== 'host') return;
+        if (!conn || conn._disconnected) return;
+        // 已被新连接顶替的旧对象：忽略其迟到的 close，否则刚重连的玩家会被立刻打去托管
+        if (GameState.connections.indexOf(conn) < 0) return;
+        if (conn._superseded) return;
+        conn._disconnected = true;
+        let dcIdx = conn.playerIdx;
+        if (dcIdx !== undefined && dcIdx !== null && dcIdx >= 0 && dcIdx <= 2 && !GameState.disconnected[dcIdx]) {
+            trackTimeout(() => handleOfflineDetected(conn), 0);
+        } else {
+            broadcastFullState();
+        }
+    }
+    // 房主：收到 hello → 重连绑定 / 新玩家分配槽位
+    function handleHello(conn, sessionId) {
+        if (GameState.myRole !== 'host') return;
+        if (!sessionId) sessionId = 'anon' + Math.random().toString(36).slice(2, 8);
+        // 1) 同 sessionId 的（掉线）槽位 → 重连
+        for (let i = 0; i < GameState.connections.length; i++) {
+            let c = GameState.connections[i];
+            if (c && c._sessionId === sessionId) {
+                let idx = c.playerIdx;
+                // 先"作废"旧连接再关闭：否则旧对象迟到的 close 会触发 onHostConnClosed，
+                // 把刚重连成功的玩家立刻打回 AI 托管
+                if (c !== conn) { c._superseded = true; c._disconnected = true; }
+                try { if (c !== conn && c.close) c.close(); } catch (e) {}
+                conn.playerIdx = idx;
+                conn._sessionId = sessionId;
+                conn._disconnected = false;
+                conn._hbWait = 0;
+                conn._sendFail = 0;
+                conn._promptedOffline = false;
+                GameState.connections[i] = conn;
+                GameState.disconnected[idx] = false;
+                if (Array.isArray(GameState.takeoverStarted)) GameState.takeoverStarted[idx] = false;
+                GameState.takeoverToken++;   // 作废掉线期间的在途托管决策，避免双控
+                showToast(getPlayerName(idx) + ' 已重连');
+                updateDebugStrip(getPlayerName(idx) + ' 已重连');
+                broadcastFullState();
+                return;
+            }
+        }
+        // 2) 空闲槽位（含掉线占位）→ 新玩家（按人数模式限制连接数）
+        if (liveConnCount() >= onlineMaxClients()) {
+            try { conn.send({ type: 'full', humans: GameState.onlineHumans }); } catch (e) {}
+            try { conn.close(); } catch (e) {}
+            return;
+        }
+        let slot = -1;
+        for (let i = 0; i < GameState.connections.length; i++) {
+            let c = GameState.connections[i];
+            if (c && c._disconnected) { slot = i; break; }
+        }
+        let idx;
+        if (slot >= 0) {
+            // 复用占位槽位必须继承它的 playerIdx；否则 used 集合会把 idx 顶到 3（越界崩溃）
+            idx = GameState.connections[slot].playerIdx;
+            if (typeof idx !== 'number' || idx < 1 || idx > 2) {
+                let used = new Set(GameState.connections.filter(Boolean).map(c => c.playerIdx));
+                idx = 1; while (idx <= 2 && used.has(idx)) idx++;
+            }
+        } else {
+            let used = new Set(GameState.connections.filter(Boolean).map(c => c.playerIdx));
+            idx = 1; while (idx <= 2 && used.has(idx)) idx++;
+        }
+        if (typeof idx !== 'number' || idx < 1 || idx > 2) {
+            try { conn.send({ type: 'full', humans: GameState.onlineHumans }); } catch (e) {}
+            try { conn.close(); } catch (e) {}
+            return;
+        }
+        conn.playerIdx = idx;
+        conn._sessionId = sessionId;
+        conn._disconnected = false;
+        conn._hbWait = 0;
+        conn._sendFail = 0;
+        conn._promptedOffline = false;
+        GameState.disconnected[idx] = false;
+        GameState.takeoverToken++;
+        if (slot >= 0) GameState.connections[slot] = conn;
+        else GameState.connections.push(conn);
+        if (GameState.connections.length > 2) {
+            // 兜底：connections 只应容纳 2 条客户端连接
+            GameState.connections = GameState.connections.filter(c => c && c.playerIdx !== undefined && c.playerIdx !== idx).slice(0, 2);
+            GameState.connections.push(conn);
+        }
+        if (liveConnCount() === onlineMaxClients() && (!GameState.phase || GameState.phase === 'waiting' || GameState.phase === 'idle')) {
+            startOnlineGame();
+        } else if (GameState.phase && GameState.phase !== 'idle' && GameState.phase !== 'waiting') {
+            broadcastFullState();
+        }
+    }
+    function updateDebugStrip(text) {
+        let el = document.getElementById('debugStrip');
+        if (el) el.textContent = text;
+    }
+    function safeSend(conn, msg) {
+        if (!conn) return false;
+        try {
+            conn.send(msg);
+            conn._sendFail = 0;
+            return true;
+        } catch (e) {
+            conn._sendFail = (conn._sendFail || 0) + 1;
+            if (GameState.myRole === 'host' && conn._sendFail >= 2 && GameState.phase !== 'gameover') {
+                dropConnection(conn);
+            } else {
+                updateDebugStrip('发送失败 x' + conn._sendFail);
+            }
+            return false;
+        }
+    }
+    function dropConnection(conn) {
+        if (!conn || conn._disconnected) return;
+        if (!GameState.connections.includes(conn)) return;
+        onHostConnClosed(conn);
+    }
+    function startHeartbeat() {
+        stopHeartbeat();
+        hbTimer = setInterval(() => {
+            if (GameState.myRole === 'host') {
+                GameState.connections.forEach(conn => {
+                    if (!conn || conn._disconnected) return;
+                    conn._hbWait = (conn._hbWait || 0) + 1;
+                    if (conn._hbWait > 6) { handleOfflineDetected(conn); return; }
+                    safeSend(conn, { type: 'ping' });
+                });
+            } else if (GameState.myRole === 'client') {
+                // 客户端也必须心跳：ICE 失效时 PeerJS 的 close/error 可能几十秒甚至永不触发
+                let conn = GameState.connections[0];
+                if (!conn || conn._disconnected || clientIntentionalLeave) { return; }
+                conn._hbWait = (conn._hbWait || 0) + 1;
+                if (conn._hbWait > 6) { onClientConnLost(); return; }
+                try { conn.send({ type: 'ping' }); } catch (e) { onClientConnLost(); }
+            }
+        }, 5000);
+    }
+    function stopHeartbeat() { if (hbTimer) { clearInterval(hbTimer); hbTimer = null; } }
+    function handleSync(state) {
+        // 原子化：解析/校验全部通过后才提交；任何一段抛错都不会留下半新半旧状态
+        try { applySync(state); }
+        catch (e) {
+            debugErrCount++;
+            console.error('[同步] 被忽略:', e);
+            updateDebugStrip('同步异常 x' + debugErrCount);
+        }
+    }
+    function applySync(state) {
+        if (!state || typeof state !== 'object') return;
+        // seq 幂等：只接受单调递增，防止倒序/重复 sync 重启计时器与覆盖新状态
+        if (typeof state.seq === 'number') {
+            if (state.seq <= GameState.lastAppliedSeq) return;
+            GameState.lastAppliedSeq = state.seq;
+        }
+        let prevPhase = GameState.phase;
+        let prevCurrentPlayer = GameState.currentPlayer;
+        let prevLastPlay = GameState.lastPlay;
+        let prevLastPlayerId = GameState.lastPlayerId;
+
+        let myIdx = state.myIndex !== undefined ? state.myIndex : GameState.myIndex;
+        if (typeof myIdx !== 'number' || myIdx < 0 || myIdx > 2) myIdx = GameState.myIndex;
+        if (!Array.isArray(state.players) || !Array.isArray(state.players[myIdx])) {
+            throw new Error('sync.players 非法 myIndex=' + myIdx);
+        }
+        let players = state.players.map((p, idx) => Array.isArray(p) ? [...p] : p);
+
+        // ---- 提交 ----
+        GameState.myIndex = myIdx;
+        GameState.phase = state.phase;
+        if (prevPhase === 'gameover' && GameState.phase !== 'gameover') {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+        }
+        GameState.players = players;
+        GameState.players[GameState.myIndex].sort((a,b)=>a.value-b.value);
+        GameState.landlord = state.landlord;
+        GameState.currentPlayer = state.currentPlayer;
+        GameState.lastPlay = state.lastPlay;
+        GameState.lastPlayerId = state.lastPlayerId;
+        GameState.baseScore = state.baseScore;
+        GameState.bombCount = state.bombCount;
+        GameState.passCount = state.passCount;
+        GameState.lastPassIdx = state.lastPassIdx !== undefined ? state.lastPassIdx : -1;
+        GameState.firstPlayMade = state.firstPlayMade;
+        GameState.lordPlayCount = state.lordPlayCount;
+        GameState.farmerPlayed = state.farmerPlayed;
+        GameState.callScores = state.callScores || [0,0,0];
+        GameState.lordCards = state.lordCards || [];
+        GameState.mode = 'online';
+        GameState.disconnected = Array.isArray(state.disconnected) ? state.disconnected.slice(0, 3) : [false,false,false];
+        GameState.aborted = !!state.aborted;
+        GameState.turnSerial = typeof state.turnSerial === 'number' ? state.turnSerial : GameState.turnSerial;
+        GameState.turnRemainMs = (typeof state.turnRemainMs === 'number' && state.turnRemainMs >= 0) ? state.turnRemainMs : null;
+        // 只在回合真的切换时清选牌；否则别人掉线/广播一次就抹掉玩家正在选的牌
+        if (GameState.currentPlayer !== prevCurrentPlayer || prevPhase !== GameState.phase) {
+            GameState.selectedCards.clear();
+        }
+        // ---- 播报段 ----
+        let hasPlay = state.lastPlay && state.lastPlay.cards && state.lastPlay.cards.length > 0;
+        if (hasPlay) {
+            let isNew = !prevLastPlay || !prevLastPlay.cards || prevLastPlay.cards.length === 0 || prevLastPlayerId !== state.lastPlayerId;
+            if (isNew) {
+                try {
+                    bottomCardsShown = false;
+                    updateActionLog(state.lastPlayerId, state.lastPlay.cards);
+                    speakPlay(state.lastPlay.cards);
+                    if (state.lastPlayerId !== GameState.myIndex) {
+                        let desc = describePlay(state.lastPlay.cards);
+                        document.getElementById('lastPlayer').textContent = getPlayerName(state.lastPlayerId) + ': ' + desc;
+                        showToast(getPlayerName(state.lastPlayerId) + ': ' + desc);
+                    } else {
+                        document.getElementById('lastPlayer').textContent = '';
+                    }
+                    if (state.lastPlay.type === CardType.BOMB || state.lastPlay.type === CardType.ROCKET) {
+                        playSound('bomb');
+                    }
+                } catch (e) { debugErrCount++; console.error('[同步-新出牌段] 被忽略:', e); }
+            }
+        }
+        try {
+            if (GameState.lastPassIdx >= 0 && GameState.lastPassIdx !== prevPassIdx) {
+                prevPassIdx = GameState.lastPassIdx;
+                updateActionLog(GameState.lastPassIdx, []);
+                document.getElementById('lastPlayer').textContent = getPlayerName(GameState.lastPassIdx) + ' 不出';
+                speakNow(getPlayerName(GameState.lastPassIdx) + ' 不出');
+            } else if (GameState.lastPassIdx === -1) {
+                prevPassIdx = -1;
+            }
+        } catch (e) { debugErrCount++; console.error('[同步-不出段] 被忽略:', e); }
+        if (state.autoTakeover !== undefined && state.autoTakeover >= 0 && state.autoTakeover !== GameState.myIndex) {
+            try {
+                document.getElementById('lastPlayer').textContent = getPlayerName(state.autoTakeover) + ' 超时未操作，AI托管';
+                showToast(getPlayerName(state.autoTakeover) + ' 超时未操作，AI托管');
+            } catch (e) { debugErrCount++; }
+        }
+        try {
+            renderUI();
+        } catch (e) { debugErrCount++; console.error('[同步-渲染段] 被忽略:', e); }
+        try {
+            if (GameState.phase === 'calling') processOnlineCallTurn();
+            else if (GameState.phase === 'playing') {
+                if (prevPhase !== 'playing') {
+                    showLordCards(); // 修复: 进入出牌阶段时显示底牌
+                }
+                processOnlinePlay(GameState.currentPlayer);
+            }
+        } catch (e) { debugErrCount++; console.error('[同步-回合推进段] 被忽略:', e); }
+        lastSyncInfo = '同步#' + (state.seq || '?') + ' ' + GameState.phase + ' 出牌者:' + GameState.lastPlayerId + (GameState.lastPlay ? ' ' + GameState.lastPlay.type + '(' + (GameState.lastPlay.cards ? GameState.lastPlay.cards.length : '?') + '张' + GameState.lastPlay.value + ')' : '') + ' 不出:' + GameState.lastPassIdx + (debugErrCount > 0 ? ' 异常x' + debugErrCount : '');
+        document.getElementById('debugStrip').style.display = 'block';
+        updateDebugStrip(lastSyncInfo);
+        if (GameState.phase === 'gameover') {
+            clearTimer();
+            if (GameState.aborted && prevPhase !== 'gameover') {
+                let sc = document.getElementById('gameOverScreen'), tt = document.getElementById('resultTitle'), cc = document.getElementById('resultContent');
+                if (sc) sc.classList.remove('hidden');
+                if (tt) { tt.textContent = '⏸ 本局已结束'; tt.className = 'text-xl retro-text mb-4 text-gray-400 text-center'; }
+                if (cc) { cc.innerHTML = '对方未同意 AI 代打，本局已中止。'; }
+                if (GameState.myRole === 'host' && GameState.aborted) { /* already broadcast by caller */ }
+                return;
+            }
+            if (prevPhase !== 'gameover') {
+                let isWin = false;
+                if (GameState.landlord === GameState.myIndex) isWin = GameState.lastPlayerId === GameState.myIndex;
+                else isWin = GameState.lastPlayerId !== GameState.landlord;
+                let isLordWin = (GameState.lastPlayerId === GameState.landlord);
+                let multiplier = GameState.baseScore;
+                let isSpring = false, isAntiSpring = false;
+                if (isLordWin && !GameState.farmerPlayed && GameState.firstPlayMade) isSpring = true;
+                if (!isLordWin && GameState.lordPlayCount === 1 && GameState.firstPlayMade) isAntiSpring = true;
+                if (isSpring) multiplier *= 2;
+                if (isAntiSpring) multiplier *= 2;
+                let amount = Math.min(100 * multiplier, 9999);
+                let oldCoins = GameState.coins;
+                GameState.stats.total++;
+                if (isWin) { GameState.stats.win++; GameState.coins += amount; playSound('win'); }
+                else { GameState.coins = Math.max(0, GameState.coins - amount); }
+                let delta = GameState.coins - oldCoins;
+                let actualAmount = isWin ? delta : oldCoins - GameState.coins;
+                addMatchRecord(isWin ? 'win' : 'lose', multiplier, delta, GameState.coins);
+                updateStats();
+                let screen = document.getElementById('gameOverScreen'), title = document.getElementById('resultTitle'), content = document.getElementById('resultContent');
+                let remainingHtml = '<div style="margin-top:8px;border-top:1px solid #555;padding-top:6px;font-size:10px;color:#aaa;text-align:left;">';
+                for (let i = 0; i < 3; i++) {
+                    let name = getPlayerName(i);
+                    let role = i === GameState.landlord ? '(地主)' : '(农民)';
+                    let p = GameState.players[i];
+                    let cards = (Array.isArray(p) && p.every(c => c.suit === 'back')) ? '剩' + p.length + '张' : (Array.isArray(p) ? formatRemainingCards(i) : ('剩' + (p || 0) + '张'));
+                    remainingHtml += name + role + ': ' + cards + '<br>';
+                }
+                remainingHtml += '</div>';
+                if (isWin) {
+                    title.textContent = '🎉 胜利！'; title.className = 'text-xl retro-text mb-4 text-yellow-400 text-center';
+                    content.innerHTML = `赢得 ${actualAmount} 筹码<br>余额：${GameState.coins}${isSpring?'<br>🌸春天加成':''}${isAntiSpring?'<br>⚡反春天加成':''}${remainingHtml}`;
+                } else {
+                    title.textContent = '💔 失败'; title.className = 'text-xl retro-text mb-4 text-gray-400 text-center';
+                    content.innerHTML = `失去 ${actualAmount} 筹码<br>余额：${GameState.coins}${remainingHtml}`;
+                }
+                screen.classList.remove('hidden');
+                document.getElementById('playArea').innerHTML = '<span class="text-gray-500 text-[10px]">等待出牌...</span>';
+            }
+        }
+    }
+
+    function sendAction(action) {
+        if (GameState.myRole === 'host') handleAction(action, null);
+        else if (GameState.connections[0]) {
+            try { GameState.connections[0].send({ type: 'action', action }); }
+            catch (e) { showToast('连接已断开，无法操作'); }
+        }
+    }
+    // 房主（权威端）对动作做最终校验：身份、回合、持牌、牌型、可压性、分数范围。
+    // conn 为 null 表示房主自己；否则身份一律以 conn.playerIdx 为准，忽略报文里的 from。
+    function handleAction(action, conn) {
+        if (!action || typeof action !== 'object') return false;
+        let player, isRemote = !!conn;
+        if (isRemote) {
+            if (GameState.myRole !== 'host') return false;
+            if (conn._disconnected) return false;
+            if (typeof conn.playerIdx !== 'number' || conn.playerIdx < 0 || conn.playerIdx > 2) return false;
+            player = conn.playerIdx;
+        } else {
+            if (GameState.myRole !== 'host') return false;
+            player = GameState.myIndex;
+        }
+        const reject = (reason) => {
+            if (isRemote) { try { conn.send({ type: 'reject', reason }); } catch (e) {} }
+            return false;
+        };
+        if (action.type === 'call') {
+            if (GameState.phase !== 'calling' || GameState.currentPlayer !== player) return reject('还没轮到你叫分');
+            if (GameState.takeoverStarted && GameState.takeoverStarted[player]) return reject('AI接管中，请稍候');
+            let score = Number(action.score);
+            if (!Number.isFinite(score)) score = 0;
+            score = Math.max(0, Math.min(3, Math.floor(score)));
+            executeCall(player, score);
+            return true;
+        }
+        if (action.type === 'play') {
+            if (GameState.phase !== 'playing' || GameState.currentPlayer !== player) return reject('还没轮到你出牌');
+            if (GameState.takeoverStarted && GameState.takeoverStarted[player]) return reject('AI接管中，请稍候');
+            let cards = action.cards;
+            if (!Array.isArray(cards) || cards.length === 0) return reject('未选择牌');
+            let hand = GameState.players[player];
+            if (!Array.isArray(hand)) return reject('手牌异常');
+            let ids = cards.map(c => c && c.id);
+            if (ids.some(id => id === undefined || id === null)) return reject('牌数据非法');
+            if (new Set(ids).size !== ids.length) return reject('重复的牌');
+            let handIds = new Set(hand.map(c => c.id));
+            if (ids.some(id => !handIds.has(id))) return reject('你没有这些牌');
+            let type = getCardType(cards);
+            if (!type) return reject('无效的牌型');
+            if (GameState.lastPlay && !canBeat(type, GameState.lastPlay)) return reject('需要大过上一手');
+            executePlayCards(player, cards);
+            return true;
+        }
+        if (action.type === 'pass') {
+            if (GameState.phase !== 'playing' || GameState.currentPlayer !== player) return reject('还没轮到你');
+            if (!GameState.lastPlay || GameState.lastPlayerId === player) return reject('你必须出牌');
+            executePlayCards(player, []);
+            return true;
+        }
+        return false;
+    }
+
+    // 回合标识：用于判断"这条 sync 是不是同一个回合"，避免每次广播都重绘按钮/重排自动过牌
+    let lastTurnRenderKey = null;
+    function turnRenderKey(tag) { return tag + '#' + GameState.phase + '#' + GameState.currentPlayer + '#' + GameState.turnSerial; }
+    function needRender(key, elemId) {
+        if (key !== lastTurnRenderKey) return true;
+        return !document.getElementById(elemId);
+    }
+    // 客户端倒计时一律以房主下发的剩余毫秒为基准（房主是唯一计时权威）
+    function onlineDeadline(seconds) {
+        if (GameState.myRole === 'client' && typeof GameState.turnRemainMs === 'number' && GameState.turnRemainMs > 0) {
+            return Date.now() + Math.min(GameState.turnRemainMs, seconds * 1000 + 500);
+        }
+        return null;
+    }
+    function isPlayerConnected(idx) {
+        if (GameState.myRole !== 'host') return true;
+        if (idx === 0) return true;
+        return !GameState.disconnected[idx];
+    }
+
+    function processOnlineCallTurn() {
+        if (GameState.phase !== 'calling') return;
+        if (GameState.myRole === 'host') GameState.turnSerial = (GameState.turnSerial || 0) + 1;
+        let id = GameState.currentPlayer;
+        updateCallStatusText(id);
+        let key = turnRenderKey('call');
+        if (id === GameState.myIndex) {
+            if (needRender(key, 'callBtn')) renderOnlineCallButtons();
+            lastTurnRenderKey = key;
+            startOnlineTimer(ONLINE_CALL_SECONDS, null, id, onlineDeadline(ONLINE_CALL_SECONDS));
+        } else {
+            if (needRender(key, 'waitingBtn'))
+                document.getElementById('controls').innerHTML = '<button id="waitingBtn" class="pixel-btn bg-gray-600" disabled>等待叫分</button>';
+            lastTurnRenderKey = key;
+            let isHost = GameState.myRole === 'host';
+            // 掉线玩家不再空等满 10 秒：立刻 AI 接管
+            let waitMs = (isHost && GameState.disconnected[id]) ? 400 : ONLINE_CALL_SECONDS * 1000;
+            startOnlineTimer(ONLINE_CALL_SECONDS, () => {
+                if (GameState.phase !== 'calling' || GameState.currentPlayer !== id || !isHost) return;
+                if (!GameState.disconnected[id]) return;
+                takeoverCall(id);
+            }, id, isHost ? null : onlineDeadline(ONLINE_CALL_SECONDS), waitMs);
+        }
+        if (GameState.myRole === 'host') broadcastFullState();
+    }
+    function takeoverCall(id) {
+        GameState.takeoverStarted[id] = true;
+        let token = GameState.takeoverToken;
+        let ai = new MasterAI(id, GameState.difficulty, GameState.cardMemory || new MasterMemory());
+        let result = ai.think('call', GameState);
+        let doCall = (score) => {
+            if (token !== GameState.takeoverToken) { GameState.takeoverStarted[id] = false; return; }          // 已有玩家重连/行动，作废
+            if (GameState.phase !== 'calling' || GameState.currentPlayer !== id) return;
+            let s = Number(score);
+            if (!Number.isFinite(s)) s = 0;
+            executeCall(id, Math.max(0, Math.min(3, Math.floor(s))));
+        };
+        if (result && typeof result.then === 'function') result.then(doCall).catch(() => doCall(0));
+        else doCall(result);
+    }
+    function renderOnlineCallButtons() {
+        let btns = '<button class="pixel-btn bg-gray-500" onclick="makeCall(0)">不叫</button>';
+        btns += (GameState.baseScore < 1) ? '<button class="pixel-btn bg-blue-500" onclick="makeCall(1)">1分</button>' : '<button class="pixel-btn bg-gray-600" disabled>1分</button>';
+        btns += (GameState.baseScore < 2) ? '<button class="pixel-btn bg-yellow-500" onclick="makeCall(2)">2分</button>' : '<button class="pixel-btn bg-gray-600" disabled>2分</button>';
+        btns += (GameState.baseScore < 3) ? '<button class="pixel-btn bg-red-500" onclick="makeCall(3)">3分</button>' : '<button class="pixel-btn bg-gray-600" disabled>3分</button>';
+        document.getElementById('controls').innerHTML = btns;
+    }
+    function makeCall(score) {
+        if (GameState.phase !== 'calling' || GameState.currentPlayer !== GameState.myIndex) return;
+        clearTimer();
+        sendAction({ type: 'call', score });
+    }
+    function executeCall(player, score) {
+        GameState.takeoverStarted[player] = false;
+        if (score === 0) GameState.callScores[player] = -1;
+        else { GameState.callScores[player] = score; GameState.baseScore = Math.max(GameState.baseScore, score); GameState.landlord = player; document.getElementById('scoreDisplay').textContent = '底分: '+GameState.baseScore; }
+        let allFinished = GameState.callScores.every(s => s !== 0);
+        if (score === 3 || allFinished) {
+            // 终结叫分必须立即广播：否则客户端会卡在 calling，其超时动作还会被 phase 守卫静默丢弃
+            if (GameState.lordGiven || GameState.phase !== 'calling') { broadcastFullState(); return; }
+            if (GameState.landlord < 0) {
+                showToast("无人叫地主，重新发牌");
+                initGame();
+                if (isOnlineMode()) broadcastFullState();
+                return;
+            }
+            broadcastFullState();
+            trackTimeout(becomeLandlord, 500);
+        } else {
+            GameState.currentPlayer = (GameState.currentPlayer + 1) % 3;
+            broadcastFullState();
+            processOnlineCallTurn();
+        }
+    }
+
+    function processOnlinePlay(id) {
+        if (GameState.phase !== 'playing') return;
+        if (GameState.myRole === 'host') GameState.turnSerial = (GameState.turnSerial || 0) + 1;
+        updatePlayStatusText(id);
+        let key = turnRenderKey('play');
+        if (id === GameState.myIndex) {
+            if (needRender(key, 'playBtn')) {
+                document.getElementById('controls').innerHTML =
+                    '<button id="playBtn" class="pixel-btn bg-green-500 min-w-[80px]" onclick="playCards()">出牌</button>' +
+                    '<button id="passBtn" class="pixel-btn bg-gray-500 min-w-[80px]" onclick="passTurn()">不出</button>';
+            }
+            lastTurnRenderKey = key;
+            let playBtn = document.getElementById('playBtn'), passBtn = document.getElementById('passBtn');
+            if (playBtn) playBtn.disabled = (GameState.selectedCards.size === 0);
+            let needBeatMe = GameState.lastPlay && GameState.lastPlayerId !== GameState.myIndex;
+            if (passBtn) passBtn.disabled = !needBeatMe;
+            // 要不起：高亮提示并按设置自动过牌，减少无效等待
+            if (needBeatMe) {
+                let hand = GameState.players[GameState.myIndex] || [];
+                let canBeatAny = false;
+                try { canBeatAny = getAllValidPlays(hand, GameState.lastPlay).length > 0; } catch (e) { canBeatAny = true; }
+                if (!canBeatAny) {
+                    if (passBtn) { passBtn.textContent = '要不起'; passBtn.classList.add('ani-shake'); }
+                    if (autoPassEnabled) {
+                        // 同一回合只排一次自动过牌，避免每条 sync 都叠加一个定时器
+                        if (!autoPassScheduledFor || autoPassScheduledFor !== key) {
+                            autoPassScheduledFor = key;
+                            updateDebugStrip('要不起，自动过牌…');
+                            trackTimeout(() => {
+                                if (GameState.phase === 'playing' && GameState.currentPlayer === GameState.myIndex && GameState.selectedCards.size === 0) {
+                                    clearTimer();
+                                    sendAction({ type: 'pass' });
+                                }
+                            }, 1100);
+                        }
+                    }
+                }
+            }
+            startOnlineTimer(ONLINE_TURN_SECONDS, null, id, onlineDeadline(ONLINE_TURN_SECONDS));
+        } else {
+            if (needRender(key, 'waitingBtn'))
+                document.getElementById('controls').innerHTML = '<button id="waitingBtn" class="pixel-btn bg-gray-600" disabled>等待出牌</button>';
+            lastTurnRenderKey = key;
+            let isHost = GameState.myRole === 'host';
+            let waitMs = (isHost && GameState.disconnected[id]) ? 400 : ONLINE_TURN_SECONDS * 1000;
+            startOnlineTimer(ONLINE_TURN_SECONDS, () => {
+                if (GameState.currentPlayer !== id || GameState.phase !== 'playing' || !isHost) return;
+                if (!GameState.disconnected[id]) return;
+                takeoverPlay(id);
+            }, id, isHost ? null : onlineDeadline(ONLINE_TURN_SECONDS), waitMs);
+        }
+        if (GameState.myRole === 'host') broadcastFullState();
+    }
+    let autoPassScheduledFor = null;
+    function takeoverPlay(id) {
+        GameState.takeoverStarted[id] = true;
+        if (!GameState.disconnected[id]) GameState.autoTakeover = id;
+        document.getElementById('lastPlayer').textContent = getPlayerName(id) + ' 超时未操作，AI托管';
+        showToast(getPlayerName(id) + ' 超时未操作，AI托管');
+        let token = GameState.takeoverToken;
+        let ai = new MasterAI(id, GameState.difficulty, GameState.cardMemory || new MasterMemory());
+        let result = ai.think('play', GameState);
+        let doPlay = (cards) => {
+            if (token !== GameState.takeoverToken) { GameState.takeoverStarted[id] = false; return; }          // 玩家已重连，作废在途决策，防双控
+            if (GameState.currentPlayer !== id || GameState.phase !== 'playing') return;
+            if (cards && cards.length > 0) {
+                let isValid = Array.isArray(GameState.players[id]) && cards.every(c => GameState.players[id].some(hc => hc.id === c.id));
+                if (isValid && getCardType(cards) && (!GameState.lastPlay || canBeat(getCardType(cards), GameState.lastPlay))) {
+                    executePlayCards(id, cards); return;
+                }
+            }
+            // 打不出能压的牌 → 只有在不是领出者时才 pass，领出者必须出一手
+            if (GameState.lastPlay && GameState.lastPlayerId !== id) executePlayCards(id, []);
+            else {
+                let hand = GameState.players[id];
+                if (Array.isArray(hand) && hand.length > 0) executePlayCards(id, [hand[0]]);
+                else executePlayCards(id, []);
+            }
+        };
+        if (result && typeof result.then === 'function') result.then(doPlay).catch(() => doPlay([]));
+        else doPlay(result);
+    }
+    function renderUI() {
+        renderPlayerHand();
+        updateOpponentCount((GameState.myIndex + 1) % 3);
+        updateOpponentCount((GameState.myIndex + 2) % 3);
+        document.getElementById('scoreDisplay').innerHTML = `底分: ${GameState.baseScore}${GameState.bombCount>0?` (含${GameState.bombCount}炸)`:''}`;
+        let area = document.getElementById('playArea');
+        if (bottomCardsShown && GameState.lordCards && GameState.lordCards.length > 0) {
+            // 保持底牌显示
+        } else if (GameState.lastPlay && GameState.lastPlay.cards && GameState.lastPlay.cards.length > 0) {
+            renderPlayedCards(GameState.lastPlay.cards);
+            if ((GameState.lastPlay.type === CardType.BOMB || GameState.lastPlay.type === CardType.ROCKET) && (prevLastPlayId !== GameState.lastPlayerId || prevLastPlayType !== GameState.lastPlay.type)) {
+                triggerBombFlash();
+            }
+            prevLastPlayId = GameState.lastPlayerId;
+            prevLastPlayType = GameState.lastPlay.type;
+            bottomCardsShown = false;
+        } else {
+            area.innerHTML = '<span class="text-gray-500 text-[10px]">等待出牌...</span>';
+            prevLastPlayId = -1;
+            prevLastPlayType = null;
+            bottomCardsShown = false;
+        }
+        document.getElementById('coins').textContent = GameState.coins;
+    }
+
+    let lastWarnSec = null;
+    let timerDeadline = 0;   // 墙钟截止时间戳：后台节流时"15秒"依然是 15 秒
+    // seconds  : 展示用总时长
+    // deadline : 绝对截止时间戳（客户端用房主下发的剩余毫秒推算）
+    // waitMs   : 实际等待毫秒（房主对掉线玩家可缩短为 400ms）
+    function startOnlineTimer(seconds, onTimeout, playerId, deadline, waitMs) {
+        let end = (typeof deadline === 'number' && deadline > Date.now() - 2000)
+            ? deadline
+            : Date.now() + (typeof waitMs === 'number' ? waitMs : seconds * 1000);
+        // 同一回合同一目标、截止时间几乎一致 → 不重启（冗余 sync 不再重置倒计时/清选牌）
+        if (timerInterval && timerPlayerId === playerId && Math.abs(timerDeadline - end) < 600) return;
+        clearTimer();
+        lastWarnSec = null;
+        timerTotalSeconds = seconds;
+        timerTarget = onTimeout;
+        timerPlayerId = playerId !== undefined ? playerId : GameState.currentPlayer;
+        timerDeadline = end;
+        const tick = () => {
+            const left = timerDeadline - Date.now();
+            if (left <= 0) {
+                const cb = timerTarget;
+                remainingSeconds = 0;
+                updateTimerBars();
+                clearTimer();
+                if (cb) cb();
+                return;
+            }
+            remainingSeconds = Math.ceil(left / 1000);
+            updateTimerBars();
+        };
+        timerInterval = setInterval(tick, 250);
+        tick();
+    }
+    function clearTimer() {
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        timerTarget = null;
+        lastWarnSec = null;
+        timerDeadline = 0;
+        document.getElementById('playerTimerBar').style.display = 'none';
+        document.getElementById('playerTimerFill').style.width = '0';
+        document.getElementById('leftTimerFill').style.width = '0';
+        document.getElementById('rightTimerFill').style.width = '0';
+    }
+    function updateTimerBars() {
+        let pct = (remainingSeconds / timerTotalSeconds) * 100; // 动态计算百分比
+        if (pct > 100) pct = 100; 
+        let myIdx = GameState.myIndex;
+        let leftIdx = (myIdx + 2) % 3;
+        let rightIdx = (myIdx + 1) % 3;
+        
+        document.getElementById('playerTimerBar').style.display = 'none';
+        document.getElementById('leftTimerFill').style.width = '0';
+        document.getElementById('rightTimerFill').style.width = '0';
+
+        if (timerPlayerId === myIdx) {
+            document.getElementById('playerTimerBar').style.display = 'block';
+            document.getElementById('playerTimerFill').style.width = pct + '%';
+            if (remainingSeconds <= 3 && remainingSeconds >= 1 && lastWarnSec !== remainingSeconds && GameState.phase !== 'gameover') {
+                lastWarnSec = remainingSeconds;
+                try { showToast(isOnlineMode() ? remainingSeconds + '秒后AI将自动托管！' : '还剩' + remainingSeconds + '秒'); } catch (e) {}
+            }
+        } else if (timerPlayerId === leftIdx) {
+            document.getElementById('leftTimerFill').style.width = pct + '%';
+        } else if (timerPlayerId === rightIdx) {
+            document.getElementById('rightTimerFill').style.width = pct + '%';
+        }
+    }
+
+    function handleDisconnect(dcIdx) {
+        if (GameState.phase === 'gameover') return;
+        if (GameState.myRole !== 'host') return;
+        showToast(`${getPlayerName(dcIdx)}掉线，AI将自动接管`);
+        if (GameState.phase !== 'calling' && GameState.phase !== 'playing') { broadcastFullState(); return; }
+        if (GameState.currentPlayer === dcIdx) {
+            // 正轮到他：不再空等满 10/15 秒，400ms 内立刻托管
+            if (GameState.phase === 'calling') {
+                startOnlineTimer(ONLINE_CALL_SECONDS, () => {
+                    if (GameState.phase === 'calling' && GameState.currentPlayer === dcIdx) takeoverCall(dcIdx);
+                }, dcIdx, null, 400);
+            } else {
+                startOnlineTimer(ONLINE_TURN_SECONDS, () => {
+                    if (GameState.phase === 'playing' && GameState.currentPlayer === dcIdx) takeoverPlay(dcIdx);
+                }, dcIdx, null, 400);
+            }
+        }
+        broadcastFullState();
+    }
+
+    function handleOfflineDetected(conn) {
+        if (GameState.myRole !== 'host') return;
+        if (!conn) return;
+        if (conn._promptedOffline) return;
+        let dcIdx = conn.playerIdx;
+        if (typeof dcIdx !== 'number' || dcIdx < 0 || dcIdx > 2) return;
+        if (GameState.disconnected[dcIdx]) return;
+        if (GameState.aborted) return;
+        conn._promptedOffline = true;
+        let allow = false;
+        let interactive = true;
+        try { interactive = (typeof window.confirm === 'function') && !/jsdom|node/i.test((navigator && navigator.userAgent) || ''); } catch (e) { interactive = false; }
+        if (window.__ALLOW_AI_SUBSTITUTE === true) {
+            allow = true;
+        } else if (!interactive) {
+            allow = true;
+        } else {
+            try { allow = window.confirm(`${getPlayerName(dcIdx)} 超过30秒无响应，是否允许 AI 代打？`); }
+            catch (e) { allow = true; }
+        }
+        if (allow) {
+            conn._disconnected = true;
+            if (!GameState.disconnected[dcIdx]) {
+                GameState.disconnected[dcIdx] = true;
+                if (Array.isArray(GameState.takeoverStarted)) GameState.takeoverStarted[dcIdx] = false;
+                GameState.takeoverToken++;
+                handleDisconnect(dcIdx);
+            }
+            broadcastFullState();
+        } else {
+            abortOnlineGame();
+        }
+    }
+
+    function abortOnlineGame() {
+        if (GameState.phase === 'gameover') return;
+        GameState.phase = 'gameover';
+        GameState.aborted = true;
+        clearTimer();
+        let sc = document.getElementById('gameOverScreen'), tt = document.getElementById('resultTitle'), cc = document.getElementById('resultContent');
+        if (sc) sc.classList.remove('hidden');
+        if (tt) { tt.textContent = '⏸ 本局已结束'; tt.className = 'text-xl retro-text mb-4 text-gray-400 text-center'; }
+        if (cc) { cc.innerHTML = '对方未同意 AI 代打，本局已中止。'; }
+        if (isOnlineMode() && GameState.myRole === 'host') broadcastFullState();
+    }
+
+    function endGame(winner) {
+        if (GameState.phase === 'gameover') return;
+        GameState.phase = 'gameover';
+        GameState.stats.total++;   // 每局结算一次（客户端在 handleSync 的 gameover 分支同样 +1）
+        clearTimer();
+        let isPlayerWin = (!isOnlineMode())
+            ? ((winner === GameState.myIndex) || (winner !== GameState.myIndex && GameState.landlord !== GameState.myIndex && winner !== GameState.landlord))
+            : ((GameState.landlord === GameState.myIndex) ? (winner === GameState.landlord) : (winner !== GameState.landlord));
+        let isLordWin = (winner === GameState.landlord);
+        let multiplier = GameState.baseScore;
+        let isSpring = false, isAntiSpring = false;
+        if (isLordWin && !GameState.farmerPlayed && GameState.firstPlayMade) isSpring = true;
+        if (!isLordWin && GameState.lordPlayCount === 1 && GameState.firstPlayMade) isAntiSpring = true;
+        if (isSpring) { multiplier *= 2; showToast('🌸 春天！ 倍数翻倍'); playSound('win'); }
+        if (isAntiSpring) { multiplier *= 2; showToast('⚡ 反春天！ 倍数翻倍'); playSound('win'); }
+        let amount = Math.min(100 * multiplier, 9999);
+        let oldCoins = GameState.coins;
+        if (isPlayerWin) { GameState.stats.win++; GameState.coins += amount; playSound('win'); }
+        else { GameState.coins = Math.max(0, GameState.coins - amount); }
+        let delta = GameState.coins - oldCoins;
+        let actualAmount = isPlayerWin ? delta : oldCoins - GameState.coins;
+        addMatchRecord(isPlayerWin ? 'win' : 'lose', multiplier, delta, GameState.coins);
+        updateStats();
+        let screen = document.getElementById('gameOverScreen'), title = document.getElementById('resultTitle'), content = document.getElementById('resultContent');
+        screen.classList.remove('hidden');
+        let remainingHtml = '<div style="margin-top:8px;border-top:1px solid #555;padding-top:6px;font-size:10px;color:#aaa;text-align:left;">';
+        for (let i = 0; i < 3; i++) {
+            let name = getPlayerName(i);
+            let role = i === GameState.landlord ? '(地主)' : '(农民)';
+            let cards = formatRemainingCards(i);
+            remainingHtml += name + role + ': ' + cards + '<br>';
+        }
+        remainingHtml += '</div>';
+        if (isPlayerWin) {
+            title.textContent = '🎉 胜利！'; title.className = 'text-xl retro-text mb-4 text-yellow-400 text-center';
+            content.innerHTML = `赢得 ${actualAmount} 筹码<br>余额：${GameState.coins}${isSpring?'<br>🌸春天加成':''}${isAntiSpring?'<br>⚡反春天加成':''}${remainingHtml}`;
+        } else {
+            title.textContent = '💔 失败'; title.className = 'text-xl retro-text mb-4 text-gray-400 text-center';
+            content.innerHTML = `失去 ${actualAmount} 筹码<br>余额：${GameState.coins}${remainingHtml}`;
+        }
+        GameState.processing = false;
+        const playBtn = document.getElementById('playBtn');
+        const passBtn = document.getElementById('passBtn');
+        if (playBtn) playBtn.disabled = true;
+        if (passBtn) passBtn.disabled = true;
+        if (isOnlineMode() && GameState.myRole === 'host') broadcastFullState();
+        bottomCardsShown = false;
+    }
+    function startNewRound() {
+        document.getElementById('controls').innerHTML =
+            '<button id="callBtn" class="pixel-btn bg-green-500 text-[10px]" onclick="callScore(0)">不叫</button>' +
+            '<button id="oneBtn" class="pixel-btn bg-blue-500 text-[10px]" onclick="callScore(1)">1分</button>' +
+            '<button id="twoBtn" class="pixel-btn bg-yellow-500 text-[10px]" onclick="callScore(2)">2分</button>' +
+            '<button id="threeBtn" class="pixel-btn bg-red-500 text-[10px]" onclick="callScore(3)">3分</button>';
+        initGame();
+    }
+    function resetGame() {
+        clearAllTimers();
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('playArea').innerHTML = '<span class="text-gray-500 text-[10px]">等待出牌...</span>';
+        document.getElementById('lastPlayer').textContent = '';
+        document.getElementById('scoreDisplay').textContent = '底分: 1';
+        GameState.selectedCards.clear();
+        bottomCardsShown = false;
+        playLog = [];
+        let actionEl = document.getElementById('actionLog');
+        if (actionEl) actionEl.textContent = '';
+        prevLastPlayId = -1;
+        prevLastPlayType = null;
+        prevPassIdx = -1;
+        debugErrCount = 0;
+        if (isOnlineMode() && GameState.myRole !== 'host') {
+            // 客户端绝不本地发牌：请求房主开局，自己只切到等待态
+            document.getElementById('controls').innerHTML = '<p class="text-gray-400 text-[10px]">已请求开始新对局…</p>';
+            showToast("已请求房主开始新游戏");
+            try { if (GameState.connections[0]) GameState.connections[0].send({ type: 'restart' }); } catch (e) {}
+        } else {
+            startNewRound();
+        }
+    }
+    window.addEventListener('resize', ()=>{ if(GameState.players[GameState.myIndex]?.length) renderPlayerHand(); });
+
+    // ======================== AI Worker 池 ========================
+    const AiWorkerPool = {
+        workers: [],
+        ready: false,
+        taskId: 0,
+        pending: new Map(),
+        init() {
+            if (typeof Worker === 'undefined') return;
+            // 不再因 file:// 直接放弃：Android WebView 若允许就用 Worker（AI 出主线程），
+            // 若构造失败会被 try/catch 降级为占位 worker，最终与旧行为一样走同步 AI。
+            let numWorkers = Math.min(
+                navigator.hardwareConcurrency ? Math.max(1, navigator.hardwareConcurrency - 1) : 2,
+                8
+            );
+            this._createWorkers(numWorkers);
+        },
+        _createWorkers(n) {
+            let readyCount = 0;
+            for (let i = 0; i < n; i++) {
+                try {
+                    let w = new Worker('./ai_worker.js');
+                    w.onmessage = (e) => {
+                        if (e.data.status === 'ready') {
+                            readyCount++;
+                            w._ready = true;
+                            if (readyCount === n) this._seedWorkers();
+                            return;
+                        }
+                        this._onResult(e.data);
+                    };
+                    w.onerror = () => {
+                        w._dead = true;
+                        w._ready = false;
+                        let taskId = w._taskId;
+                        if (taskId !== undefined && taskId !== null) {
+                            let entry = this.pending.get(taskId);
+                            if (entry) {
+                                clearTimeout(entry.timeout);
+                                this.pending.delete(taskId);
+                                entry.resolve(null);
+                            }
+                            w._taskId = null;
+                        }
+                        w._busy = false;
+                    };
+                    this.workers.push(w);
+                } catch (e) {
+                    this.workers.push({ _dead: true, _ready: false, postMessage: () => {} });
+                }
+            }
+        },
+        _seedWorkers() {
+            let params = null;
+            if (typeof ParamConfig !== 'undefined') {
+                let overrides = localStorage.getItem('landlord_ai_params');
+                if (overrides) { try { params = JSON.parse(overrides); } catch(e) {} }
+            }
+            let cr = [];
+            if (typeof CorrectionRules !== 'undefined') {
+                CorrectionRules.init();
+                cr = CorrectionRules._rules || [];
+            }
+            let msg = { cmd: 'init' };
+            if (params) msg.params = params;
+            if (cr.length > 0) msg.correctionRules = cr;
+            for (let w of this.workers) {
+                if (w._ready) w.postMessage(msg);
+            }
+            this.ready = true;
+        },
+        think(phase, state, playerId, difficulty, memory) {
+            return new Promise((resolve, reject) => {
+                let active = this.workers.filter(w => !w._dead && w._ready && !w._busy);
+                if (active.length === 0) {
+                    let ai = (GameState.aiList && GameState.aiList[playerId]) || new MasterAI(playerId, difficulty, memory);
+                    resolve(phase === 'call' ? ai.callDecision(state) : ai.playDecision(state));
+                    return;
+                }
+                let taskId = ++this.taskId;
+                this.pending.set(taskId, { resolve, reject, timeout: null });
+                let serializedState = this._serializeState(state, playerId);
+                let serializedMemory = memoryToData(memory);
+                let worker = active[0];
+                worker._busy = true;
+                worker._taskId = taskId;
+                worker.postMessage({
+                    cmd: 'think', taskId, phase, state: serializedState,
+                    playerId, difficulty, memory: serializedMemory
+                });
+                let timeout = setTimeout(() => {
+                    this.pending.delete(taskId);
+                    worker._busy = false;
+                    let ai = (GameState.aiList && GameState.aiList[playerId]) || new MasterAI(playerId, difficulty, memory);
+                    resolve(phase === 'call' ? ai.callDecision(state) : ai.playDecision(state));
+                }, 15000);
+                this.pending.get(taskId).timeout = timeout;
+            });
+        },
+        _onResult(data) {
+            let entry = this.pending.get(data.taskId);
+            if (!entry) return;
+            clearTimeout(entry.timeout);
+            if (data.error) {
+                let w = this.workers.find(w => w._taskId === data.taskId);
+                if (w) { w._busy = false; w._dead = true; }
+                this.pending.delete(data.taskId);
+                entry.reject(new Error(data.error));
+                return;
+            }
+            let w = this.workers.find(w => w._taskId === data.taskId);
+            if (w) { w._busy = false; w._taskId = null; }
+            this.pending.delete(data.taskId);
+            if (data.memory && GameState.cardMemory) {
+                memoryFromData(GameState.cardMemory, data.memory);
+            }
+            entry.resolve(data.result);
+        },
+        _serializeState(state, playerId) {
+            // 公平性加固：只把"自己的手牌"发给 AI Worker，对手只给张数（与联机同步的瘦身策略一致），
+            // 这样 AI 在 Worker 侧也**拿不到**对手手牌，物理上杜绝开天眼。
+            let players = state.players.map((p, idx) => {
+                if (idx === playerId) return p.map(c => ({ id: c.id, suit: c.suit, rank: c.rank, value: c.value }));
+                return { length: Array.isArray(p) ? p.length : (typeof p === 'number' ? p : 0) };
+            });
+            let s = {
+                players,
+                landlord: state.landlord,
+                currentPlayer: state.currentPlayer,
+                lastPlay: state.lastPlay ? { type: state.lastPlay.type, value: state.lastPlay.value, length: state.lastPlay.length || undefined } : null,
+                lastPlayerId: state.lastPlayerId,
+                passCount: state.passCount,
+                baseScore: state.baseScore,
+                bombCount: state.bombCount,
+                firstPlayMade: state.firstPlayMade,
+                lordPlayCount: state.lordPlayCount,
+                farmerPlayed: state.farmerPlayed,
+                callScores: state.callScores,
+                lordCards: state.lordCards ? state.lordCards.map(c => ({ id: c.id, suit: c.suit, rank: c.rank, value: c.value })) : [],
+                phase: state.phase
+            };
+            return s;
+        }
+    };
+
+    function memoryToData(memory) {
+        if (!memory) return null;
+        return {
+            remain: [...memory.remain],
+            seen: [...memory.seen],
+            history: memory.history.map(arr => [...arr]),
+            playerHistory: memory.playerHistory.map(arr => arr.map(a => [...a])),
+            totalCardsPlayed: [...memory.totalCardsPlayed]
+        };
+    }
+    function memoryFromData(memory, data) {
+        if (!memory || !data) return;
+        memory.remain = data.remain;
+        memory.seen = new Set(data.seen);
+        memory.history = data.history.map(arr => [...arr]);
+        memory.playerHistory = data.playerHistory.map(arr => arr.map(a => [...a]));
+        memory.totalCardsPlayed = [...data.totalCardsPlayed];
+    }
+
+    // ======================== 网络/可见性自愈 ========================
+    // WebRTC ICE 失效往往没有 close/error，只有回到前台/网络恢复时才知道。必须主动探测。
+    function resyncNow() {
+        try {
+            if (GameState.myRole === 'host') { broadcastFullState(); return; }
+            if (GameState.myRole === 'client') {
+                let conn = GameState.connections[0];
+                if (conn) conn.send({ type: 'resync' });
+            }
+        } catch (e) {}
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        if (isOnlineMode()) {
+            startHeartbeat();
+            resyncNow();
+        }
+    }, false);
+    window.addEventListener('online', () => {
+        if (GameState.myRole === 'host') { try { GameState.peer && GameState.peer.reconnect(); } catch (e) {} resyncNow(); }
+        else if (GameState.myRole === 'client') {
+            let conn = GameState.connections[0];
+            if (!conn || conn._disconnected) { clientReconnecting = false; scheduleClientReconnect(); }
+            else resyncNow();
+        }
+    }, false);
+    window.addEventListener('offline', () => { if (isOnlineMode()) showToast('网络已断开，正在尝试恢复…'); }, false);
+
+    // PWA 快捷方式 / 外部链接可直接带 ?mode=single|online 进场
+    function applyLaunchMode() {
+        try {
+            let params = new URLSearchParams(location.search);
+            let m = params.get('mode');
+            let room = params.get('room');
+            if (room) {
+                showOnlinePanel();
+                let input = document.getElementById('targetPeerId');
+                if (input) input.value = room;
+                trackTimeout(() => {
+                    if (GameState.myRole !== 'host' && GameState.myRole !== 'client') joinGame();
+                }, 250);
+            } else if (m === 'online') showOnlinePanel();
+            else if (m === 'single') startSingleMode();
+        } catch (e) { /* 忽略 */ }
+    }
+
+    window.onload = () => {
+        // 标定设备速度：移动端自动缩小 AI 时间预算（既不卡 UI，也不会被看门狗判超时）
+        try { if (typeof calibrateAiSpeed === 'function') calibrateAiSpeed(); } catch (e) {}
+        applyLaunchMode();
+        loadHistory();
+        AiWorkerPool.init();
+        if (window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            selectedVoice = getChineseVoice();
+            window.speechSynthesis.onvoiceschanged = () => {
+                if (!selectedVoice) selectedVoice = getChineseVoice();
+            };
+        }
+    };
+</script>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    let refreshing = false;
+    // 新 SW 接管后刷新一次，避免"页面版本与缓存版本不一致"长期混跑
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      // 进行中的对局不要打断
+      try {
+        if (typeof GameState !== 'undefined' && GameState && GameState.phase && GameState.phase !== 'idle' && GameState.phase !== 'waiting') { return; }
+      } catch (e) {}
+      location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      if (reg.active && !navigator.serviceWorker.controller) {
+        // 首次受控：交给 controllerchange 统一处理，避免 claim 未生效时反复 reload
+        reg.addEventListener('updatefound', () => {}, { once: true });
+      }
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+      // 长驻 PWA 需要周期性主动检查更新
+      setInterval(() => { try { reg.update(); } catch (e) {} }, 60 * 60 * 1000);
+    }).catch(err => {
+      console.error('Service Worker 注册失败:', err);
+    });
+  }
+</script>
+</html>

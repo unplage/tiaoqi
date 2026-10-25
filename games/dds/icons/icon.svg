@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="打地鼠 应用图标">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#4ade80"/>
+      <stop offset="0.45" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.28" cy="0.18" r="0.72">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fur" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#c98f52"/>
+      <stop offset="0.5" stop-color="#a86a33"/>
+      <stop offset="1" stop-color="#7b4718"/>
+    </linearGradient>
+    <linearGradient id="muzzle" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffe6c4"/>
+      <stop offset="1" stop-color="#e9bd85"/>
+    </linearGradient>
+    <linearGradient id="dirt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8b5a2b"/>
+      <stop offset="1" stop-color="#4e2e14"/>
+    </linearGradient>
+    <linearGradient id="woodHead" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#e6a95c"/>
+      <stop offset="1" stop-color="#b16b28"/>
+    </linearGradient>
+    <linearGradient id="woodHandle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f0c489"/>
+      <stop offset="1" stop-color="#c98c4c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#sun)"/>
+
+  <!-- 草叶装饰 -->
+  <g fill="#15803d" opacity="0.28">
+    <path d="M52 430 q10 -34 30 -46 q-6 26 4 46z"/>
+    <path d="M430 442 q-8 -36 -30 -50 q4 28 -6 50z"/>
+  </g>
+
+  <!-- 土堆 -->
+  <ellipse cx="256" cy="404" rx="212" ry="80" fill="url(#dirt)"/>
+  <ellipse cx="256" cy="400" rx="176" ry="58" fill="#2c1a0b"/>
+
+  <!-- 洞口上沿高光 -->
+  <path d="M80 400 A176 58 0 0 1 432 400" fill="none" stroke="#a9713f" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- ================= 地鼠 ================= -->
+  <g>
+    <!-- 耳朵 -->
+    <circle cx="132" cy="240" r="40" fill="url(#fur)"/>
+    <circle cx="380" cy="240" r="40" fill="url(#fur)"/>
+    <circle cx="132" cy="242" r="20" fill="#f2a2ae" opacity="0.9"/>
+    <circle cx="380" cy="242" r="20" fill="#f2a2ae" opacity="0.9"/>
+
+    <!-- 头 -->
+    <ellipse cx="256" cy="300" rx="134" ry="124" fill="url(#fur)"/>
+    <!-- 额前高光 -->
+    <ellipse cx="216" cy="228" rx="52" ry="30" fill="#ffffff" opacity="0.14"/>
+
+    <!-- 口鼻区 -->
+    <ellipse cx="256" cy="322" rx="94" ry="86" fill="url(#muzzle)"/>
+
+    <!-- 眉毛 -->
+    <path d="M186 244 q24 -14 48 -2" fill="none" stroke="#6d3f18" stroke-width="10" stroke-linecap="round"/>
+    <path d="M326 244 q-24 -14 -48 -2" fill="none" stroke="#6d3f18" stroke-width="10" stroke-linecap="round"/>
+
+    <!-- 眼睛 -->
+    <ellipse cx="212" cy="280" rx="27" ry="30" fill="#ffffff"/>
+    <ellipse cx="300" cy="280" rx="27" ry="30" fill="#ffffff"/>
+    <circle cx="218" cy="286" r="14" fill="#2b1a10"/>
+    <circle cx="306" cy="286" r="14" fill="#2b1a10"/>
+    <circle cx="223" cy="279" r="5.5" fill="#ffffff"/>
+    <circle cx="311" cy="279" r="5.5" fill="#ffffff"/>
+
+    <!-- 腮红 -->
+    <ellipse cx="168" cy="336" rx="27" ry="16" fill="#ff8fa3" opacity="0.45"/>
+    <ellipse cx="344" cy="336" rx="27" ry="16" fill="#ff8fa3" opacity="0.45"/>
+
+    <!-- 鼻子 -->
+    <ellipse cx="256" cy="312" rx="31" ry="23" fill="#ff8fa3"/>
+    <ellipse cx="247" cy="305" rx="11" ry="7" fill="#ffd3dc" opacity="0.9"/>
+
+    <!-- 门牙 -->
+    <rect x="234" y="342" width="21" height="31" rx="9" fill="#ffffff"/>
+    <rect x="257" y="342" width="21" height="31" rx="9" fill="#ffffff"/>
+
+    <!-- 胡须 -->
+    <g stroke="#7a4a22" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.9">
+      <path d="M112 330 L66 320"/>
+      <path d="M110 348 L62 350"/>
+      <path d="M400 330 L446 320"/>
+      <path d="M402 348 L450 350"/>
+    </g>
+  </g>
+
+  <!-- 洞口前沿（土堆遮住地鼠下半身） -->
+  <path d="M44 404 A212 80 0 0 0 468 404 A176 58 0 0 1 44 404 Z" fill="url(#dirt)"/>
+  <path d="M44 404 A212 80 0 0 0 468 404" fill="none" stroke="#a9713f" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- 泥点 -->
+  <g fill="#6b4423" opacity="0.9">
+    <circle cx="108" cy="452" r="9"/>
+    <circle cx="150" cy="470" r="6"/>
+    <circle cx="372" cy="462" r="8"/>
+    <circle cx="404" cy="440" r="6"/>
+  </g>
+
+  <!-- ================= 木槌 ================= -->
+  <g transform="rotate(-22 424 132)">
+    <rect x="352" y="100" width="150" height="64" rx="26" fill="url(#woodHead)"/>
+    <rect x="368" y="112" width="62" height="18" rx="9" fill="#ffffff" opacity="0.3"/>
+    <rect x="410" y="158" width="38" height="130" rx="19" fill="url(#woodHandle)"/>
+    <rect x="419" y="164" width="8" height="112" rx="4" fill="#ffffff" opacity="0.22"/>
+  </g>
+
+  <!-- 星星 -->
+  <g fill="#fff7cc">
+    <path d="M96 118 l9 24 25 2 -19 16 6 25 -21 -14 -21 14 6 -25 -19 -16 25 -2z" opacity="0.95"/>
+    <path d="M300 62 l6 16 17 1 -13 11 4 17 -14 -9 -14 9 4 -17 -13 -11 17 -1z" opacity="0.8"/>
+  </g>
+</svg>
