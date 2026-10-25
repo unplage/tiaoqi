@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#5b21b6">
+    <title>消消乐 · Match-3</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        body {
+            min-height: 100dvh; height: 100dvh;
+            display: grid; grid-template-rows: auto 1fr auto auto;
+            gap: 8px; padding: 8px;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #f8fafc;
+            background: radial-gradient(900px 500px at 10% -10%, #7c3aed22, transparent 60%),
+                        linear-gradient(160deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%);
+            overflow: hidden;
+        }
+        .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .topbar a { color:#c4b5fd; text-decoration:none; padding:8px 10px; border:1px solid #312e81; background:#0f172a; border-radius:10px; }
+        .title { flex:1; font-size:clamp(1.1rem,4vw,1.4rem); font-weight:900; text-shadow:0 2px 12px #7c3aed88; }
+        .hud { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+        .hud-card { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:8px; text-align:center; min-height:52px; }
+        .hud-label { font-size:.72rem; color:#a5b4fc; }
+        .hud-value { font-size:1.1rem; font-weight:800; }
+        #boardWrap { display:grid; place-items:center; min-height:0; }
+        #board {
+            display:grid; gap:4px; width:min(96vw,72vh,560px); aspect-ratio:1/1;
+            padding:8px; border-radius:18px;
+            background:linear-gradient(145deg,#ffffff18,#00000033);
+            border:1px solid #a5b4fc55;
+            box-shadow:0 16px 40px #0006;
+        }
+        .cell {
+            position:relative; border-radius:12px; cursor:pointer;
+            background:radial-gradient(circle at 30% 30%,#ffffff1a,#00000022);
+            overflow:hidden;
+        }
+        .cell::before {
+            content:''; position:absolute; inset:0;
+            background:radial-gradient(circle at 50% 50%,#fff2,transparent 70%);
+            pointer-events:none;
+        }
+        .candy {
+            position:absolute; inset:6%; border-radius:50%;
+            box-shadow:inset -3px -4px 8px #0005, inset 3px 4px 8px #fff4, 0 4px 8px #0006;
+            transition: transform .18s ease, opacity .18s ease;
+        }
+        .cell.selected .candy { transform:scale(1.08); box-shadow:0 0 0 3px #fde68a, inset -3px -4px 8px #0005; }
+        .cell	matchpop { }
+        .candy.pop { transform:scale(0) rotate(15deg); opacity:0; }
+        .special-striped-h { background-image:linear-gradient(90deg,#ffffff55 12%,transparent 12%,transparent 30%,#ffffff55 30%,#ffffff55 44%,transparent 44%,transparent 60%,#ffffff55 60%,#ffffff55 75%,transparent 75%); }
+        .special-wrapped { box-shadow:0 0 0 4px #f43f5e, inset -3px -4px 8px #0005; }
+        .disabled { filter:grayscale(.7) brightness(.6); }
+        #statusPanel { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:8px 12px; min-height:46px; }
+        .status-line { min-height:1.4em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
+        .status-sub { font-size:.8rem; color:#a5b4fc; min-height:1.2em; }
+        .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+        .modal-backdrop {
+            position:fixed; inset:0; background:#0009; display:none; place-items:center; z-index:1000;
+        }
+        .modal {
+            width:min(92vw,420px); background:#111827; border:1px solid #312e81; border-radius:20px; padding:20px; box-shadow:0 25px 80px #000;
+        }
+        .modal h2 { margin-bottom:10px; }
+        .level-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; max-height:50vh; overflow:auto; }
+        .level-btn { padding:10px 0; border-radius:10px; border:1px solid #312e81; background:#1e1b4b; color:#e9d5ff; font-weight:800; }
+        .level-btn.locked { opacity:.35; }
+        .level-btn.done { background:#7c3aed; color:#fff; }
+        @media (max-width:520px) {
+            body { padding:6px; gap:6px; }
+            #board { width:min(96vw,68vh,400px); }
+            .hud { grid-template-columns:repeat(3,1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <a href="../../index.html">← 游戏集</a>
+        <div class="title">🍬 消消乐</div>
+        <div style="color:#a5b4fc;font-size:.8rem;" id="levelText">第 1 关</div>
+    </div>
+    <div class="hud">
+        <div class="hud-card"><div class="hud-label">分数</div><div class="hud-value" id="scoreText">0</div></div>
+        <div class="hud-card"><div class="hud-label">目标</div><div class="hud-value" id="targetText">1000</div></div>
+        <div class="hud-card"><div class="hud-label">步数</div><div class="hud-value" id="movesText">18</div></div>
+    </div>
+    <div id="boardWrap">
+        <div id="board" aria-label="消消乐棋盘"></div>
+    </div>
+    <div id="statusPanel">
+        <div class="status-line" id="moveDetail">点击两块相邻糖果交换</div>
+        <div class="status-sub" id="statusSub">三连即可消除；四连、五连产生特殊糖果</div>
+    </div>
+    <div class="footerbar">
+        <button onclick="game.openLevels()">🗺 关卡</button>
+        <button onclick="game.restartLevel()">🔄 重新开始</button>
+        <button onclick="game.shuffleBoard()">🔀 洗牌</button>
+        <button onclick="game.toggleHint()">💡 提示</button>
+    </div>
+
+    <div class="modal-backdrop" id="levelModal">
+        <div class="modal">
+            <h2>选择关卡</h2>
+            <div class="level-grid" id="levelGrid"></div>
+            <div style="margin-top:14px;text-align:right;"><button onclick="game.closeLevels()">关闭</button></div>
+        </div>
+    </div>
+
+    <script>
+        const COLORS = ["#ff595e","#ff924c","#ffca3a","#8ac926","#1982c4","#6a4c93"];
+        const LEVELS = [
+            {title:"糖果森林 1", moves:18, target:1000, holes:[], rounds:1},
+            {title:"糖果森林 2", moves:20, target:1400, holes:[], rounds:1},
+            {title:"糖果森林 3", moves:18, target:1700, holes:[ [3,3] ], rounds:1},
+            {title:"冰霜山谷 4", moves:22, target:2100, holes:[ [2,2],[5,5] ], rounds:1},
+            {title:"冰霜山谷 5", moves:20, target:2400, holes:[ [1,4],[6,3] ], rounds:2},
+            {title:"火山岩洞 6", moves:17, target:2900, holes:[ [2,1],[2,6],[5,1],[5,6] ], rounds:2},
+            {title:"火山岩洞 7", moves:16, target:3300, holes:[ [3,2],[4,5] ], rounds:2},
+            {title:"彩虹云端 8", moves:15, target:3800, holes:[], rounds:3},
+            {title:"彩虹云端 9", moves:14, target:4300, holes:[ [1,1],[1,6],[6,1],[6,6] ], rounds:3},
+            {title:"星光之巅 10", moves:13, target:5000, holes:[ [0,0],[0,7],[7,0],[7,7],[3,3],[4,4] ], rounds:3}
+        ];
+
+        function clone(v){ return JSON.parse(JSON.stringify(v)); }
+
+        class Match3 {
+            constructor() {
+                this.size = 8;
+                this.levelIndex = 0;
+                this.progress = this.loadProgress();
+                this.board = this.emptyBoard();
+                this.selected = null;
+                this.animating = false;
+                this.score = 0;
+                this.moves = 1;
+                this.target = 1;
+                this.combo = 1;
+                this.hintMode = false;
+                this.hintCell = null;
+                this.stats = { games:0 };
+                this.buildBoard();
+                this.loadLevel(this.unlockedLevel());
+                this.renderAll();
+            }
+
+            loadProgress() {
+                try { return JSON.parse(localStorage.getItem('match3Progress')||'{"level":0}'); }
+                catch (e) { return {level:0}; }
+            }
+            saveProgress() {
+                try { localStorage.setItem('match3Progress', JSON.stringify(this.progress)); } catch (e) {}
+            }
+
+            unlockedLevel() { return Math.min(this.progress.level || 0, LEVELS.length-1); }
+
+            emptyBoard() {
+                const b = [];
+                for (let r=0;r<this.size;r++) b.push(Array(this.size).fill(null));
+                return b;
+            }
+
+            buildBoard() {
+                const el = document.getElementById('board');
+                el.innerHTML = '';
+                el.style.gridTemplateColumns = `repeat(${this.size},1fr)`;
+                this.cells = [];
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) {
+                    const cell=document.createElement('div');
+                    cell.className='cell';
+                    cell.dataset.row=r; cell.dataset.col=c;
+                    cell.addEventListener('click', () => this.onCell(r,c));
+                    cell.addEventListener('touchstart', e=>{e.preventDefault();this.onCell(r,c);},{passive:false});
+                    el.appendChild(cell);
+                    this.cells.push(cell);
+                }
+            }
+
+            levelConfig() { return LEVELS[this.levelIndex]; }
+
+            loadLevel(i) {
+                this.levelIndex = Math.max(0,Math.min(i,LEVELS.length-1));
+                const cfg = this.levelConfig();
+                document.getElementById('levelText').textContent = `第 ${this.levelIndex+1} 关`;
+                this.score = 0;
+                this.moves = cfg.moves;
+                this.target = cfg.target;
+                this.combo = 1;
+                this.hintCell = null;
+                this.generateBoard(cfg);
+                this.renderUI();
+                this.renderBoard();
+                this.flash(this.levelIndex+1 > 1 ? `欢迎来到 ${cfg.title}` : `开始 ${cfg.title}`);
+            }
+
+            generateBoard(cfg) {
+                const rounds = cfg.rounds || 1;
+                this.holes = new Set((cfg.holes||[]).map(h=>h[0]*this.size+h[1]));
+                for (let attempt=0;attempt<100;attempt++) {
+                    this.board = this.emptyBoard();
+                    for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) {
+                        if (this.holes.has(r*this.size+c)) continue;
+                        this.board[r][c] = this.randomCandy();
+                    }
+                    if (!this.hasMatches() && this.hasPossibleMove()) break;
+                }
+            }
+
+            randomCandy() { return Math.floor(Math.random()*COLORS.length); }
+
+            isHole(r,c) { return this.holes.has(r*this.size+c); }
+
+            renderAll() { this.renderBoard(); this.renderUI(); }
+            renderUI() {
+                document.getElementById('scoreText').textContent = this.score;
+                document.getElementById('targetText').textContent = this.target;
+                document.getElementById('movesText').textContent = this.moves;
+            }
+
+            renderBoard() {
+                this.cells.forEach((cell,i) => {
+                    const r=Math.floor(i/this.size), c=i%this.size;
+                    cell.innerHTML = '';
+                    cell.classList.remove('selected');
+                    if (this.hintCell && this.hintCell.r===r && this.hintCell.c===c) cell.classList.add('selected');
+                    if (this.selected && this.selected.r===r && this.selected.c===c) cell.classList.add('selected');
+                    if (this.isHole(r,c)) { cell.style.background = 'transparent'; cell.classList.add('disabled'); cell.style.pointerEvents='none'; return; }
+                    cell.style.background = '';
+                    cell.style.pointerEvents = '';
+                    const candy = this.board[r][c];
+                    if (!candy) return;
+                    const color = typeof candy === 'object' ? candy.color : candy;
+                    const special = typeof candy === 'object' ? candy.special : null;
+                    const div = document.createElement('div');
+                    div.className = 'candy';
+                    div.style.background = `radial-gradient(circle at 30% 28%, #ffffff99, ${COLORS[color]} 48%, ${COLORS[color]}cc 100%)`;
+                    if (special === 'stripedH' || special === 'stripedV') div.classList.add('special-striped-h');
+                    if (special === 'wrapped') div.classList.add('special-wrapped');
+                    if (special === 'bomb') div.innerHTML = '<span style="position:absolute;inset:0;display:grid;place-items:center;font-size:1.3rem;">🌈</span>';
+                    cell.appendChild(div);
+                });
+            }
+
+            flash(msg, ms=1800) {
+                const el = document.getElementById('moveDetail');
+                const old = el.textContent;
+                el.textContent = msg; el.style.color = '#fde68a';
+                setTimeout(() => { if (el.textContent === msg) { el.textContent = old; el.style.color = ''; } }, ms);
+            }
+            sub(msg) { document.getElementById('statusSub').textContent = msg; }
+
+            onCell(r,c) {
+                if (this.animating || this.moves <= 0 && this.moves!==null) {}
+                if (this.animating) return;
+                if (this.isHole(r,c)) return;
+                if (!this.selected) { this.selected = {r,c}; this.renderBoard(); return; }
+                if (this.selected.r===r && this.selected.c===c) { this.selected=null; this.renderBoard(); return; }
+                if (!this.adjacent(this.selected, {r,c})) { this.selected={r,c}; this.renderBoard(); return; }
+                this.trySwap(this.selected.r,this.selected.c,r,c);
+                this.selected = null;
+            }
+
+            adjacent(a,b) { return (Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1); }
+
+            trySwap(r1,c1,r2,c2) {
+                this.animating = true;
+                const backup = clone(this.board);
+                const tmp = this.board[r1][c1];
+                this.board[r1][c1] = this.board[r2][c2];
+                this.board[r2][c2] = tmp;
+                this.renderBoard();
+                // activate swapped specials direct
+                const direct = new Set();
+                for (const [rr,cc] of [[r1,c1],[r2,c2]]) {
+                    const candy = this.board[rr][cc];
+                    const sp = typeof candy==='object' ? candy.special : null;
+                    if (sp === 'stripedH') for (let x=0;x<this.size;x++) if(!this.isHole(rr,x)) direct.add(rr*this.size+x);
+                    else if (sp === 'stripedV') for (let y=0;y<this.size;y++) if(!this.isHole(y,cc)) direct.add(y*this.size+cc);
+                    else if (sp === 'wrapped') for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {const nr=rr+dr,nc=cc+dc; if (inb(this.size,nr,nc)&&!this.isHole(nr,nc)) direct.add(nr*this.size+nc);}
+                    else if (sp === 'bomb') for (let rr2=0;rr2<this.size;rr2++) for (let cc2=0;cc2<this.size;cc2++) if (!this.isHole(rr2,cc2) && (this.colorOf(rr2,cc2)===this.colorOf(rr,cc) || (rr==r1&&cc==c1?this.colorOf(r2,c2):this.colorOf(r1,c1))===this.colorOf(rr2,cc2))) direct.add(rr2*this.size+cc2);
+                }
+                // if two bombs
+                const sp1 = this.specialOf(r1,c1), sp2=this.specialOf(r2,c2);
+                if (sp1==='bomb' && sp2==='bomb') { for (let i=0;i<this.size*this.size;i++) if(!this.isHole(Math.floor(i/this.size),i%this.size)) direct.add(i); }
+
+                let matched = this.findMatches();
+                let matchedCells = matched.map(m=>m.r*this.size+m.c);
+                if (matchedCells.length===0 && direct.size===0) {
+                    // revert
+                    this.board = backup;
+                    this.renderBoard();
+                    this.animating=false;
+                    this.flash('无法消除');
+                    return;
+                }
+                // resolve cascade
+                this.moves = Math.max(0, this.moves-1);
+                this.renderUI();
+                // direct clear first
+                const clearSet = new Set([...direct, ...matchedCells]);
+                this.resolveClear(clearSet, 1);
+                this.animating = false;
+                this.afterMove();
+            }
+
+            colorOf(r,c) {
+                const v=this.board[r][c];
+                return typeof v === 'object' ? v.color : v;
+            }
+            specialOf(r,c) {
+                const v=this.board[r][c];
+                return typeof v === 'object' ? v.special : null;
+            }
+
+            makeCandy(color) { return {color, special:null}; }
+            candyColor(v){ return typeof v==='object'?v.color:v; }
+
+            hasMatches() {
+                return this.findMatches().length > 0;
+            }
+
+            findMatches() {
+                const res = [];
+                // horizontal
+                for (let r=0;r<this.size;r++) {
+                    let c=0;
+                    while (c<this.size) {
+                        if (this.isHole(r,c)) { c++; continue; }
+                        let run=[{r,c}];
+                        let cc=c+1;
+                        while (cc<this.size && !this.isHole(r,cc) && this.candyColor(this.board[r][cc])===this.candyColor(this.board[r][c])) { run.push({r,c:cc}); cc++; }
+                        if (run.length>=3) res.push(...run);
+                        c = cc===c?c+1:cc;
+                    }
+                }
+                // vertical
+                for (let c=0;c<this.size;c++) {
+                    let r=0;
+                    while (r<this.size) {
+                        if (this.isHole(r,c)) { r++; continue; }
+                        let run=[{r,c}];
+                        let rr=r+1;
+                        while (rr<this.size && !this.isHole(rr,c) && this.candyColor(this.board[rr][c])===this.candyColor(this.board[r][c])) { run.push({r:rr,c}); rr++; }
+                        if (run.length>=3) res.push(...run);
+                        r = rr===r? r+1: rr;
+                    }
+                }
+                // deduplicate
+                const uniq = [];
+                const seen=new Set();
+                for (const m of res) { const k=m.r*this.size+m.c; if(!seen.has(k)){seen.add(k);uniq.push(m);} }
+                return uniq;
+            }
+
+            specialTypeForMatch(match) {
+                // classify by crossing
+                const set = new Set(match.map(m=>m.r*this.size+m.c));
+                // group shapes
+                let maxH=0,maxV=0;
+                // simple: if any run length >=5 -> bomb color
+                // L/T if same cell in H and V run
+                const byH = {};
+                for (const m of match) byH[m.r] = (byH[m.r]||0)+1;
+                const hasLongH = Object.values(byH).some(v=>v>=5);
+                if (hasLongH) return 'bomb';
+                // detect intersection
+                const rows = new Set(match.map(m=>m.r));
+                const cols = new Set(match.map(m=>m.c));
+                if (rows.size <= 2 || cols.size <=2) { // compact block
+                    const total = match.length;
+                    if (total === 4) return 'wrapped';
+                    if (total >=5) return 'bomb';
+                }
+                // 4-run horizontal/vertical
+                for (const [r] of Object.entries(byH)) {}
+                for (let m of match) {
+                    // count horizontal run
+                }
+                // default striped (will adjust later)
+                return 'stripedH';
+            }
+
+            assignSpecials(matched) {
+                // convert matched candies in place into special before removal? Actually specials are created on cleared position during refill; simpler: for moves, we create special at one survivor.
+                return matched;
+            }
+
+            resolveClear(indices, combo) {
+                if (indices.size===0) return;
+                // ensure specials in cleared area are activated
+                const expanded = new Set(indices);
+                let changed=true;
+                // one pass of special expansion
+                const snapshot = [...indices];
+                for (const idx of snapshot) {
+                    const r=Math.floor(idx/this.size), c=idx%this.size;
+                    const candy=this.board[r][c];
+                    const sp = this.specialOf(r,c);
+                    if (sp==='stripedH') for (let x=0;x<this.size;x++) if(!this.isHole(r,x)) expanded.add(r*this.size+x);
+                    else if (sp==='stripedV') for (let y=0;y<this.size;y++) if(!this.isHole(y,c)) expanded.add(y*this.size+c);
+                    else if (sp==='wrapped') for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {const nr=r+dr,nc=c+dc; if (inb(this.size,nr,nc)&&!this.isHole(nr,nc)) expanded.add(nr*this.size+nc);}
+                    else if (sp==='bomb') {
+                        const color=this.candyColor(candy);
+                        for (let rr=0;rr<this.size;rr++) for (let cc=0;cc<this.size;cc++) if(!this.isHole(rr,cc)&&this.candyColor(this.board[rr][cc])===color) expanded.add(rr*this.size+cc);
+                    }
+                }
+                // score
+                const n = expanded.size;
+                const base = 50*n + (n>3? (n-3)*25 :0);
+                this.score += Math.round(base * combo);
+                this.renderUI();
+                // pop animation
+                for (const idx of expanded) {
+                    const cell=this.cells[idx];
+                    const candy=cell.querySelector('.candy');
+                    if (candy) candy.classList.add('pop');
+                }
+                setTimeout(() => {
+                    for (const idx of expanded) {
+                        const r=Math.floor(idx/this.size), c=idx%this.size;
+                        this.board[r][c]=null;
+                        // if hole remains null
+                    }
+                    // create specials at positions from original matches (create at first matched cell)
+                    // Simplified: no creation; cascades only
+                    this.applyGravity();
+                    this.fillBoard();
+                    // cascade find matches
+                    const more = this.findMatches();
+                    if (more.length > 0) {
+                        const s = new Set(more.map(m=>m.r*this.size+m.c));
+                        this.resolveClear(s, combo+0.5);
+                    } else {
+                        if (!this.hasPossibleMove()) this.shuffleBoard();
+                        this.animating = false;
+                        this.afterCascade();
+                    }
+                }, 220);
+            }
+
+            applyGravity() {
+                for (let c=0;c<this.size;c++) {
+                    let write=this.size-1;
+                    for (let r=this.size-1;r>=0;r--) {
+                        if (this.isHole(r,c)) { write=r-1; continue; }
+                        if (this.board[r][c] !== null) {
+                            this.board[write][c] = this.board[r][c];
+                            if (write!==r) this.board[r][c]=null;
+                            write--;
+                        }
+                    }
+                    for (let r=write;r>=0;r--) {
+                        if (!this.isHole(r,c)) this.board[r][c]=null;
+                    }
+                }
+            }
+            fillBoard() {
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) {
+                    if (this.isHole(r,c)) continue;
+                    if (this.board[r][c]===null) {
+                        const specials = Math.random()<0.06 ? this.randomSpecial() : null;
+                        this.board[r][c] = specials ? {color:this.randomCandy(), special:specials} : this.randomCandy();
+                    }
+                }
+            }
+            randomSpecial() { const arr=['stripedH','stripedV','wrapped']; return arr[Math.floor(Math.random()*arr.length)]; }
+
+            afterCascade() {
+                this.renderBoard();
+                if (this.score >= this.target) {
+                    this.winLevel();
+                } else if (this.moves <= 0) {
+                    this.loseLevel();
+                }
+            }
+
+            winLevel() {
+                this.flash('通关成功！');
+                this.sub(`得分 ${this.score} / 目标 ${this.target}`);
+                const stars = this.score >= this.target*1.6 ? 3 : (this.score>=this.target*1.25?2:1);
+                const unlocked = this.progress.level || 0;
+                if (this.levelIndex >= unlocked && this.levelIndex + 1 > unlocked) {
+                    this.progress.level = this.levelIndex + 1;
+                    this.saveProgress();
+                }
+                if (this.levelIndex < LEVELS.length-1) setTimeout(()=>this.loadLevel(this.levelIndex+1),1200);
+            }
+            loseLevel() {
+                this.flash('步数用完，失败');
+                this.sub('点击重新开始挑战本关');
+            }
+
+            hasPossibleMove() {
+                // quick adjacent swaps that create match
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) {
+                    if (this.isHole(r,c)) continue;
+                    for (const [dr,dc] of [[1,0],[0,1]]) {
+                        const nr=r+dr,nc=c+dc;
+                        if (nr>=this.size||nc>=this.size||this.isHole(nr,nc)) continue;
+                        // swap test
+                        const a=this.board[r][c], b=this.board[nr][nc];
+                        this.board[r][c]=b; this.board[nr][nc]=a;
+                        const match = this.hasMatches();
+                        this.board[r][c]=a; this.board[nr][nc]=b;
+                        if (match) return true;
+                    }
+                }
+                return false;
+            }
+
+            shuffleBoard() {
+                if (this.animating) return;
+                // preserve holes, reshuffle candy colors
+                const vals=[];
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) if(!this.isHole(r,c)&&this.board[r][c]!==null) vals.push(this.candyColor(this.board[r][c]));
+                // shuffle
+                for (let i=vals.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[vals[i],vals[j]]=[vals[j],vals[i]];}
+                let k=0;
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) if(!this.isHole(r,c)&&this.board[r][c]!==null) { this.board[r][c]=vals[k++]; }
+                // remove accidental matches by random
+                while(this.hasMatches()) {
+                    const m=this.findMatches();
+                    for (const cell of m) this.board[cell.r][cell.c]=this.randomCandy();
+                }
+                this.renderBoard();
+                this.flash('已洗牌');
+            }
+
+            openLevels() {
+                const grid=document.getElementById('levelGrid');
+                grid.innerHTML='';
+                for (let i=0;i<LEVELS.length;i++) {
+                    const btn=document.createElement('button');
+                    btn.className='level-btn'+(i>(this.progress.level||0)?' locked':'')+(i<= (this.progress.level||0)?' done':'');
+                    btn.textContent=i+1;
+                    if (i <= (this.progress.level||0) || i===0) btn.onclick=()=>{game.closeLevels(); game.loadLevel(i);};
+                    else btn.disabled=true;
+                    grid.appendChild(btn);
+                }
+                document.getElementById('levelModal').style.display='grid';
+            }
+            closeLevels() { document.getElementById('levelModal').style.display='none'; }
+
+            restartLevel() { this.loadLevel(this.levelIndex); }
+            toggleHint() {
+                this.hintMode = !this.hintMode;
+                if (!this.hintMode) { this.hintCell=null; this.renderBoard(); return; }
+                // find one possible move
+                for (let r=0;r<this.size;r++) for (let c=0;c<this.size;c++) {
+                    if (this.isHole(r,c)) continue;
+                    for (const [dr,dc] of [[1,0],[0,1]]) {
+                        const nr=r+dr, nc=c+dc;
+                        if (nr>=this.size||nc>=this.size||this.isHole(nr,nc)) continue;
+                        const a=this.board[r][c], b=this.board[nr][nc];
+                        this.board[r][c]=b; this.board[nr][nc]=a;
+                        const ok = this.hasMatches();
+                        this.board[r][c]=a; this.board[nr][nc]=b;
+                        if (ok) { this.hintCell={r,c}; this.renderBoard(); setTimeout(()=>{this.hintCell=null;this.renderBoard();},1500); return; }
+                    }
+                }
+                this.flash('暂无提示');
+            }
+
+        }
+
+        function inb(n,r,c){ return r>=0&&r<n&&c>=0&&c<n; }
+
+        const game = new Match3();
+        window.game = game;
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../../sw.js').then(r => console.log('SW', r.scope)).catch(console.error);
+      }
+    </script>
+</body>
+</html>
