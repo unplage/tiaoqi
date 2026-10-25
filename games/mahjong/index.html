@@ -97,7 +97,7 @@
             <div class="discard-row" id="discards0"></div>
             <div class="hand" id="hand0"></div>
             <div class="actions" style="margin-top:6px;">
-                <button class="action-btn secondary" onclick="game.discardSelected()">打出选中</button>
+                <button class="action-btn" onclick="game.discardSelected()">打出选中 ▶</button>
                 <span style="font-size:.8rem;color:#86efac;" id="helpText">点牌选中后打出</span>
             </div>
         </div>
@@ -352,7 +352,10 @@
                     const btn=document.createElement('div');
                     btn.className='tile'+(this.selected===i?' selected':'')+(!this.isHumanTurn(0)||this.state!=='discard'?' disabled':'');
                     btn.textContent=tileLabel(hand[i]);
-                    btn.addEventListener('click',()=>{ if (this.isHumanTurn(0)&&this.state==='discard'){ this.selected=i; this.renderHand(); } });
+                    btn.addEventListener('click',()=>{ if (this.isHumanTurn(0)&&this.state==='discard'){
+                        if (this.selected === i) this.discardSelected();
+                        else { this.selected=i; this.renderHand(); }
+                    } });
                     el.appendChild(btn);
                 }
                 document.getElementById('handCount0').textContent=hand.length+'张';
