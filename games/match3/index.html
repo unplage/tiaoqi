@@ -9,7 +9,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
             min-height: 100dvh; height: 100dvh;
-            display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+            display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
             gap: 8px; padding: 8px;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             color: #f8fafc;
@@ -87,7 +87,7 @@
         .status-line { min-height:1.4em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
         .status-sub { font-size:.8rem; color:#a5b4fc; min-height:1.2em; }
         .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
-        .footerbar button { position:relative; }
+        .footerbar button { position:relative; padding:4px 8px; font-size:.85rem; }
         .badge { position:absolute; top:-6px; right:-6px; background:#f43f5e; color:#fff; border-radius:999px; font-size:.65rem; min-width:16px; padding:1px 4px; font-weight:900; }
         .modal-backdrop {
             position:fixed; inset:0; background:#0009; display:none; place-items:center; z-index:1000;
@@ -120,7 +120,7 @@
         .modal-backdrop button { padding:8px 12px; border-radius:8px; border:1px solid #312e81; background:#1e1b4b; color:#e9d5ff; font-weight:700; }
         @media (max-width:520px) {
             body { padding:4px; gap:4px; }
-            #board { width:min(96vw,56vh,360px); }
+            #board { width:min(96vw,50vh,320px); }
         }
     </style>
 </head>
@@ -137,12 +137,12 @@
         <div class="hud-card"><div class="hud-label">步数</div><div class="hud-value" id="movesText">0</div></div>
     </div>
     <div class="progress-wrap"><div id="progressFill" class="progress-fill"></div><div id="progressLabel" class="progress-label">准备开始</div></div>
-    <div id="boardWrap">
-        <div id="board" aria-label="消消乐棋盘"></div>
-    </div>
     <div id="statusPanel">
         <div class="status-line" id="moveDetail">滑动或点选两块相邻糖果交换</div>
         <div class="status-sub" id="statusSub">3 连消除，4/5 连与 L/T 形生成特殊糖果</div>
+    </div>
+    <div id="boardWrap">
+        <div id="board" aria-label="消消乐棋盘"></div>
     </div>
     <div class="footerbar">
         <button onclick="game.openLevels()">🗺 关卡<span class="badge" id="starBadge">0</span></button>
