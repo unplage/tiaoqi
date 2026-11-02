@@ -9,7 +9,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
             min-height: 100dvh; height: 100dvh;
-            display: grid; grid-template-rows: auto 1fr auto auto;
+            display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
             gap: 8px; padding: 8px;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             color: #f8fafc;
@@ -21,7 +21,7 @@
         .topbar a { color:#c4b5fd; text-decoration:none; padding:8px 10px; border:1px solid #312e81; background:#0f172a; border-radius:10px; }
         .title { flex:1; font-size:clamp(1.1rem,4vw,1.4rem); font-weight:900; text-shadow:0 2px 12px #7c3aed88; }
         .hud { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-        .hud-card { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:8px; text-align:center; min-height:52px; }
+        .hud-card { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:4px 6px; text-align:center; min-height:34px; }
         .hud-label { font-size:.72rem; color:#a5b4fc; }
         .hud-value { font-size:1.1rem; font-weight:800; }
         .progress-wrap { position:relative; height:20px; background:#0f172a99; border:1px solid #312e81; border-radius:999px; overflow:hidden; }
@@ -83,7 +83,7 @@
             pointer-events:none;
         }
         .disabled { filter:grayscale(.7) brightness(.6); }
-        #statusPanel { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:8px 12px; min-height:46px; }
+        #statusPanel { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:4px 10px; min-height:34px; }
         .status-line { min-height:1.4em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
         .status-sub { font-size:.8rem; color:#a5b4fc; min-height:1.2em; }
         .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
@@ -119,8 +119,8 @@
         }
         .modal-backdrop button { padding:8px 12px; border-radius:8px; border:1px solid #312e81; background:#1e1b4b; color:#e9d5ff; font-weight:700; }
         @media (max-width:520px) {
-            body { padding:6px; gap:6px; }
-            #board { width:min(96vw,68vh,400px); }
+            body { padding:4px; gap:4px; }
+            #board { width:min(96vw,56vh,360px); }
         }
     </style>
 </head>
