@@ -66,7 +66,8 @@ self.onmessage = function (e) {
     try {
         switch (msg.cmd) {
             case 'init': {
-                if (msg.params) _params = msg.params;
+                if (Object.prototype.hasOwnProperty.call(msg || {}, 'params')) _params = msg.params || null;
+                if (typeof invalidateParamCache === 'function') invalidateParamCache();
                 if (msg.correctionRules) _correctionRules = msg.correctionRules;
                 self.postMessage({ status: 'ready' });
                 break;
@@ -94,6 +95,7 @@ self.onmessage = function (e) {
                 self.postMessage({
                     taskId: msg.taskId,
                     result: result,
+                    reasoning: ai.lastReasoning || null,
                     memory: {
                         remain: memory.remain,
                         seen: [...memory.seen],
@@ -105,20 +107,25 @@ self.onmessage = function (e) {
                 break;
             }
             case 'mcts': {
+                try { if (typeof calibrateAiSpeed === 'function') calibrateAiSpeed(); } catch (e) {}
                 let state = msg.state;
                 let memory = rebuildMemory(msg.memory);
                 let belief = new HandBelief(msg.playerId, state, memory);
+                const scale = (typeof AI_PERF !== 'undefined' && AI_PERF.factor) ? AI_PERF.factor : 1;
                 let mctsResult = mctsSearchBlind(state, msg.playerId, belief, {
                     iterations: msg.iterations,
-                    worlds: 3,
-                    timeBudgetMs: 1000,
-                    memory
+                    worlds: msg.worlds || 3,
+                    timeBudgetMs: Math.max(80, Math.round((msg.timeBudgetMs || 1000) * scale)),
+                    memory,
+                    difficulty: msg.difficulty || 'hard',
+                    collectAll: !!msg.collectAll
                 });
                 self.postMessage({
                     taskId: msg.taskId,
                     play: mctsResult ? mctsResult.play : [],
                     visits: mctsResult ? mctsResult.visits : 0,
-                    wins: mctsResult ? mctsResult.wins : 0
+                    wins: mctsResult ? mctsResult.wins : 0,
+                    agg: mctsResult && mctsResult.agg ? mctsResult.agg : []
                 });
                 break;
             }

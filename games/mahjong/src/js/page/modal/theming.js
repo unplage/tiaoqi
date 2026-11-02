@@ -8,7 +8,7 @@ function fileLoader(evt) {
       reader.onload = (e) => {
         file.dataURL = e.target.result;
         if (file.size > 500000) {
-          alert("Images over 500kb are not supported");
+          alert("图片不能超过500KB");
           return reject();
         }
         resolve(file);
@@ -28,7 +28,7 @@ class ThemeModal {
     this.loadBackground();
     this.loadSidebar();
     this.loadPlayerBanks();
-    this.loadTileset();
+    this.load牌背/牌面();
   }
 
   reset() {
@@ -36,7 +36,7 @@ class ThemeModal {
       `mahjongBackground`,
       `mahjongSidebar`,
       `mahjongPlayerBanks`,
-      `mahjongTileset`,
+      `mahjong牌背/牌面`,
       `mahjongCSS`,
     ].forEach((key) => {
       localStorage.removeItem(key);
@@ -93,19 +93,19 @@ class ThemeModal {
     localStorage.setItem("mahjongPlayerBanks", background);
   }
 
-  async loadTileset() {
-    const dataURL = localStorage.getItem("mahjongTileset");
+  async load牌背/牌面() {
+    const dataURL = localStorage.getItem("mahjong牌背/牌面");
     if (dataURL) {
       setStyleSheet(
-        `mahjongTileset`,
+        `mahjong牌背/牌面`,
         await TileSetManager.createTileSetCSS(dataURL)
       );
     } else { TileSetManager.loadDefault(); }
     return !!dataURL;
   }
 
-  saveTileset(background) {
-    localStorage.setItem("mahjongTileset", background);
+  save牌背/牌面(background) {
+    localStorage.setItem("mahjong牌背/牌面", background);
   }
 
   /**
@@ -126,7 +126,7 @@ class ThemeModal {
     row.classList.add(`spacer-1`);
     row.innerHTML = `
       <td colspan="2">
-        <input id="reset" type="reset" value="Reset to default settings">
+        <input id="reset" type="reset" value="恢复默认设置">
       </td>
     `;
     table.appendChild(row);
@@ -144,28 +144,28 @@ class ThemeModal {
 
     const options = [
       {
-        label: "Background image",
+        label: "背景图片",
         type: `file`,
         handler: handle("Background"),
       },
       {
-        label: "Sidebar image",
+        label: "侧边图片",
         type: `file`,
         handler: handle("Sidebar"),
       },
       {
-        label: "Player banks",
+        label: "玩家面板图片",
         type: `file`,
         handler: handle("PlayerBanks"),
       },
       {
-        label: "Tileset",
+        label: "牌背/牌面",
         type: `file`,
-        handler: handle("Tileset"),
+        handler: handle("牌背/牌面"),
       },
       {
-        label: "CSS colors",
-        button_label: "Change...",
+        label: "颜色方案",
+        button_label: "更改...",
         type: `button`,
         evtType: `click`,
         handler: (entry, evt) => {

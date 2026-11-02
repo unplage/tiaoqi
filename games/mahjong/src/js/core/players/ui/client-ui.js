@@ -226,7 +226,7 @@ class ClientUI extends ClientUIMaster {
     // console.log('scent of claim?', this.id, ':', this.player.lastClaim);
 
     let cancel = () => resolve(undefined);
-    modal.choiceInput("Declare win?", [
+    modal.choiceInput("是否自胡？", [
       { label: 'You better believe it!', value: 'win' },
       { label: 'No, I think I can do better...', value: '' },
     ], result => {
@@ -290,11 +290,11 @@ class ClientUI extends ClientUIMaster {
     // build the self-declare options for this action
     let options = [
       { label: "on second thought, never mind", value: CLAIM.IGNORE },
-      canKong ? { label: "I'm declaring a kong", value: CLAIM.KONG } : false,
-      canWin ? { label: "I just won", value: CLAIM.WIN } : false
+      canKong ? { label: "我来杠牌", value: CLAIM.KONG } : false,
+      canWin ? { label: "我已胡牌", value: CLAIM.WIN } : false
     ].filter(v=>v);
 
-    modal.choiceInput("Declare a kong or win?", options, result => {
+    modal.choiceInput("是否杠牌或胡牌？", options, result => {
       if (result === CLAIM.IGNORE) {
         if (restore) return restore();
       }
@@ -482,14 +482,14 @@ class ClientUI extends ClientUIMaster {
 
     console.debug(this.player.id, tile, mayChow, this, this.canPung(tile));
 
-    modal.choiceInput("What kind of claim are you making?", [
-      { label: "Ignore", value: CLAIM.IGNORE },
-      (mayChow && this.canChow(tile, CLAIM.CHOW1)) ? { label: "Chow (▮▯▯)", value: CLAIM.CHOW1 } : false,
-      (mayChow && this.canChow(tile, CLAIM.CHOW2)) ? { label: "Chow (▯▮▯)", value: CLAIM.CHOW2 } : false,
-      (mayChow && this.canChow(tile, CLAIM.CHOW3)) ? { label: "Chow (▯▯▮)", value: CLAIM.CHOW3 } : false,
-      this.canPung(tile) ? { label: "Pung", value: CLAIM.PUNG } : false,
-      this.canKong(tile) ? { label: "Kong", value: CLAIM.KONG } : false,
-      { label: "Win", value: CLAIM.WIN }, // Let's not pre-filter this one
+    modal.choiceInput("你要如何吃碰该牌？", [
+      { label: "忽略", value: CLAIM.IGNORE },
+      (mayChow && this.canChow(tile, CLAIM.CHOW1)) ? { label: "吃 (▮▯▯)", value: CLAIM.CHOW1 } : false,
+      (mayChow && this.canChow(tile, CLAIM.CHOW2)) ? { label: "吃 (▯▮▯)", value: CLAIM.CHOW2 } : false,
+      (mayChow && this.canChow(tile, CLAIM.CHOW3)) ? { label: "吃 (▯▯▮)", value: CLAIM.CHOW3 } : false,
+      this.canPung(tile) ? { label: "碰", value: CLAIM.PUNG } : false,
+      this.canKong(tile) ? { label: "杠", value: CLAIM.KONG } : false,
+      { label: "胡", value: CLAIM.WIN }, // Let's not pre-filter this one
     ], result => {
       tile.unmark('highlight');
       tile.unmark('suggestion');
@@ -527,7 +527,7 @@ class ClientUI extends ClientUIMaster {
 
     if (!claim) return resolve();
 
-    modal.choiceInput("Win by robbing a kong?", [
+    modal.choiceInput("是否抢杠胡？", [
       { label: 'You better believe it!', value: 'win' },
       { label: 'No, I think I can do better...', value: '' },
     ], result => {
@@ -561,11 +561,11 @@ class ClientUI extends ClientUIMaster {
 
     let options = [
       { label: "Actually, it doesn't", value: CLAIM.IGNORE },
-      winOptions.pair ? { label: "Pair", value: CLAIM.PAIR } : false,
-      winOptions.chow && this.canChow(discard, CLAIM.CHOW1) ? { label: "Chow (▮▯▯)", value: CLAIM.CHOW1 } : false,
-      winOptions.chow && this.canChow(discard, CLAIM.CHOW2) ? { label: "Chow (▯▮▯)", value: CLAIM.CHOW2 } : false,
-      winOptions.chow && this.canChow(discard, CLAIM.CHOW3) ? { label: "Chow (▯▯▮)", value: CLAIM.CHOW3 } : false,
-      winOptions.pung ? { label: "Pung", value: CLAIM.PUNG } : false
+      winOptions.pair ? { label: "对子", value: CLAIM.PAIR } : false,
+      winOptions.chow && this.canChow(discard, CLAIM.CHOW1) ? { label: "吃 (▮▯▯)", value: CLAIM.CHOW1 } : false,
+      winOptions.chow && this.canChow(discard, CLAIM.CHOW2) ? { label: "吃 (▯▮▯)", value: CLAIM.CHOW2 } : false,
+      winOptions.chow && this.canChow(discard, CLAIM.CHOW3) ? { label: "吃 (▯▯▮)", value: CLAIM.CHOW3 } : false,
+      winOptions.pung ? { label: "碰", value: CLAIM.PUNG } : false
     ];
 
     modal.choiceInput("How does this tile make you win?", options, result => {

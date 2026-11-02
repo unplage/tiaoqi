@@ -10,7 +10,7 @@ class ScoreModal {
    */
   showFinalScores(gameui, rules, scoreHistory, resolve) {
     let panel = this.modal.makePanel(`final-scores`);
-    panel.innerHTML = `<h3>Game finished</h3>`;
+    panel.innerHTML = `<h3>对局结束</h3>`;
 
     let base = new Array(4).fill(rules.player_start_score);
 
@@ -63,7 +63,7 @@ class ScoreModal {
     });
     panel.appendChild(table);
 
-    this.modal.addFooter(panel, "Back to the menu", resolve);
+    this.modal.addFooter(panel, "返回菜单", resolve);
     panel.scrollTop = 0;
   }
 
@@ -72,7 +72,7 @@ class ScoreModal {
    */
   show(hand, rules, scores, adjustments, resolve) {
     let panel = this.modal.makePanel(`scores`);
-    panel.innerHTML = `<h3>Scores for hand ${hand}</h3>`;
+    panel.innerHTML = `<h3>第 ${hand} 局积分</h3>`;
 
     let faanSystem = (rules.scoretype === Ruleset.FAAN_LAAK);
     let winner = 0;
@@ -145,7 +145,7 @@ class ScoreModal {
       });
     panel.appendChild(table);
 
-    if (resolve) this.modal.addFooter(panel, "Play next hand", resolve, true);
+    if (resolve) this.modal.addFooter(panel, "继续下一局", resolve, true);
     else this.modal.addFooter(panel, "OK");
   }
 
@@ -174,7 +174,7 @@ class ScoreModal {
     table.innerHTML = data.join(`\n`);
     panel.appendChild(table);
 
-    this.modal.addFooter(panel, "Back to the scores");
+    this.modal.addFooter(panel, "返回积分");
   }
 }
 

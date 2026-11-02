@@ -67,7 +67,8 @@
             position:absolute; inset:6%; border-radius:50%;
             box-shadow:inset -3px -4px 8px #0005, inset 3px 4px 8px #fff4, 0 4px 8px #0006;
             transition: transform .16s ease, opacity .16s ease;
-            display:grid; place-items:center; font-weight:900; color:#fff; text-shadow:0 1px 3px #0008;
+            display:grid; place-items:center; font-weight:900; color:#fff; text-shadow:0 2px 6px #000a;
+            font-size:clamp(1.15rem,3.6vw,1.8rem); line-height:1;
         }
         .candy .sym { font-size:.7rem; opacity:.85; }
         .candy.pop { transform:scale(0) rotate(18deg); opacity:0; }
@@ -126,7 +127,7 @@
 <body>
     <div class="topbar">
         <a href="../../index.html">← 游戏集</a>
-        <div class="title">🍬 消消乐</div>
+        <div class="title">🐾 消消乐</div>
         <div style="color:#a5b4fc;font-size:.8rem;" id="levelText">第 1 关</div>
         <button id="soundBtn" onclick="game.toggleSound()">🔊</button>
     </div>
@@ -160,12 +161,14 @@
 
     <script>
         const CANDY_META = [
-            {hex:'#ff595e', sym:'♥'},
-            {hex:'#ff924c', sym:'♦'},
-            {hex:'#ffca3a', sym:'★'},
-            {hex:'#8ac926', sym:'♣'},
-            {hex:'#1982c4', sym:'♠'},
-            {hex:'#6a4c93', sym:'●'}
+            {hex:'#ff595e', sym:'🦊', name:'狐狸'},
+            {hex:'#ff924c', sym:'🐰', name:'小兔'},
+            {hex:'#ffca3a', sym:'🐝', name:'小蜂'},
+            {hex:'#8ac926', sym:'🐢', name:'小龟'},
+            {hex:'#1982c4', sym:'🐟', name:'小鱼'},
+            {hex:'#6a4c93', sym:'🐙', name:'章鱼'},
+            {hex:'#f472b6', sym:'🌸', name:'樱花'},
+            {hex:'#facc15', sym:'🌻', name:'向日葵'}
         ];
 
         const LEVELS = [
@@ -173,12 +176,12 @@
             {title:"糖果森林 2", moves:20, colors:5, objective:{type:"score", target:1400}, holes:[], ice:[], collectColor:1, starScores:[1400,1900,2400]},
             {title:"糖果森林 3", moves:18, colors:5, objective:{type:"score", target:1700}, holes:[[3,3]], ice:[], collectColor:2, starScores:[1700,2200,2800]},
             {title:"冰霜山谷 4", moves:22, colors:5, objective:{type:"ice", target:14}, holes:[[2,2],[5,5]], ice:[[0,1],[0,6],[1,2],[1,5],[2,0],[2,7],[3,3],[4,4],[5,0],[5,7],[6,2],[6,5],[7,1],[7,6]], collectColor:3, starScores:[1800,2400,3000]},
-            {title:"彩虹云端 5", moves:20, colors:6, objective:{type:"collect", target:24}, holes:[[1,4],[6,3]], ice:[], collectColor:0, starScores:[1600,2200,2800]},
+            {title:"彩虹云端 5", moves:20, colors:7, objective:{type:"collect", target:24}, holes:[[1,4],[6,3]], ice:[], collectColor:0, starScores:[1600,2200,2800]},
             {title:"火山岩洞 6", moves:17, colors:6, objective:{type:"score", target:2900}, holes:[[2,1],[2,6],[5,1],[5,6]], ice:[], collectColor:1, starScores:[2900,3600,4400]},
             {title:"火山岩洞 7", moves:16, colors:6, objective:{type:"collect", target:28}, holes:[[3,2],[4,5]], ice:[], collectColor:2, starScores:[2400,3000,3700]},
-            {title:"彩虹云端 8", moves:15, colors:6, objective:{type:"ice", target:16}, holes:[], ice:[[0,0],[0,7],[1,3],[1,4],[2,2],[2,5],[3,1],[3,6],[4,1],[4,6],[5,2],[5,5],[6,3],[6,4],[7,0],[7,7]], collectColor:3, starScores:[2000,2700,3400]},
+            {title:"彩虹云端 8", moves:15, colors:7, objective:{type:"ice", target:16}, holes:[], ice:[[0,0],[0,7],[1,3],[1,4],[2,2],[2,5],[3,1],[3,6],[4,1],[4,6],[5,2],[5,5],[6,3],[6,4],[7,0],[7,7]], collectColor:3, starScores:[2000,2700,3400]},
             {title:"星光之巅 9", moves:14, colors:6, objective:{type:"score", target:4300}, holes:[[1,1],[1,6],[6,1],[6,6]], ice:[], collectColor:4, starScores:[4300,5200,6200]},
-            {title:"星光之巅 10", moves:13, colors:6, objective:{type:"score", target:5000}, holes:[[0,0],[0,7],[7,0],[7,7],[3,3],[4,4]], ice:[], collectColor:5, starScores:[5000,6200,7600]}
+            {title:"星光之巅 10", moves:13, colors:8, objective:{type:"score", target:5000}, holes:[[0,0],[0,7],[7,0],[7,7],[3,3],[4,4]], ice:[], collectColor:5, starScores:[5000,6200,7600]}
         ];
 
         function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -402,11 +405,11 @@
                     if (special === 'wrapped') div.classList.add('special-wrapped');
                     if (special === 'bomb') {
                         div.classList.add('special-bomb');
-                        div.textContent = '🌈';
-                        if (this.colorBlind) {
-                            const sym = document.createElement('span'); sym.className = 'sym'; sym.textContent = meta.sym; div.appendChild(sym);
-                        }
-                    } else if (this.colorBlind) {
+                        div.textContent = '💣';
+                    } else {
+                        div.textContent = meta.sym;
+                    }
+                    if (this.colorBlind && special !== 'bomb') {
                         const sym = document.createElement('span'); sym.className = 'sym'; sym.textContent = meta.sym; div.appendChild(sym);
                     }
                     cell.appendChild(div);

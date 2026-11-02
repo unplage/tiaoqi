@@ -48,7 +48,7 @@ class ColorModal {
     const options = this.getOptions(panel);
     const table = this.modal.buildPanelContent(options);
     this.addFormControls(table);
-    this.modal.addFooter(panel, "Close");
+    this.modal.addFooter(panel, "关闭");
   }
 
   addFormControls(table) {
@@ -56,7 +56,7 @@ class ColorModal {
     row.classList.add(`spacer-1`);
     row.innerHTML = `
         <td colspan="2">
-          <input id="reset" type="reset" value="Reset to default settings">
+          <input id="reset" type="reset" value="恢复默认设置">
         </td>
       `;
     table.appendChild(row);

@@ -23,7 +23,7 @@ class SettingsModal {
     form.setAttribute("action", "index.html");
     form.setAttribute("method", "GET");
     this.addFormControls(panel, form, options);
-    this.modal.addFooter(panel, "Closing without saving");
+    this.modal.addFooter(panel, "不保存并关闭");
   }
 
   addFormControls(panel, form, options) {
@@ -32,10 +32,10 @@ class SettingsModal {
     row.classList.add(`spacer-1`);
     row.innerHTML = `
       <td>
-        <input id="reset" type="reset" value="Reset to default settings">
+        <input id="reset" type="reset" value="恢复默认设置">
       </td>
       <td>
-        <input id="ok" type="submit" value="Play using these settings">
+        <input id="ok" type="submit" value="使用这些设置开始">
       </td>
     `;
     table.appendChild(row);
@@ -59,7 +59,7 @@ class SettingsModal {
   getOptions() {
     const options = [
       {
-        label: `Rules`,
+        label: `规则`,
         key: `rules`,
         options: [...Ruleset.getRulesetNames()],
       },
@@ -67,17 +67,17 @@ class SettingsModal {
         // basic boolean flags:
       },
       {
-        label: `🀄 Always show everyone's tiles`,
+        label: `🀄 对所有玩家明牌`,
         key: `force_open_bot_play`,
         toggle: true,
       },
       {
-        label: `✨ Highlight claimable discards`,
+        label: `✨ 高亮可claim的弃牌`,
         key: `show_claim_suggestion`,
         toggle: true,
       },
       {
-        label: `💬 Show bot play suggestions`,
+        label: `💬 显示AI建议`,
         key: `show_bot_suggestion`,
         toggle: true,
       },
@@ -85,33 +85,33 @@ class SettingsModal {
         // additional boolean flags:
       },
       {
-        label: `🎵 Play sounds`,
+        label: `🎵 音效`,
         key: `use_sound`,
         toggle: true,
       },
       {
-        label: `🟢 Start play immediately`,
+        label: `🟢 载入后立即开始`,
         key: `play_immediately`,
         toggle: true,
       },
       {
-        label: `⏸️ Pause game unless focused`,
+        label: `⏸️ 失去焦点时暂停`,
         key: `pause_on_blur`,
         toggle: true,
       },
       {
-        label: `💻 Turn on debug mode`,
+        label: `💻 开启调试模式`,
         key: `debug`,
         toggle: true,
       },
       {
-        label: `❌ Pretend previous round was a draw`,
+        label: `❌ 模拟上局流局`,
         key: `force_draw`,
         toggle: true,
         debug_only: true,
       },
       {
-        label: `📃 Generate game log after play`,
+        label: `📃 生成对局日志`,
         key: `write_game_log`,
         toggle: true,
         debug_only: true,
@@ -120,34 +120,34 @@ class SettingsModal {
         // numerical values:
       },
       {
-        label: `Set game PRNG seed`,
+        label: `设置PRNG种子`,
         key: `seed`,
         debug_only: true,
       },
       {
-        label: `Bot quick play threshold`,
+        label: `AI胡牌阈值`,
         key: `bot_chicken_threshold`,
         debug_only: true,
       },
       {
-        label: `Delay (in ms) between player turns`,
+        label: `每步出牌间隔(ms)`,
         key: `play_interval`,
       },
       {
-        label: `Delay (in ms) before starting next hand`,
+        label: `下局开始间隔(ms)`,
         key: `hand_interval`,
       },
       {
-        label: `Delay (in ms) for bots reacting to things`,
+        label: `AI反应间隔(ms)`,
         key: `bot_delay_before_discard_ends`,
       },
       {
-        label: `Delay (in ms) during full bot play`,
+        label: `AI演示出牌间隔(ms)`,
         key: `bot_play_delay`,
       },
       // and debug hacking
       {
-        label: `Set up a specific wall`,
+        label: `指定牌墙布局`,
         key: `wall_hack`,
         options: [``, ...Object.keys(WallHack.hacks)],
         debug_only: true,

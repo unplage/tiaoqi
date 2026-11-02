@@ -15,6 +15,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <meta name="theme-color" content="#1a1a2e">
+    <meta name="app-version" content="v81">
     <meta name="description" content="像素风格斗地主：单机公平 AI 对战 + P2P 联机，离线可玩">
     <style>
         * { image-rendering: pixelated; font-family: 'Press Start 2P', cursive; -webkit-tap-highlight-color: transparent; touch-action: manipulation; box-sizing: border-box; }
@@ -96,9 +97,9 @@
             <select id="difficulty" class="difficulty-select" onchange="changeDifficulty(this.value)">
                 <option value="easy">简单</option>
                 <option value="medium">中等</option>
-                <option value="hard" selected>大师级</option>
+                <option value="hard">大师级</option>
                 <option value="grandmaster">宗师级</option>
-                <option value="legendary">传奇级</option>
+                <option value="legendary" selected>传奇级</option>
             </select>
             <select id="aiSpeed" class="speed-select" onchange="changeSpeed(this.value)"><option value="fast">快速</option><option value="normal" selected>中等</option><option value="slow">慢速</option></select>
             <div id="voiceToggle" class="voice-btn pixel-btn" style="background:#333; padding:4px 8px;" onclick="toggleVoice()">🔊 开</div>
@@ -143,7 +144,7 @@
                 <p class="text-[10px] leading-6 mb-6 text-gray-300">选择模式开始游戏</p>
                 <button onclick="startSingleMode()" class="pixel-btn start-btn bg-green-500 block w-full mb-3">🎮 单机模式</button>
                 <button onclick="showOnlinePanel()" class="pixel-btn start-btn bg-blue-500 block w-full">🌐 联机模式</button>
-                <div class="mt-3 text-[8px] text-gray-500 text-center">v74 · 公平AI · 断线重连 · 2人AI</div>
+                <div class="mt-3 text-[8px] text-gray-500 text-center"><span id="appVersionLabel">v81</span> · 公平AI · 断线重连 · 2人AI</div>
             </div>
         </div>
         <div id="connectPanel" class="connect-panel hidden">
@@ -178,6 +179,23 @@
     </div>
     <div id="debugStrip" class="fixed bottom-0 left-0 right-0 z-[70] bg-black/70 text-[8px] text-green-300 px-2 py-0.5 leading-tight font-mono" style="display:none;pointer-events:none"></div>
 </div>
+<script>
+    // ======================== 版本号展示 ========================
+    // 单一来源：<meta name="app-version">（index.html），与 sw.js 的 CACHE_VERSION 保持一致
+    (function showAppVersion() {
+        try {
+            let meta = document.querySelector('meta[name="app-version"]');
+            let v = meta ? (meta.getAttribute('content') || '') : '';
+            if (!v) {
+                let sw = document.querySelector('script[data-cache-version]');
+                if (sw) v = sw.getAttribute('data-cache-version') || '';
+            }
+            let el = document.getElementById('appVersionLabel');
+            if (el && v) el.textContent = v;
+            window.__APP_VERSION__ = v;
+        } catch (e) {}
+    })();
+</script>
 <script>
     // ======================== 全局设置 ========================
     // ---- 存储访问兜底（隐私模式/禁用存储时不能让整站脚本崩溃） ----
@@ -507,7 +525,7 @@
         phase: 'idle', mode: 'single',
         deck: [], players: [[],[],[]], lordCards: [], landlord: -1, currentPlayer: 0,
         lastPlay: null, lastPlayerId: -1, lastPassIdx: -1, baseScore: 1, selectedCards: new Set(), bombCount: 0,
-        difficulty: 'hard', coins: 1000, stats: { total: 0, win: 0 }, passCount: 0,
+        difficulty: 'legendary', coins: 1000, stats: { total: 0, win: 0 }, passCount: 0,
         firstPlayMade: false, lordPlayCount: 0, farmerPlayed: false,
         cardMemory: null, aiList: [], processing: false,
         myRole: null, myIndex: -1, hostPeerId: null,
@@ -2449,6 +2467,95 @@ function broadcastFullState() {
             this.ready = true;
         },
         think(phase, state, playerId, difficulty, memory) {
+            if (phase === 'play' && this._shouldParallelMcts(state, playerId, difficulty)) {
+                return this._thinkMctsParallel(state, playerId, difficulty, memory).then(play => {
+                    if (Array.isArray(play)) return play;
+                    return this._thinkSingle(phase, state, playerId, difficulty, memory);
+                });
+            }
+            return this._thinkSingle(phase, state, playerId, difficulty, memory);
+        },
+        _shouldParallelMcts(state, playerId, difficulty) {
+            if (difficulty !== 'hard' && difficulty !== 'grandmaster' && difficulty !== 'legendary') return false;
+            const hand = state.players[playerId];
+            const len = Array.isArray(hand) ? hand.length : 0;
+            const endgameLimit = cfg('endgameThresholds.' + difficulty) || 10;
+            const mctsLimit = cfg('mcts.handLimit.' + difficulty) || 0;
+            if (!len || len <= endgameLimit || len > mctsLimit) return false;
+            const worlds = cfg('blind.worlds.mcts.' + difficulty) || 0;
+            if (worlds < 2) return false;
+            return this.workers.filter(w => !w._dead && w._ready && !w._busy).length >= 2;
+        },
+        _thinkMctsParallel(state, playerId, difficulty, memory) {
+            return new Promise((resolve) => {
+                const active = this.workers.filter(w => !w._dead && w._ready && !w._busy);
+                if (active.length < 2) { resolve(null); return; }
+                const totalWorlds = cfg('blind.worlds.mcts.' + difficulty) || 3;
+                const n = Math.min(active.length, totalWorlds, 4);
+                if (n < 2) { resolve(null); return; }
+                const worldsPer = Math.max(1, Math.ceil(totalWorlds / n));
+                const iterations = cfg('mcts.iterations.' + difficulty) || 600;
+                const budgetMs = cfg('blind.mctsTimeBudgetMs.' + difficulty) || 1000;
+                const serializedState = this._serializeState(state, playerId);
+                const serializedMemory = memoryToData(memory);
+                const tasks = [];
+                const cleanup = () => {
+                    // 某个 Worker 超时后不阻塞其余结果；聚合阶段会使用已完成的部分。
+                };
+                for (let i = 0; i < n; i++) {
+                    const worker = active[i];
+                    const taskId = ++this.taskId;
+                    tasks.push(new Promise((taskResolve) => {
+                        this.pending.set(taskId, { resolve: taskResolve, reject: taskResolve, timeout: null, phase: 'mcts', playerId, kind: 'mcts' });
+                        worker._busy = true;
+                        worker._taskId = taskId;
+                        worker.postMessage({
+                            cmd: 'mcts', taskId, state: serializedState, playerId, difficulty,
+                            memory: serializedMemory, worlds: worldsPer, iterations,
+                            timeBudgetMs: budgetMs, collectAll: true
+                        });
+                        const timeout = setTimeout(() => {
+                            this.pending.delete(taskId);
+                            worker._busy = false;
+                            worker._taskId = null;
+                            taskResolve(null);
+                        }, 30000);
+                        this.pending.get(taskId).timeout = timeout;
+                    }));
+                }
+                Promise.all(tasks).then(results => {
+                    const entries = [];
+                    for (const r of results) {
+                        if (r && Array.isArray(r.agg)) entries.push(...r.agg);
+                    }
+                    let play = null;
+                    if (entries.length && typeof selectPlayFromMctsAgg === 'function') {
+                        play = selectPlayFromMctsAgg(entries, totalWorlds, cfg('blind.robustness') || 0.25);
+                    }
+                    if (!play) {
+                        let top = null;
+                        for (const r of results) if (r && r.play && r.play.length && (!top || r.visits > top.visits)) top = r;
+                        play = top ? top.play : null;
+                    }
+                    if (Array.isArray(play)) {
+                        try {
+                            window.__lastAIPlayReasoning = {
+                                turn: (typeof GameRecorder !== 'undefined' && GameRecorder.currentGame) ? GameRecorder.currentGame.actions.length : 0,
+                                player: playerId,
+                                phase: 'play',
+                                source: 'mcts-parallel',
+                                chosen: play,
+                                chosenScore: 0,
+                                candidates: [{ type: play.length ? ((getCardType(play) || {}).type || 'unknown') : 'pass', score: 0, isChosen: true }]
+                            };
+                        } catch (e) {}
+                    }
+                    cleanup();
+                    resolve(play);
+                }).catch(() => resolve(null));
+            });
+        },
+        _thinkSingle(phase, state, playerId, difficulty, memory) {
             return new Promise((resolve, reject) => {
                 let active = this.workers.filter(w => !w._dead && w._ready && !w._busy);
                 if (active.length === 0) {
@@ -2457,7 +2564,7 @@ function broadcastFullState() {
                     return;
                 }
                 let taskId = ++this.taskId;
-                this.pending.set(taskId, { resolve, reject, timeout: null });
+                this.pending.set(taskId, { resolve, reject, timeout: null, phase, playerId, kind: 'think' });
                 let serializedState = this._serializeState(state, playerId);
                 let serializedMemory = memoryToData(memory);
                 let worker = active[0];
@@ -2472,7 +2579,7 @@ function broadcastFullState() {
                     worker._busy = false;
                     let ai = (GameState.aiList && GameState.aiList[playerId]) || new MasterAI(playerId, difficulty, memory);
                     resolve(phase === 'call' ? ai.callDecision(state) : ai.playDecision(state));
-                }, 15000);
+                }, 30000);
                 this.pending.get(taskId).timeout = timeout;
             });
         },
@@ -2493,7 +2600,18 @@ function broadcastFullState() {
             if (data.memory && GameState.cardMemory) {
                 memoryFromData(GameState.cardMemory, data.memory);
             }
-            entry.resolve(data.result);
+            if (entry.phase === 'play' && data.reasoning) {
+                let reasoning = data.reasoning;
+                if (typeof GameRecorder !== 'undefined' && GameRecorder.currentGame) {
+                    reasoning.turn = GameRecorder.currentGame.actions.length;
+                }
+                window.__lastAIPlayReasoning = reasoning;
+            }
+            if (entry.kind === 'mcts') {
+                entry.resolve({ play: data.play || [], visits: data.visits || 0, wins: data.wins || 0, agg: data.agg || [] });
+            } else {
+                entry.resolve(data.result);
+            }
         },
         _serializeState(state, playerId) {
             // 公平性加固：只把"自己的手牌"发给 AI Worker，对手只给张数（与联机同步的瘦身策略一致），
@@ -2615,6 +2733,17 @@ function broadcastFullState() {
         if (typeof GameState !== 'undefined' && GameState && GameState.phase && GameState.phase !== 'idle' && GameState.phase !== 'waiting') { return; }
       } catch (e) {}
       location.reload();
+    });
+    // SW 激活后回报缓存版本：与页面 meta 版本不一致时提示刷新
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      try {
+        if (!e.data || e.data.type !== 'VERSION') return;
+        let pageVer = (typeof window.__APP_VERSION__ === 'string') ? window.__APP_VERSION__ : '';
+        if (pageVer && e.data.version && pageVer !== e.data.version) {
+          console.warn('[SW] 版本不一致，页面 ' + pageVer + ' / 缓存 ' + e.data.version + '，将刷新');
+          try { location.reload(); } catch (err) {}
+        }
+      } catch (err) {}
     });
     navigator.serviceWorker.register('./sw.js').then(reg => {
       if (reg.active && !navigator.serviceWorker.controller) {

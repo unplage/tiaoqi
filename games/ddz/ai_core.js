@@ -5,28 +5,44 @@
 
 // ======================== 参数访问适配层 ========================
 // 优先级：ParamConfig(browser) > globalThis.__aiParamGet(worker) > globalThis.__AI_PARAMS__(bench) > DEFAULT_PARAMS
+const _CFG_CACHE = new Map();
+function invalidateParamCache() {
+    try { _CFG_CACHE.clear(); } catch (e) {}
+}
 function cfg(path) {
+    const cached = _CFG_CACHE.get(path);
+    if (cached !== undefined) return cached.value;
+    let out;
     try {
         if (typeof ParamConfig !== 'undefined' && ParamConfig && typeof ParamConfig.get === 'function') {
             const v = ParamConfig.get(path);
-            if (v !== undefined) return v;
+            if (v !== undefined) { out = v; }
         }
     } catch (e) {}
-    try {
-        if (typeof globalThis !== 'undefined') {
-            const pg = globalThis.__aiParamGet;
-            if (typeof pg === 'function') { const v = pg(path); if (v !== undefined) return v; }
-            const ov = globalThis.__AI_PARAMS__;
-            if (ov) {
-                let val = ov, ok = true;
-                for (const p of path.split('.')) { if (val && typeof val === 'object' && p in val) val = val[p]; else { ok = false; break; } }
-                if (ok) return val;
+    if (out === undefined) {
+        try {
+            if (typeof globalThis !== 'undefined') {
+                const pg = globalThis.__aiParamGet;
+                if (typeof pg === 'function') { const v = pg(path); if (v !== undefined) out = v; }
+                if (out === undefined) {
+                    const ov = globalThis.__AI_PARAMS__;
+                    if (ov) {
+                        let val = ov, ok = true;
+                        for (const p of path.split('.')) { if (val && typeof val === 'object' && p in val) val = val[p]; else { ok = false; break; } }
+                        if (ok) out = val;
+                    }
+                }
             }
-        }
-    } catch (e) {}
-    let val = DEFAULT_PARAMS;
-    for (const p of path.split('.')) { val = (val && typeof val === 'object') ? val[p] : undefined; if (val === undefined) break; }
-    return val;
+        } catch (e) {}
+    }
+    if (out === undefined) {
+        let val = DEFAULT_PARAMS;
+        for (const p of path.split('.')) { val = (val && typeof val === 'object') ? val[p] : undefined; if (val === undefined) break; }
+        out = val;
+    }
+    if (_CFG_CACHE.size > 512) _CFG_CACHE.clear();
+    _CFG_CACHE.set(path, { value: out });
+    return out;
 }
 function matchRules(ctx) {
     try {
@@ -66,7 +82,17 @@ function getCardType(cards) {
     if (cards.length === 4 && uniq.length === 1) return { type:CardType.BOMB, value:values[0]+50, cards:sorted };
     if (cards.length === 4 && uniq.length === 2) { let cnt = countValues(values); if (Object.values(cnt).includes(3)) return { type:CardType.TRIPLE_WITH_SINGLE, value:parseInt(Object.keys(cnt).find(k=>cnt[k]===3)), cards:sorted }; }
     if (cards.length === 5 && uniq.length === 2) { let cnt = countValues(values); if (Object.values(cnt).includes(3) && Object.values(cnt).includes(2)) return { type:CardType.TRIPLE_WITH_PAIR, value:parseInt(Object.keys(cnt).find(k=>cnt[k]===3)), cards:sorted }; }
-    if (cards.length === 6) { let cnt = countValues(values); let four = Object.keys(cnt).find(k=>cnt[k]===4); if (four && Object.values(cnt).filter(v=>v===1).length === 2) return { type:CardType.FOUR_WITH_TWO_SINGLE, value:parseInt(four), cards:sorted }; }
+    if (cards.length === 6) {
+        let cnt = countValues(values);
+        let four = Object.keys(cnt).find(k=>cnt[k]===4);
+        if (four) {
+            const fv = parseInt(four);
+            const wingKeys = Object.keys(cnt).filter(k=>parseInt(k)!==fv);
+            const wingCards = wingKeys.reduce((sum,k)=>sum+cnt[k],0);
+            if (wingCards === 2 && wingKeys.every(k=>cnt[k]<=2))
+                return { type:CardType.FOUR_WITH_TWO_SINGLE, value:fv, cards:sorted };
+        }
+    }
     if (cards.length === 8) { let cnt = countValues(values); let four = Object.keys(cnt).find(k=>cnt[k]===4); if (four && Object.values(cnt).filter(v=>v===2).length === 2) return { type:CardType.FOUR_WITH_TWO_PAIR, value:parseInt(four), cards:sorted }; }
     if (cards.length >= 5 && uniq.length === cards.length && isStraight(values) && values[cards.length-1] <= 11 && !values.includes(12)) return { type:CardType.STRAIGHT, value:values[0], length:cards.length, cards:sorted };
     if (cards.length >= 6 && cards.length % 2 === 0) {
@@ -84,20 +110,22 @@ function getCardType(cards) {
     if (cards.length >= 8 && cards.length % 4 === 0) {
         let cnt = countValues(values);
         let groupLen = cards.length / 4;
-        let tripVals = Object.keys(cnt).filter(k=>cnt[k]>=3).map(Number).sort((a,b)=>a-b);
+        let tripVals = Object.keys(cnt).filter(k=>cnt[k]===3).map(Number).sort((a,b)=>a-b);
         for (let i=0; i+groupLen<=tripVals.length; i++) {
             let seq = tripVals.slice(i, i+groupLen);
             if (!isStraight(seq) || seq[groupLen-1]>11) continue;
             let used = new Set(seq);
-            let remain = Object.keys(cnt).filter(k=>!used.has(parseInt(k)) && cnt[k]===1);
-            if (remain.length === groupLen)
-                return { type:CardType.PLANE_WITH_SINGLE, value:seq[0], length:groupLen, cards:sorted };
+            let wingKeys = Object.keys(cnt).filter(k=>!used.has(parseInt(k)));
+            let wingCards = wingKeys.reduce((sum,k)=>sum+cnt[k],0);
+            if (wingCards !== groupLen) continue;
+            if (wingKeys.some(k=>cnt[k]>2)) continue;
+            return { type:CardType.PLANE_WITH_SINGLE, value:seq[0], length:groupLen, cards:sorted };
         }
     }
     if (cards.length >= 10 && cards.length % 5 === 0) {
         let cnt = countValues(values);
         let groupLen = cards.length / 5;
-        let tripVals = Object.keys(cnt).filter(k=>cnt[k]>=3).map(Number).sort((a,b)=>a-b);
+        let tripVals = Object.keys(cnt).filter(k=>cnt[k]===3).map(Number).sort((a,b)=>a-b);
         for (let i=0; i+groupLen<=tripVals.length; i++) {
             let seq = tripVals.slice(i, i+groupLen);
             if (!isStraight(seq) || seq[groupLen-1]>11) continue;
@@ -119,29 +147,35 @@ function canBeat(current, last) {
     if (current.length && current.length !== last.length) return false;
     return current.value > last.value;
 }
+function typePowerOf(typeStr, value, length) {
+    switch (typeStr) {
+        case CardType.ROCKET: return 1000;
+        case CardType.BOMB: return 500 + value;
+        case CardType.SINGLE: return value;
+        case CardType.PAIR: return value + 20;
+        case CardType.TRIPLE: return value + 40;
+        case CardType.TRIPLE_WITH_SINGLE: return value + 60;
+        case CardType.TRIPLE_WITH_PAIR: return value + 70;
+        case CardType.STRAIGHT: return value + 80 + (length || 5);
+        case CardType.STRAIGHT_PAIR: value = value + 90 + (length || 3); return value;
+        case CardType.PLANE: return value + 100 + (length || 2) * 3;
+        case CardType.PLANE_WITH_SINGLE: return value + 110 + (length || 2) * 3;
+        case CardType.PLANE_WITH_PAIR: return value + 120 + (length || 2) * 3;
+        case CardType.FOUR_WITH_TWO_SINGLE: return value + 110;
+        case CardType.FOUR_WITH_TWO_PAIR: return value + 120;
+        default: return value || 0;
+    }
+}
+function minBeatPower(typeStr, value, length) {
+    if (!typeStr || typeStr === CardType.ROCKET) return 0;
+    if (typeStr === CardType.BOMB) return 500 + value + 1;
+    return typePowerOf(typeStr, value + 1, length);
+}
 function getPlayPower(play) {
     if (!play) return 0;
     let type = getCardType(play);
     if (!type) return 0;
-    if (type.type === CardType.ROCKET) return 1000;
-    if (type.type === CardType.BOMB) return 500 + type.value;
-    let base = 0;
-    switch (type.type) {
-        case CardType.SINGLE: base = type.value; break;
-        case CardType.PAIR: base = type.value + 20; break;
-        case CardType.TRIPLE: base = type.value + 40; break;
-        case CardType.TRIPLE_WITH_SINGLE: base = type.value + 60; break;
-        case CardType.TRIPLE_WITH_PAIR: base = type.value + 70; break;
-        case CardType.STRAIGHT: base = type.value + 80 + type.length; break;
-        case CardType.STRAIGHT_PAIR: base = type.value + 90 + type.length; break;
-        case CardType.PLANE: base = type.value + 100 + type.length * 3; break;
-        case CardType.PLANE_WITH_SINGLE: base = type.value + 110 + type.length * 3; break;
-        case CardType.PLANE_WITH_PAIR: base = type.value + 120 + type.length * 3; break;
-        case CardType.FOUR_WITH_TWO_SINGLE: base = type.value + 110; break;
-        case CardType.FOUR_WITH_TWO_PAIR: base = type.value + 120; break;
-        default: base = type.value;
-    }
-    return base;
+    return typePowerOf(type.type, type.value, type.length);
 }
 function _canContend(lastPlay, type) {
     if (!lastPlay) return true;
@@ -157,7 +191,7 @@ const DEFAULT_PARAMS = {
         playPower: 1.0, isBomb: -30, isRocket: -50,
         remainTotal: -2, remainSingle: -1.5, remainPair: -2,
         remainTriple: -4, remainBomb: 15, remainMaxStraight: 3,
-        remainBigCards: 1, hasRocket: 10, isLandlord: 5, isFarmer: 0,
+        remainBigCards: 3, hasRocket: 10, isLandlord: 5, isFarmer: 0,
         opponentHandCount: -1, partnerHandCount: 3, outsideBombCount: -5,
         isCritical: 40, needBeat: 25
     },
@@ -189,8 +223,8 @@ const DEFAULT_PARAMS = {
             call:    { easy: 0, medium: 0, hard: 0, grandmaster: 0, legendary: 6 }
         },
         // 单次决策的时间预算（毫秒）
-        endgameTimeBudgetMs: { easy: 120, medium: 200, hard: 700, grandmaster: 1100, legendary: 1500 },
-        mctsTimeBudgetMs:    { easy: 0, medium: 0, hard: 900, grandmaster: 1400, legendary: 1900 },
+        endgameTimeBudgetMs: { easy: 120, medium: 200, hard: 1200, grandmaster: 2000, legendary: 3000 },
+        mctsTimeBudgetMs:    { easy: 0, medium: 0, hard: 1500, grandmaster: 2500, legendary: 4000 },
         // 跨世界聚合的鲁棒系数：均值 − λ×标准差（压制"赌对手手牌"的走法）
         robustness: 0.25,
         // 领出被压概率的估计（样本数 / 权重 / 候选数）
@@ -207,7 +241,7 @@ const DEFAULT_PARAMS = {
     mcts: {
         ucbC: 1.4,
         rootBranch: 12, branch: 8,
-        iterations: { legendary: 20000, grandmaster: 5000, hard: 600, medium: 0, easy: 0 },
+        iterations: { legendary: 30000, grandmaster: 8000, hard: 1200, medium: 0, easy: 0 },
         handLimit: { legendary: 17, grandmaster: 14, hard: 12, medium: 0, easy: 0 },
         timeLimit: 4000,
         timeLimitByDiff: { legendary: 4000, grandmaster: 2500, hard: 1200 }
@@ -216,33 +250,46 @@ const DEFAULT_PARAMS = {
         depth: { legendary: 2, grandmaster: 1, hard: 1, medium: 0, easy: 0 },
         handLimit: { legendary: 17, grandmaster: 15, hard: 15, medium: 0, easy: 0 },
         dpBonusFactor: { legendary: 0.3 },
-        oppSampleSize: { depth1: 8, depth2: 15 }
+        oppSampleSize: { depth1: 8, depth2: 15 },
+        maxCandidates: { legendary: 10, grandmaster: 10, hard: 10, medium: 0, easy: 0 },
+        dpCandidates: { legendary: 6, grandmaster: 6, hard: 6, medium: 0, easy: 0 }
     },
-    randomFactors: { legendary: 0, grandmaster: 0.05, hard: 0.1, medium: 0.3, easy: 0.6 },
+    randomFactors: { legendary: 0, grandmaster: 0.05, hard: 0.1, medium: 0.2, easy: 0.5 },
     playHeuristics: {
-        partnerPlay: { handLe3: -200, lastPowerGe40: -80, lastPowerLe20: -50 },
+        partnerPlay: { handLe3: -320, handLe2: -600, lastPowerGe40: -80, lastPowerLe20: -50 },
         lordBeatPartner: { needBeat: 80, handLe4: 120 },
         farmerAssist: { partnerHandLe2PlayLe2: 60 },
         farmerBeatSmallSingle: { diffLe3: 40 },
         needBeatLastHighRemain: { lastPowerGe13: -40 },
         landlordLeadSingle: { le6: 20 },
-        suppressSingle: { diffLe4: 80, diffLe7: 50, diffLe10: -20, diffGt10: -40 },
-        suppressPair: { diffLe4: 60, diffLe7: 35, diffLe10: -10, diffGt10: -30 },
+        suppressSingle: { diffLe4: 70, diffLe7: 15, diffLe10: -45, diffGt10: -110 },
+        suppressPair: { diffLe4: 55, diffLe7: 10, diffLe10: -40, diffGt10: -95 },
         farmerOppLowCards: { handLe6LastPowerLe10: 100 },
         farmerVsLord: { lastPowerLe8: 40, lastPowerLe11: 20 },
         landlordLeadLowPower: { powerLe6: 30, powerGe12: -40 },
         farmerLeadHigh: { powerGe12: -40, power1114PartnerLe4: -60 },
         bombUrgent: { oppAboutToWin: 150, landlordRemainLe4: 120, remainLe2: 200 },
         bombStrategic: { fewOutside: 40, rocketBonus: 30 },
-        bombLead: { bomb: -500, rocket: -1000 },
+        bombLead: { bomb: -800, rocket: -1600 },
         bombWasted: { lowLastPower: -120, highLastPower: -60, notCritical: -80 },
         nearWin: { remainLe3: 100 },
         kickerPenalty: { ge11: -60, ge13: -100, hasSmallerAlternative: -120 },
         overkill: { singleLe12: -250, pairLe10: -200 }
     },
+    overshoot: { weight: 0.6, max: 80, curve: 0.8 },
+    comboControl: {
+        tripleHigh: -45, tripleWithHigh: -70, quadHigh: -60, planeHigh: -40,
+        leadHighSingle: -30, leadHighPair: -25, endgameExempt: 4
+    },
+    leadAdjust: {
+        // 农民下一位就是地主时，不要把 ≤3 这种“白送控制权”的单张直接喂出去
+        farmerTinySingleVsLandlord: 1000,
+        // 终局炸弹/王炸领出奖励（不再是绝对死规则）
+        bombLeadLate: { bomb: 20, rocket: 30 }
+    },
     passScores: {
-        farmerPartnerBase: 200, farmerPartnerHandLe3: -50,
-        lordHandLe2: -999, lordHandLe4: -150, lordHandGt4: 20,
+        farmerPartnerBase: 180, farmerPartnerHandLe3: -80, farmerPartnerHandLe2: 500,
+        lordHandLe2: -999, lordHandLe4: -150, lordHandGt4: -10,
         landlordFarmerPlayed: -50, landlordFarmerHandLe3: -200,
         passCountGe1: -40
     },
@@ -258,20 +305,21 @@ const DEFAULT_PARAMS = {
         }
     },
     dpScores: {
-        rocket: 60, bomb: 50, straight: 30, straightLenFactor: 2,
+        rocket: 60, bomb: 50, straight: 25, straightLenFactor: 1,
         straightPair: 25, straightPairLenFactor: 2, tripleWith: 20,
         plane: 40, planeLenFactor: 3, planeWith: 30,
         pair: 5, triple: 8, single: -5, completeBonus: 100
     },
     heuristicPlayout: {
-        bestProb: 0.80, top2Prob: 0.95, stepLimit: 60
+        bestProb: 0.80, top2Prob: 0.95, stepLimit: 90
     },
     endgame: {
         maxDepth: 20, bombDepthPenalty: 1,
-        maxTotalCards: 20, maxHandCards: 17, nodeLimit: 200000, timeBudgetMs: 700
+        maxTotalCards: 24, maxHandCards: 20, maxOptions: 8,
+        nodeLimit: 200000, timeBudgetMs: 700
     },
         aiTiming: {
-            thinkingSeconds: { legendary: 5, grandmaster: 4, hard: 3, medium: 2, easy: 2 },
+            thinkingSeconds: { legendary: 8, grandmaster: 6, hard: 4, medium: 2, easy: 2 },
             delayMs: { fast: 300, normal: 700, slow: 1200 }
         },
     analysis: {
@@ -401,6 +449,7 @@ class HandBelief {
         }
 
         const ownIds = new Set(this.ownHand.map(c => c.id));
+        const ownKeys = new Set(this.ownHand.map(c => (c.suit || '') + '|' + (c.rank !== undefined ? c.rank : c.value)));
         // 地主底牌是公开信息：地主确定后所有人都知道这 3 张在谁手里
         this.knownByPlayer = [[], [], []];
         const lordCards = state.lordCards || [];
@@ -408,6 +457,18 @@ class HandBelief {
         if (lordHasBottom) for (const c of lordCards) if (!ownIds.has(c.id)) this.knownByPlayer[this.landlord].push({ ...c });
         const knownIds = new Set();
         for (const list of this.knownByPlayer) for (const c of list) knownIds.add(c.id);
+
+        // 地主底牌若已被打出，不能继续作为"手中已知牌"进入世界采样
+        if (memory && memory.seen) {
+            const playedRaw = new Set(memory.seen);
+            for (let i = 0; i < 3; i++) {
+                if (this.knownByPlayer[i]) {
+                    this.knownByPlayer[i] = this.knownByPlayer[i].filter(c => !playedRaw.has(c.id));
+                }
+            }
+            knownIds.clear();
+            for (const list of this.knownByPlayer) for (const c of list) knownIds.add(c.id);
+        }
 
         // 已打出的牌 = 公开信息（记牌器）
         const playedSet = new Set();
@@ -425,6 +486,7 @@ class HandBelief {
         const pool = [];
         for (const c of allCards()) {
             if (ownIds.has(c.id) || knownIds.has(c.id) || playedSet.has(c.id)) continue;
+            if (ownKeys.has((c.suit || '') + '|' + (c.rank !== undefined ? c.rank : c.value))) continue;
             pool.push(c);
         }
         // 牌池不足以填满对手手牌（记牌器滞后）→ 从"已打出"里回收，保持世界划分完整
@@ -468,27 +530,59 @@ class HandBelief {
         for (let i = 0; i < n; i++) out.push(this.sampleWorld());
         return out;
     }
-    // 某对手握有炸弹的概率（超几何分布，只依赖未见牌池）
+    // 某对手握有炸弹的概率：结合"未见牌池"与"地主底牌已明确归属该对手"的信息。
+    // 对每个点数，按超几何分布计算该对手至少拿到 4 张的概率；已知底牌直接减少所需张数。
     bombRiskFor(oppId) {
         const n = this.counts[oppId] || 0;
+        const known = this.knownByPlayer[oppId] || [];
+        const knownCounts = new Array(15).fill(0);
+        for (const c of known) knownCounts[c.value]++;
+        const unknownSlots = n - known.length;
         const poolSize = this.pool.length;
-        if (n < 4 || poolSize < 4) return 0;
-        const denom = comb(poolSize, 4);
-        if (!denom) return 0;
+        if (unknownSlots <= 0 || poolSize <= 0) {
+            for (let v = 0; v <= 12; v++) if (knownCounts[v] >= 4) return 1;
+            return 0;
+        }
         let risk = 0;
         for (let v = 0; v <= 12; v++) {
-            if (this.poolCounts[v] < 4) continue;
-            risk += comb(n, 4) / denom;
+            const need = Math.max(0, 4 - knownCounts[v]);
+            if (need <= 0) return 1;
+            const available = this.poolCounts[v] || 0;
+            if (available < need) continue;
+            let hit = 0;
+            const maxTake = Math.min(available, unknownSlots);
+            for (let take = need; take <= maxTake; take++) {
+                hit += comb(available, take) * comb(poolSize - available, unknownSlots - take);
+            }
+            const denom = comb(poolSize, unknownSlots);
+            if (denom) risk += hit / denom;
         }
         return Math.min(1, risk);
     }
-    // 某对手握有王炸的概率
+    // 某对手握有王炸的概率（已知底牌中的大小王同样计入）
     rocketRiskFor(oppId) {
         const n = this.counts[oppId] || 0;
+        const known = this.knownByPlayer[oppId] || [];
+        let knownSmall = 0, knownBig = 0;
+        for (const c of known) {
+            if (c.value === 13) knownSmall++;
+            if (c.value === 14) knownBig++;
+        }
+        if (knownSmall >= 1 && knownBig >= 1) return 1;
+        const unknownSlots = n - known.length;
         const poolSize = this.pool.length;
-        if (n < 2 || poolSize < 2) return 0;
-        if (this.poolCounts[13] < 1 || this.poolCounts[14] < 1) return 0;
-        return Math.min(1, comb(n, 2) / comb(poolSize, 2));
+        if (unknownSlots <= 0 || poolSize <= 0) return 0;
+        const needSmall = knownSmall >= 1 ? 0 : 1;
+        const needBig = knownBig >= 1 ? 0 : 1;
+        const need = needSmall + needBig;
+        if (need === 0) return 1;
+        if (need === 1) {
+            const value = needSmall ? 13 : 14;
+            if ((this.poolCounts[value] || 0) < 1) return 0;
+            return Math.min(1, comb(poolSize - 1, unknownSlots - 1) / comb(poolSize, unknownSlots));
+        }
+        if ((this.poolCounts[13] || 0) < 1 || (this.poolCounts[14] || 0) < 1) return 0;
+        return Math.min(1, comb(poolSize - 2, unknownSlots - 2) / comb(poolSize, unknownSlots));
     }
     // 估计某对手能压过 play 的概率（采样其可能手牌 → 检查是否存在合法应对）
     beatProbability(play, oppId, samples) {
@@ -550,7 +644,7 @@ function evaluateHandStrength(hand, memory, isLandlord, callPosition) {
     if (hand.some(c=>c.value===14) && hand.some(c=>c.value===13)) score += ec.bothJokers;
     else { if (hand.some(c=>c.value===14)) score += ec.bigJokerOnly; if (hand.some(c=>c.value===13)) score += ec.smallJokerOnly; }
     score += (cnt[12]||0)*ec.ace + (cnt[11]||0)*ec.king + (cnt[10]||0)*ec.queen;
-    let sortedUnique = [...new Set(values.filter(v=>v<13))].sort((a,b)=>a-b);
+    let sortedUnique = [...new Set(values.filter(v=>v<12))].sort((a,b)=>a-b);
     let maxLen = 1, cur = 1;
     for (let i=1;i<sortedUnique.length;i++) { if (sortedUnique[i] === sortedUnique[i-1]+1) cur++; else { maxLen = Math.max(maxLen, cur); cur=1; } }
     maxLen = Math.max(maxLen, cur);
@@ -608,55 +702,95 @@ function extractPlayFeatures(play, hand, lastPlay, role, memory, state) {
         partnerHandCount: (role === 'farmer' && partnerId !== -1) ? (state.players[partnerId]?.length || 0) : 0,
         outsideBombCount: memory.getOutsideBombCount(hand), isCritical: (newHand.length <= 3) ? 1 : 0,
         needBeat: needBeat ? 1 : 0, lastPlayType: lastPlay ? lastPlay.type : 'none', lastPlayPower: lastPlay ? lastPlay.value : 0,
+        lastPlayLength: lastPlay ? (lastPlay.length || 0) : 0,
         playType: playType.type, kickerValue, mainValue: playType.value
     };
 }
 
 // ======================== 出牌生成 ========================
+const _PLAY_TYPE_CACHE = new Map();
+function _canonicalHand(hand) {
+    return hand.slice().sort((a, b) => (a.value - b.value) || (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0)));
+}
+const _VALID_PLAYS_CACHE = new Map();
+const _VALID_PLAYS_CACHE_MAX = 256;
+function _validPlaysKey(hand, lastPlay) {
+    let ids = [];
+    for (const c of hand) ids.push(c.value + ':' + c.id);
+    ids.sort();
+    let lp = '-';
+    if (lastPlay && lastPlay.type) {
+        lp = lastPlay.type + ':' + lastPlay.value + ':' + (lastPlay.length || 0);
+    }
+    return ids.join(',') + '|' + lp;
+}
+function _playKey(cards) { return cards.map(c => c.id).sort().join(','); }
+function playTypeOf(play) {
+    if (!play || !play.length) return null;
+    const key = _playKey(play);
+    const hit = _PLAY_TYPE_CACHE.get(key);
+    if (hit) return hit;
+    const t = getCardType(play);
+    if (t) { if (_PLAY_TYPE_CACHE.size > 4000) _PLAY_TYPE_CACHE.clear(); _PLAY_TYPE_CACHE.set(key, t); }
+    return t;
+}
 function getAllValidPlays(hand, lastPlay = null) {
     if (!hand || hand.length === 0) return [];
     if (lastPlay && lastPlay.type === CardType.ROCKET) return [];
-    let candidates = [];
+
+    const cacheKey = _validPlaysKey(hand, lastPlay);
+    const cached = _VALID_PLAYS_CACHE.get(cacheKey);
+    if (cached !== undefined) {
+        return cached.map(p => p.slice());
+    }
+
+    // 等价牌必须稳定表示：否则同一副牌因数组顺序不同会返回“不同的那张 K”，
+    // 上层链路可能在另一条 canonical 列表里选中另一张同名牌，被误判为非法牌。
+    const hand2 = _canonicalHand(hand);
+    let cands = [];
     const byValue = {};
-    hand.forEach(c => { if (!byValue[c.value]) byValue[c.value] = []; byValue[c.value].push(c); });
-    hand.forEach(c => candidates.push([c]));
-    Object.values(byValue).forEach(arr => { if (arr.length >= 2) candidates.push([arr[0], arr[1]]); });
-    Object.values(byValue).forEach(arr => { if (arr.length >= 3) candidates.push([arr[0], arr[1], arr[2]]); });
-    Object.values(byValue).forEach(arr => { if (arr.length === 4) candidates.push(arr); });
-    if (byValue[13] && byValue[14]) candidates.push([byValue[13][0], byValue[14][0]]);
+    hand2.forEach(c => { if (!byValue[c.value]) byValue[c.value] = []; byValue[c.value].push(c); });
+    const push = (cards, type) => cands.push({ cards, type });
+    Object.values(byValue).forEach(arr => { if (arr.length >= 1) push([arr[0]], { type: CardType.SINGLE, value: arr[0].value }); });
+    Object.values(byValue).forEach(arr => { if (arr.length >= 2) push([arr[0], arr[1]], { type: CardType.PAIR, value: arr[0].value }); });
+    Object.values(byValue).forEach(arr => { if (arr.length >= 3) push([arr[0], arr[1], arr[2]], { type: CardType.TRIPLE, value: arr[0].value }); });
+    Object.values(byValue).forEach(arr => { if (arr.length === 4) push(arr, { type: CardType.BOMB, value: arr[0].value + 50 }); });
+    if (byValue[13] && byValue[14]) push([byValue[13][0], byValue[14][0]], { type: CardType.ROCKET, value: 100 });
     if (_canContend(lastPlay, CardType.TRIPLE_WITH_SINGLE)) {
         for (let triple of Object.values(byValue).filter(arr=>arr.length>=3)) {
-            for (let single of hand) if (single.value !== triple[0].value) candidates.push([...triple.slice(0,3), single]);
+            for (let single of hand2) if (single.value !== triple[0].value)
+                push([...triple.slice(0,3), single], { type: CardType.TRIPLE_WITH_SINGLE, value: triple[0].value });
         }
     }
     if (_canContend(lastPlay, CardType.TRIPLE_WITH_PAIR)) {
         for (let triple of Object.values(byValue).filter(arr=>arr.length>=3)) {
-            for (let pair of Object.values(byValue).filter(arr=>arr.length>=2 && arr[0].value !== triple[0].value)) {
-                candidates.push([...triple.slice(0,3), ...pair.slice(0,2)]);
-            }
+            for (let pair of Object.values(byValue).filter(arr=>arr.length>=2 && arr[0].value !== triple[0].value))
+                push([...triple.slice(0,3), ...pair.slice(0,2)], { type: CardType.TRIPLE_WITH_PAIR, value: triple[0].value });
         }
     }
     if (_canContend(lastPlay, CardType.FOUR_WITH_TWO_SINGLE)) {
         for (let quad of Object.values(byValue).filter(arr=>arr.length===4)) {
-            let singles = hand.filter(c => c.value !== quad[0].value);
-            for (let i=0;i<singles.length;i++) for (let j=i+1;j<singles.length;j++) candidates.push([...quad, singles[i], singles[j]]);
+            let singles = hand2.filter(c => c.value !== quad[0].value);
+            for (let i=0;i<singles.length;i++) for (let j=i+1;j<singles.length;j++)
+                push([...quad, singles[i], singles[j]], { type: CardType.FOUR_WITH_TWO_SINGLE, value: quad[0].value });
         }
     }
     if (_canContend(lastPlay, CardType.FOUR_WITH_TWO_PAIR)) {
         for (let quad of Object.values(byValue).filter(arr=>arr.length===4)) {
             let pairs = Object.values(byValue).filter(arr=>arr.length>=2 && arr[0].value !== quad[0].value);
-            for (let i=0;i<pairs.length;i++) for (let j=i+1;j<pairs.length;j++) candidates.push([...quad, ...pairs[i].slice(0,2), ...pairs[j].slice(0,2)]);
+            for (let i=0;i<pairs.length;i++) for (let j=i+1;j<pairs.length;j++)
+                push([...quad, ...pairs[i].slice(0,2), ...pairs[j].slice(0,2)], { type: CardType.FOUR_WITH_TWO_PAIR, value: quad[0].value });
         }
     }
     if (_canContend(lastPlay, CardType.STRAIGHT)) {
-        let uniqueValues = [...new Set(hand.map(c=>c.value).filter(v=>v<12))].sort((a,b)=>a-b);
+        let uniqueValues = [...new Set(hand2.map(c=>c.value).filter(v=>v<12))].sort((a,b)=>a-b);
         for (let len=5; len<=12; len++) {
             for (let i=0; i+len <= uniqueValues.length; i++) {
                 let seq = uniqueValues.slice(i, i+len);
                 if (isStraight(seq)) {
                     let cards = [], ok=true;
                     for (let v of seq) { if (!byValue[v]) { ok=false; break; } cards.push(byValue[v][0]); }
-                    if (ok) candidates.push(cards);
+                    if (ok) push(cards, { type: CardType.STRAIGHT, value: seq[0], length: len });
                 }
             }
         }
@@ -669,7 +803,7 @@ function getAllValidPlays(hand, lastPlay = null) {
                 if (isStraight(seq)) {
                     let cards = [], ok=true;
                     for (let v of seq) { if (!byValue[v] || byValue[v].length<2) { ok=false; break; } cards.push(byValue[v][0], byValue[v][1]); }
-                    if (ok) candidates.push(cards);
+                    if (ok) push(cards, { type: CardType.STRAIGHT_PAIR, value: seq[0], length: len });
                 }
             }
         }
@@ -682,7 +816,7 @@ function getAllValidPlays(hand, lastPlay = null) {
                 if (isStraight(seq)) {
                     let cards = [], ok=true;
                     for (let v of seq) { if (!byValue[v] || byValue[v].length<3) { ok=false; break; } cards.push(byValue[v][0], byValue[v][1], byValue[v][2]); }
-                    if (ok) candidates.push(cards);
+                    if (ok) push(cards, { type: CardType.PLANE, value: seq[0], length: len });
                 }
             }
         }
@@ -697,9 +831,11 @@ function getAllValidPlays(hand, lastPlay = null) {
                 for (let v of seq) { if (!byValue[v] || byValue[v].length<3) { ok=false; break; } tripleCards.push(byValue[v][0], byValue[v][1], byValue[v][2]); }
                 if (!ok) continue;
                 let usedIds = new Set(tripleCards.map(c=>c.id));
-                let kickers = hand.filter(c => !usedIds.has(c.id));
+                let kickers = hand2.filter(c => !usedIds.has(c.id));
                 for (let combo of getCombinations(kickers, len)) {
-                    candidates.push([...tripleCards, ...combo]);
+                    const cards = [...tripleCards, ...combo];
+                    const vt = getCardType(cards);
+                    if (vt && vt.type === CardType.PLANE_WITH_SINGLE) push(cards, vt);
                 }
             }
         }
@@ -720,17 +856,36 @@ function getAllValidPlays(hand, lastPlay = null) {
                     let cards = [...tripleCards];
                     let ok2 = true;
                     for (let v of combo) { if (!byValue[v] || byValue[v].length<2) { ok2=false; break; } cards.push(byValue[v][0], byValue[v][1]); }
-                    if (ok2) candidates.push(cards);
+                    if (!ok2) continue;
+                    const vt = getCardType(cards);
+                    if (vt && vt.type === CardType.PLANE_WITH_PAIR) push(cards, vt);
                 }
             }
         }
     }
     let unique = new Map();
-    candidates.forEach(arr => { let key = arr.map(c=>c.id).sort().join(','); if (!unique.has(key)) unique.set(key, arr); });
-    let result = Array.from(unique.values()).filter(play => getCardType(play) !== null);
-    if (lastPlay) result = result.filter(play => canBeat(getCardType(play), lastPlay));
-    result.sort((a,b)=>getPlayPower(a)-getPlayPower(b));
-    return result;
+    cands.forEach(entry => {
+        const key = _playKey(entry.cards);
+        if (!unique.has(key)) unique.set(key, entry);
+    });
+    let out = [];
+    for (const entry of unique.values()) {
+        let type = entry.type;
+        if (!type || !type.cards) {
+            type = getCardType(entry.cards);
+            if (!type) continue;
+        }
+        if (lastPlay && !canBeat(type, lastPlay)) continue;
+        type.cards = entry.cards;
+        if (_PLAY_TYPE_CACHE.size > 4000) _PLAY_TYPE_CACHE.clear();
+        _PLAY_TYPE_CACHE.set(_playKey(entry.cards), type);
+        out.push({ cards: entry.cards, type });
+    }
+    out.sort((a,b) => typePowerOf(a.type.type, a.type.value, a.type.length) - typePowerOf(b.type.type, b.type.value, b.type.length));
+    const result = out.map(e => e.cards);
+    if (_VALID_PLAYS_CACHE.size >= _VALID_PLAYS_CACHE_MAX) _VALID_PLAYS_CACHE.clear();
+    _VALID_PLAYS_CACHE.set(cacheKey, result.map(p => p.slice()));
+    return result.map(p => p.slice());
 }
 
 // ======================== 评分系统 ========================
@@ -743,6 +898,7 @@ function scorePlay(features, role, memory, state, playerHand) {
     let ps = cfg('passScores');
     if (isPartnerPlay) {
         if (features.partnerHandCount <= 3) score += ph.partnerPlay.handLe3;
+        if (features.partnerHandCount <= 2) score += ph.partnerPlay.handLe2;
         if (features.lastPlayPower >= 40) score += ph.partnerPlay.lastPowerGe40;
         if (features.lastPlayPower <= 20) score += ph.partnerPlay.lastPowerLe20;
     }
@@ -757,33 +913,45 @@ function scorePlay(features, role, memory, state, playerHand) {
     if (features.needBeat && features.lastPlayPower >= 13 && features.remainTotal > 3 && features.playPower > features.lastPlayPower) score += ph.needBeatLastHighRemain.lastPowerGe13;
     if (features.isLandlord && !features.needBeat && features.playLength === 1 && features.playPower <= 6) score += ph.landlordLeadSingle.le6;
     if (features.needBeat && features.lastPlayType === 'single' && features.lastPlayPower <= 8 && features.playPower > features.lastPlayPower) {
-        let efficiency = features.playPower - features.lastPlayPower;
-        if (efficiency <= 4) score += ph.suppressSingle.diffLe4;
-        else if (efficiency <= 7) score += ph.suppressSingle.diffLe7;
-        else if (efficiency <= 10) score += ph.suppressSingle.diffLe10;
+        let over = features.playPower - minBeatPower(features.lastPlayType, features.lastPlayPower, features.lastPlayLength);
+        if (over <= 1) score += ph.suppressSingle.diffLe4;
+        else if (over <= 3) score += ph.suppressSingle.diffLe7;
+        else if (over <= 6) score += ph.suppressSingle.diffLe10;
         else score += ph.suppressSingle.diffGt10;
     }
-    if (features.needBeat && features.lastPlayType === 'pair' && features.lastPlayPower <= 8 && features.playPower - 20 > features.lastPlayPower) {
-        let efficiency = features.playPower - 20 - features.lastPlayPower;
-        if (efficiency <= 4) score += ph.suppressPair.diffLe4;
-        else if (efficiency <= 7) score += ph.suppressPair.diffLe7;
-        else if (efficiency <= 10) score += ph.suppressPair.diffLe10;
+    if (features.needBeat && features.lastPlayType === 'pair' && features.lastPlayPower <= 8) {
+        let over = features.playPower - minBeatPower(features.lastPlayType, features.lastPlayPower, features.lastPlayLength);
+        if (over <= 1) score += ph.suppressPair.diffLe4;
+        else if (over <= 3) score += ph.suppressPair.diffLe7;
+        else if (over <= 6) score += ph.suppressPair.diffLe10;
         else score += ph.suppressPair.diffGt10;
     }
     let lastPlayerCards = state.lastPlayerId >= 0 && state.players[state.lastPlayerId] ? state.players[state.lastPlayerId].length : 20;
     if (features.needBeat && role === 'farmer' && lastPlayerCards <= 6 && features.lastPlayPower <= 10 && features.playPower > features.lastPlayPower) {
         score += ph.farmerOppLowCards.handLe6LastPowerLe10;
     }
-    if (features.needBeat && role === 'farmer' && state.lastPlayerId === state.landlord && features.playPower > features.lastPlayPower) {
+    if (features.needBeat && role === 'farmer' && state.lastPlayerId === state.landlord &&
+        features.playPower > minBeatPower(features.lastPlayType, features.lastPlayPower, features.lastPlayLength)) {
         if (features.lastPlayPower <= 8) score += ph.farmerVsLord.lastPowerLe8;
         else if (features.lastPlayPower <= 11) score += ph.farmerVsLord.lastPowerLe11;
     }
     if (features.needBeat && features.nextPlayerHandCount <= 2 && !features.isBomb && !features.isRocket) {
         if (features.playPower <= 12) score -= 200;
     }
+    let oppAboutToWinEarly;
+    if (role === 'farmer') {
+        oppAboutToWinEarly = (state.players[state.landlord]?.length || 20) <= 2;
+    } else {
+        oppAboutToWinEarly = [0, 1, 2].some(i => i !== state.landlord && (state.players[i]?.length || 20) <= 2);
+    }
     if (!features.needBeat && features.isLandlord && features.playLength <= 2 && features.playType === CardType.SINGLE) {
-        if (features.playPower <= 6) score += ph.landlordLeadLowPower.powerLe6;
+        if (!oppAboutToWinEarly && features.playPower <= 6) score += ph.landlordLeadLowPower.powerLe6;
         if (features.playPower >= 12) score += ph.landlordLeadLowPower.powerGe12;
+    }
+    // 对手只剩 1~2 张：领出单张等于送他走完 → 强惩罚单张、奖励多张组合
+    if (!features.needBeat && oppAboutToWinEarly) {
+        if (features.playLength >= 3) score += 35;
+        else if (features.playLength === 1 && features.nextPlayerHandCount <= 1) score -= 90 + features.playPower * 0.8;
     }
     if (!features.needBeat && features.isFarmer && features.playLength === 1) {
         if (features.playPower >= 12) score += ph.farmerLeadHigh.powerGe12;
@@ -802,7 +970,16 @@ function scorePlay(features, role, memory, state, playerHand) {
     if ((features.isBomb || features.isRocket) && features.remainTotal <= 2) score += ph.bombUrgent.remainLe2;
     if (features.isBomb && memory.getOutsideBombCount(playerHand) <= 1 && !memory.getOutsideRocketPossible(playerHand)) score += ph.bombStrategic.fewOutside;
     if (features.isRocket) score += ph.bombStrategic.rocketBonus;
-    if (!features.needBeat && (features.isBomb || features.isRocket)) score += features.isRocket ? ph.bombLead.rocket : ph.bombLead.bomb;
+    if (!features.needBeat && (features.isBomb || features.isRocket)) {
+        let _late = features.remainTotal <= 3 || (playerHand && playerHand.length <= 6);
+        if (!_late) {
+            score += features.isRocket ? ph.bombLead.rocket : ph.bombLead.bomb;
+        } else {
+            let _bl = cfg('leadAdjust.bombLeadLate') || { bomb: 20, rocket: 30 };
+            score += features.isRocket ? _bl.rocket : _bl.bomb;
+        }
+    }
+
     if ((features.isBomb || features.isRocket) && features.needBeat && features.remainTotal > 5) {
         if (features.lastPlayPower < 40) score += ph.bombWasted.lowLastPower;
         if (features.lastPlayPower >= 40 && features.remainTotal > 8) score += ph.bombWasted.highLastPower;
@@ -821,6 +998,48 @@ function scorePlay(features, role, memory, state, playerHand) {
     if ((features.isBomb || features.isRocket) && features.needBeat && features.remainTotal > 3) {
         if (features.lastPlayType === 'single' && features.lastPlayPower <= 12) score += ph.overkill.singleLe12 || -200;
         if (features.lastPlayType === 'pair' && features.lastPlayPower <= 10) score += ph.overkill.pairLe10 || -150;
+    }
+    let ovW = cfg('overshoot.weight');
+    if (features.needBeat && ovW && !features.isBomb && !features.isRocket && features.remainTotal > 3) {
+        let minP = minBeatPower(features.lastPlayType, features.lastPlayPower, features.lastPlayLength);
+        if (minP > 0) {
+            let over = features.playPower - minP;
+            if (over > 0) {
+                const capped = Math.min(over, cfg('overshoot.max'));
+                score -= capped * ovW + Math.max(0, over - 4) * Math.max(0, over - 4) * cfg('overshoot.curve');
+            }
+        }
+    }
+    let cc = cfg('comboControl');
+    if (cc && features.remainTotal > (cc.endgameExempt || 4)) {
+        if (features.playType === CardType.TRIPLE && features.mainValue >= 12) score += cc.tripleHigh;
+        if ((features.playType === CardType.TRIPLE_WITH_SINGLE || features.playType === CardType.TRIPLE_WITH_PAIR) && features.mainValue >= 11) score += cc.tripleWithHigh;
+        if ((features.playType === CardType.FOUR_WITH_TWO_SINGLE || features.playType === CardType.FOUR_WITH_TWO_PAIR) && features.mainValue >= 10) score += cc.quadHigh;
+        if ((features.playType === CardType.PLANE || features.playType === CardType.PLANE_WITH_SINGLE || features.playType === CardType.PLANE_WITH_PAIR) && features.mainValue >= 10) score += cc.planeHigh;
+        if (!features.needBeat && features.playLength === 1 && features.mainValue >= 11) score += cc.leadHighSingle;
+        if (!features.needBeat && features.playLength === 2 && features.mainValue >= 12) score += cc.leadHighPair;
+    }
+    // ===== 角色协作/压制：农民保队友、压制地主；地主压制快赢农民 =====
+    let _pid = state.currentPlayer;
+    let _landlord = state.landlord;
+    let _lastId = state.lastPlayerId;
+    // 下家是对手且少牌：除非过牌会送其赢，否则应防止其接牌并优先压住
+    if (features.needBeat && features.nextPlayerHandCount <= 2) {
+        let nextIsOpp = role === 'farmer' ? ( ( (_pid+1)%3 ) === _landlord ) : ( ( (_pid+1)%3 ) !== _landlord );
+        if (nextIsOpp && !features.isRocket) score += 60;
+    }
+    // 地主(对手)只剩 <=2 张：农民应尽量压住/防止其顺走
+    if (role === 'farmer' && features.needBeat && _lastId === _landlord && (state.players[_landlord] ? state.players[_landlord].length : 20) <= 2) {
+        if (features.playPower > (features.lastPlayPower || 0)) score += 120;
+    }
+    // 队友只剩 <=2 张：农民不要 unnecessarily 压过队友/抢出大牌
+    if (role === 'farmer' && state.lastPlayerId !== -1 && state.lastPlayerId !== _landlord && features.needBeat) {
+        let mateCards = state.players[state.lastPlayerId] ? state.players[state.lastPlayerId].length : 20;
+        if (mateCards <= 2 && features.playPower >= 12) score -= 100;
+    }
+    // 地主面对快赢农民：强力压制
+    if (role === 'landlord' && features.needBeat && _lastId !== _landlord && (state.players[_lastId] ? state.players[_lastId].length : 20) <= 2) {
+        if (features.playPower > (features.lastPlayPower || 0)) score += 150;
     }
     if (playerHand) {
         let ruleCtx = {
@@ -856,6 +1075,7 @@ function computePassScore(role, state) {
             score += ps.farmerPartnerBase;
             let partnerCards = state.players[state.lastPlayerId] ? state.players[state.lastPlayerId].length : 17;
             if (partnerCards <= 3) score += ps.farmerPartnerHandLe3;
+            if (partnerCards <= 2) score += ps.farmerPartnerHandLe2;
         } else if (state.lastPlayerId === state.landlord) {
             if (lordCards <= 2) score += ps.lordHandLe2;
             else if (lordCards <= 4) score += ps.lordHandLe4;
@@ -872,18 +1092,55 @@ function computePassScore(role, state) {
     let nextCards = state.players[nextP] ? state.players[nextP].length : 17;
     let isNextOpp = role === 'farmer' ? nextP === state.landlord : nextP !== state.landlord;
     if (nextCards <= 2 && isNextOpp && state.lastPlayerId !== -1 && state.lastPlayerId !== state.currentPlayer) score -= 300;
+    // 队友(下家)即将出完：优先过牌送其胜利
+    if (nextCards <= 2 && !isNextOpp && state.lastPlayerId !== -1 && state.lastPlayerId !== state.currentPlayer) score += 150;
     if (state.passCount >= 1) score += ps.passCountGe1;
+    try {
+        const lastId = state.lastPlayerId;
+        const oppCount = lastId >= 0 && state.players[lastId] ? state.players[lastId].length : 17;
+        const passCtx = {
+            target: 'pass',
+            needBeat: !!state.lastPlay && state.lastPlayerId !== state.currentPlayer,
+            role: role,
+            opponentHandCount: oppCount
+        };
+        for (const rule of matchRules(passCtx)) {
+            if (rule && rule.context && rule.context.target === 'pass') score += rule.penalty;
+        }
+    } catch (e) { /* 规则匹配失败不影响基础过牌分 */ }
     return score;
 }
 
 // ======================== 对手响应模拟 ========================
 function simulateOpponentResponseV2(play, hand, state, role, memory, depth = 1) {
-    let newHand = hand.filter(c => !play.includes(c));
-    let newState = JSON.parse(JSON.stringify(state));
+    const myRoleId = role === 'landlord' ? 'landlord' : 'farmer';
+    const newHand = hand.filter(c => !play.includes(c));
+    const newState = _cloneStateShallow(state);
     newState.players[state.currentPlayer] = newHand;
-    let nextPlayer = (state.currentPlayer + 1) % 3;
-    if (newState.players[nextPlayer].length === 0) return -100;
-    let lastType = getCardType(play);
+    newState.lastPlay = getCardType(play);
+    newState.lastPlayerId = state.currentPlayer;
+    newState.passCount = 0;
+
+    function terminalScore(s) {
+        for (let i = 0; i < 3; i++) {
+            if (s.players[i] && s.players[i].length === 0) {
+                const winnerRole = i === s.landlord ? 'landlord' : 'farmer';
+                return winnerRole === myRoleId ? 100 : -100;
+            }
+        }
+        return null;
+    }
+    function staticScore(s) {
+        let mine = 0, theirs = 0;
+        for (let i = 0; i < 3; i++) {
+            const p = s.players[i] || [];
+            let str = 0;
+            try { str = evaluateHandStrength(p, memory, i === s.landlord); } catch (e) { str = p.length; }
+            const sameRole = (i === s.landlord) === (myRoleId === 'landlord');
+            if (sameRole) mine += str; else theirs += str;
+        }
+        return Math.max(-80, Math.min(80, (mine - theirs) * 0.8));
+    }
     function sampleOpponentPlays(oppHand, targetPlay) {
         let plays = getAllValidPlays(oppHand, targetPlay);
         if (!plays || plays.length === 0) return null;
@@ -894,70 +1151,76 @@ function simulateOpponentResponseV2(play, hand, state, role, memory, depth = 1) 
         for (let i = 0; i < n; i++) result.push(plays[Math.min(i * step, plays.length - 1)]);
         return result;
     }
-    function evalState(s, pid, myRoleId, depth) {
-        if (s.players[pid].length === 0) {
-            let winnerRole = pid === s.landlord ? 'landlord' : 'farmer';
-            return winnerRole === myRoleId ? 100 : -100;
+    function evalState(s, pid, myRoleId, remainingDepth) {
+        const term = terminalScore(s);
+        if (term !== null) return term;
+        if (remainingDepth <= 0) return staticScore(s);
+        const needBeat = s.lastPlay && s.lastPlayerId !== pid;
+        const samples = sampleOpponentPlays(s.players[pid], s.lastPlay);
+        if (!samples || samples.length === 0) {
+            if (!needBeat) return staticScore(s);
+            const s2 = _cloneStateShallow(s);
+            s2.passCount = (s2.passCount || 0) + 1;
+            if (s2.passCount >= 2) { s2.lastPlay = null; s2.lastPlayerId = -1; s2.passCount = 0; }
+            return evalState(s2, (pid + 1) % 3, myRoleId, remainingDepth - 1);
         }
-        if (depth <= 0) {
-            let str = evaluateHandStrength(s.players[pid], memory, pid === s.landlord);
-            let sameRole = (pid === s.landlord) === (myRoleId === 'landlord');
-            return sameRole ? str : -str;
-        }
-        let samples = sampleOpponentPlays(s.players[pid], s.lastPlay);
-        if (!samples) {
-            s.passCount++;
-            if (s.passCount >= 2) { s.lastPlay = null; s.lastPlayerId = -1; s.passCount = 0; }
-            return evalState(s, (pid + 1) % 3, myRoleId, depth - 1);
-        }
+        const actions = samples.slice();
+        if (needBeat) actions.push([]);
         let total = 0, count = 0;
-        for (let sp of samples) {
-            let s2 = JSON.parse(JSON.stringify(s));
-            let spIds = new Set(sp.map(c => c.id));
+        for (const sp of actions) {
+            const s2 = _cloneStateShallow(s);
+            if (!sp || sp.length === 0) {
+                s2.passCount = (s2.passCount || 0) + 1;
+                if (s2.passCount >= 2) { s2.lastPlay = null; s2.lastPlayerId = -1; s2.passCount = 0; }
+                total += evalState(s2, (pid + 1) % 3, myRoleId, remainingDepth - 1);
+                count++;
+                continue;
+            }
+            const spIds = new Set(sp.map(c => c.id));
             s2.players[pid] = s2.players[pid].filter(c => !spIds.has(c.id));
             s2.lastPlay = getCardType(sp);
             s2.lastPlayerId = pid;
             s2.passCount = 0;
-            if (s2.players[pid].length === 0) {
-                let wRole = pid === s2.landlord ? 'landlord' : 'farmer';
-                total += wRole === myRoleId ? 100 : -100;
-            } else {
-                total += evalState(s2, (pid + 1) % 3, myRoleId, depth - 1);
-            }
+            const term2 = terminalScore(s2);
+            total += term2 !== null ? term2 : evalState(s2, (pid + 1) % 3, myRoleId, remainingDepth - 1);
             count++;
         }
-        return count > 0 ? total / count : 0;
+        return count > 0 ? total / count : staticScore(s);
     }
-    let score = 0;
-    let opponentPlays = getAllValidPlays(newState.players[nextPlayer], lastType);
+
+    const rootTerm = terminalScore(newState);
+    if (rootTerm !== null) return rootTerm;
+    const nextPlayer = (state.currentPlayer + 1) % 3;
+    const opponentPlays = getAllValidPlays(newState.players[nextPlayer], newState.lastPlay);
     if (!opponentPlays || opponentPlays.length === 0) {
         newState.passCount = (newState.passCount || 0) + 1;
         if (newState.passCount >= 2) { newState.lastPlay = null; newState.lastPlayerId = -1; newState.passCount = 0; }
-        score = evalState(newState, (nextPlayer + 1) % 3, role, depth);
-    } else {
-        let n = depth >= 2 ? 15 : 8;
-        let samples = opponentPlays.length <= n ? opponentPlays :
-            (() => { let step = Math.floor(opponentPlays.length / n); let r = []; for (let i = 0; i < n; i++) r.push(opponentPlays[Math.min(i * step, opponentPlays.length - 1)]); return r; })();
-        let weighted = 0, count = 0;
-        for (let sp of samples) {
-            let s2 = JSON.parse(JSON.stringify(newState));
-            let spIds = new Set(sp.map(c => c.id));
-            s2.players[nextPlayer] = s2.players[nextPlayer].filter(c => !spIds.has(c.id));
-            s2.lastPlay = getCardType(sp);
-            s2.lastPlayerId = nextPlayer;
-            s2.passCount = 0;
-            if (s2.players[nextPlayer].length === 0) {
-                let wRole = nextPlayer === s2.landlord ? 'landlord' : 'farmer';
-                weighted += wRole === role ? 100 : -100;
-            } else {
-                let third = (nextPlayer + 1) % 3;
-                weighted += evalState(s2, third, role, depth);
-            }
-            count++;
-        }
-        score = count > 0 ? weighted / count : 0;
+        return evalState(newState, (nextPlayer + 1) % 3, myRoleId, depth);
     }
-    return score;
+    const n = depth >= 2 ? 15 : 8;
+    const samples = opponentPlays.length <= n ? opponentPlays.slice() :
+        (() => { const step = Math.floor(opponentPlays.length / n); const r = []; for (let i = 0; i < n; i++) r.push(opponentPlays[Math.min(i * step, opponentPlays.length - 1)]); return r; })();
+    samples.push([]);
+    let weighted = 0, count = 0;
+    for (const sp of samples) {
+        const s2 = _cloneStateShallow(newState);
+        if (!sp || sp.length === 0) {
+            s2.passCount = (s2.passCount || 0) + 1;
+            if (s2.passCount >= 2) { s2.lastPlay = null; s2.lastPlayerId = -1; s2.passCount = 0; }
+            weighted += evalState(s2, (nextPlayer + 1) % 3, myRoleId, depth - 1);
+            count++;
+            continue;
+        }
+        const spIds = new Set(sp.map(c => c.id));
+        s2.players[nextPlayer] = s2.players[nextPlayer].filter(c => !spIds.has(c.id));
+        s2.lastPlay = getCardType(sp);
+        s2.lastPlayerId = nextPlayer;
+        s2.passCount = 0;
+        const term2 = terminalScore(s2);
+        weighted += term2 !== null ? term2 : evalState(s2, (nextPlayer + 1) % 3, myRoleId, depth - 1);
+        count++;
+    }
+    return count > 0 ? weighted / count : 0;
 }
 
 // ======================== 盲对手响应模拟（多世界聚合） ========================
@@ -977,9 +1240,15 @@ function simulateOpponentResponseBlind(play, hand, state, role, memory, belief, 
 }
 
 // ======================== DP 手牌分解 ========================
+const _DP_CACHE = new Map();
+const _DP_CACHE_MAX = 96;
+function _dpCacheKey(hand) { return hand.map(c => c.id).sort().join('|'); }
 function decomposeHandDP(hand) {
     if (!hand || hand.length === 0) return { plays: [], score: 0 };
-    if (hand.length > 14) return { plays: [], score: -999 };
+    if (hand.length > 15) return { plays: [], score: -999 };
+    const _ck = _dpCacheKey(hand);
+    const _hit = _DP_CACHE.get(_ck);
+    if (_hit) return _hit;
     const n = hand.length;
     const idxToCard = hand;
     let cardIndex = {};
@@ -1022,13 +1291,20 @@ function decomposeHandDP(hand) {
             let cnt = countValues(play.map(c=>c.value));
             let kickerVal = parseInt(Object.keys(cnt).find(k => cnt[k] === target && parseInt(k) !== type.value)) || 0;
             pscore = ds.tripleWith - Math.max(0, kickerVal - 7) * 3;
+            if (type.value >= 11) pscore -= 30;
         }
         else if (type.type === CardType.PAIR) pscore = ds.pair;
-        else if (type.type === CardType.TRIPLE) pscore = ds.triple;
+        else if (type.type === CardType.TRIPLE) { pscore = ds.triple; if (type.value >= 11) pscore -= 30; }
         else pscore = ds.single;
         if (play.length === hand.length) pscore += ds.completeBonus;
         playEntries.push({ mask, score: pscore, play });
     }
+    const _seenMask = new Set();
+    playEntries = playEntries.filter(pe => {
+        if (_seenMask.has(pe.mask)) return false;
+        _seenMask.add(pe.mask);
+        return true;
+    });
     let totalMasks = 1 << n;
     let dp = new Array(totalMasks).fill(null);
     let prev = new Array(totalMasks).fill(null);
@@ -1063,7 +1339,116 @@ function decomposeHandDP(hand) {
     plays.reverse();
     let remaining = hand.filter(c => !plays.flat().includes(c));
     for (let c of remaining) plays.push([c]);
-    return { plays, score: bestScore };
+    const _out = { plays, score: bestScore };
+    if (_DP_CACHE.size >= _DP_CACHE_MAX) _DP_CACHE.clear();
+    _DP_CACHE.set(_ck, _out);
+    return _out;
+}
+
+function greedyDecompose(hand) {
+    if (!hand || !hand.length) return { plays: [], score: 0 };
+    hand = _canonicalHand(hand);
+
+    const plays = [];
+    const used = new Set();
+    const remaining = () => hand.filter(c => !used.has(c.id));
+    const takeCards = (cards) => {
+        for (const c of cards) used.add(c.id);
+        plays.push(cards.map(c => ({ ...c })));
+    };
+    const reserve = (cards) => { for (const c of cards) used.add(c.id); };
+    const unreservePlay = (cards) => plays.push(cards.map(c => ({ ...c })));
+
+    const byValue = {};
+    for (const c of hand) {
+        if (c.value < 0 || c.value > 14) continue;
+        if (!byValue[c.value]) byValue[c.value] = [];
+        byValue[c.value].push(c);
+    }
+
+    const rocket = (byValue[13] && byValue[13].length && byValue[14] && byValue[14].length)
+        ? [byValue[13][0], byValue[14][0]] : null;
+    const bombs = [];
+    for (let v = 0; v <= 12; v++) {
+        if (byValue[v] && byValue[v].length === 4) bombs.push(byValue[v].slice(0, 4));
+    }
+
+    // 炸弹/王炸先“预留”给最后，但不会参与前面的顺子/连对拆解。
+    const reserved = [];
+    if (rocket) { reserve(rocket); reserved.push(rocket); }
+    for (const b of bombs) { reserve(b); reserved.push(b); }
+
+    const availFor = (v) => (byValue[v] || []).filter(c => !used.has(c.id));
+    const canUseValue = (v) => availFor(v).length > 0;
+    const findRun = (need, minLen) => {
+        for (let len = Math.min(12, Math.max(2, minLen)); len >= minLen; len--) {
+            for (let start = 0; start + len <= 12; start++) {
+                let ok = true;
+                const vals = [];
+                for (let i = 0; i < len; i++) {
+                    const v = start + i;
+                    if (!canUseValue(v) || availFor(v).length < need) { ok = false; break; }
+                    vals.push(v);
+                }
+                if (!ok) continue;
+                const seq = [];
+                for (const v of vals) {
+                    const it = availFor(v);
+                    for (let k = 0; k < need; k++) seq.push(it[k]);
+                }
+                if (seq.length) return seq;
+            }
+        }
+        return null;
+    };
+
+    // 连对 > 顺子，先把连续结构形成
+    let pairRun = findRun(2, 3);
+    if (pairRun) takeCards(pairRun);
+    let straightRun = findRun(1, 5);
+    if (straightRun) takeCards(straightRun);
+
+    // 三带：优先三张本体，kicker 用剩余最小的牌，避免吃 A/2/王
+    for (let v = 12; v >= 0; v--) {
+        if ((byValue[13] && v === 13) || (byValue[14] && v === 14)) continue;
+        const avail = availFor(v);
+        if (avail.length < 3) continue;
+        const triple = avail.slice(0, 3);
+        const kickerList = remaining().filter(c => !triple.includes(c) && c.value !== v)
+            .sort((a, b) => a.value - b.value);
+        if (kickerList.length) takeCards([...triple, kickerList[0]]);
+        else takeCards(triple);
+    }
+
+    // 剩余对子
+    const rem = remaining().slice().sort((a, b) => a.value - b.value);
+    for (let i = 0; i < rem.length - 1; i++) {
+        if (rem[i] && rem[i + 1] && rem[i].value === rem[i + 1].value) {
+            takeCards([rem[i], rem[i + 1]]);
+            i++;
+        }
+    }
+
+    // 单张
+    for (const c of remaining()) takeCards([c]);
+
+    // 预留牌放最后（炸弹/王炸不该作为常规先手）
+    for (const play of reserved) unreservePlay(play);
+
+    let score = 0;
+    for (const pl of plays) {
+        const t = getCardType(pl);
+        if (!t) continue;
+        let base = pl.length * 2;
+        if (t.type === CardType.STRAIGHT) base += 8 + t.length * 2;
+        else if (t.type === CardType.STRAIGHT_PAIR) base += 8 + t.length * 2;
+        else if (t.type === CardType.PLANE) base += 8 + t.length * 2;
+        else if (t.type === CardType.TRIPLE) base += 3;
+        else if (t.type === CardType.PAIR) base += 1;
+        else if (t.type === CardType.BOMB || t.type === CardType.ROCKET) base -= 2;
+        score += base;
+    }
+    return { plays, score };
 }
 
 // 轻量状态拷贝：牌对象只读，因此只需复制手牌数组与顶层字段，
@@ -1076,6 +1461,7 @@ function _cloneStateShallow(state) {
 }
 
 // ======================== 残局求解（快速 make/undo + 置换表 + 时间预算） ========================
+const ENDGAME_PASS = { __endgamePass: true };
 // 关键改进：① 支持"过牌"作为根候选（原实现漏掉，会错失配合/留牌最优解）
 //           ② 终局收益与深度解耦，置换表可跨路径复用（原实现按深度存，复用不安全）
 //           ③ 手牌以"点数多重集"做键，同点不同花视为等价，TT 命中率显著提升
@@ -1121,7 +1507,9 @@ function _endgameKeyFast(hands, cp, lastPlay, passCount) {
 function _applyPlay(hands, cp, cards) {
     const hand = hands[cp];
     for (let i = 0; i < cards.length; i++) {
-        const idx = hand.indexOf(cards[i]);
+        const cid = cards[i].id;
+        let idx = hand.findIndex(c => c.id === cid);
+        if (idx < 0) idx = hand.indexOf(cards[i]);
         if (idx >= 0) hand.splice(idx, 1);
     }
 }
@@ -1237,13 +1625,13 @@ function solveEndgame(state, playerId, opts) {
     };
 
     const options = plays.slice();
-    if (needBeat) options.push(null); // 过牌
+    if (needBeat) options.push(ENDGAME_PASS); // 过牌
     // 以学习到的启发式评分排序：保证即使预算截断，回退的也是 AI 默认最想出的牌，
     // 使残局求解成为"启发式的严格改进"而非另起炉灶。
     const mem = _memoryFromState(state);
     const role = (playerId === state.landlord) ? 'landlord' : 'farmer';
     const scoreOf = (p) => {
-        if (p === null) return computePassScore(role, state);
+        if (p === ENDGAME_PASS) return computePassScore(role, state);
         try {
             const f = extractPlayFeatures(p, hand, state.lastPlay, role, mem, state);
             return scorePlay(f, role, mem, state, hand);
@@ -1255,7 +1643,7 @@ function solveEndgame(state, playerId, opts) {
     let searchTruncated = false;
     for (const p of options) {
         let val;
-        if (p === null) {
+        if (p === null || p === ENDGAME_PASS) {
             val = endgameMinimax(hands, (playerId + 1) % 3, state.lastPlay, state.lastPlayerId, (state.passCount || 0) + 1, mySide, ctx, -Infinity, Infinity);
         } else {
             _applyPlay(hands, playerId, p);
@@ -1295,18 +1683,23 @@ function solveEndgameBlind(state, playerId, belief, opts) {
     const plays = needBeat ? getAllValidPlays(hand, state.lastPlay) : getAllValidPlays(hand, null);
     if (!plays.length) return null;
     const options = plays.slice();
-    if (needBeat) options.push(null); // 过牌
+    if (needBeat) options.push(ENDGAME_PASS); // 过牌
 
     const role = (playerId === state.landlord) ? 'landlord' : 'farmer';
     const mem = opts.memory || null;
     const scoreOf = (p) => {
-        if (p === null) return computePassScore(role, state);
+        if (p === null || p === ENDGAME_PASS) return computePassScore(role, state);
         try {
             const f = extractPlayFeatures(p, hand, state.lastPlay, role, mem, state);
             return scorePlay(f, role, mem, state, hand);
         } catch (e) { return 0; }
     };
     options.sort((a, b) => scoreOf(b) - scoreOf(a));
+    // 残局候选过多会让每个候选分到的搜索时间过短 → 全部被截断 → 残局搜索退化为启发式。
+    // 这里保留启发式排序最靠前的候选（覆盖多种牌型）+ 过牌，限制候选规模。
+    const maxOptions = Math.max(4, Math.min(10, opts.maxOptions || (cfg('endgame.maxOptions') || 8)));
+    let trimmedOptions = options.slice(0, maxOptions);
+    if (needBeat && !trimmedOptions.includes(ENDGAME_PASS)) trimmedOptions.push(ENDGAME_PASS);
 
     const worlds = Math.max(1, opts.worlds || 4);
     const budgetMs = opts.timeBudgetMs !== undefined ? opts.timeBudgetMs : (cfg('blind.endgameTimeBudgetMs') || 600);
@@ -1315,22 +1708,26 @@ function solveEndgameBlind(state, playerId, belief, opts) {
     const perWorldLimit = Math.max(20000, Math.floor(nodeLimit / worlds));
     const lambda = opts.robustness !== undefined ? opts.robustness : (cfg('blind.robustness') !== undefined ? cfg('blind.robustness') : 0.25);
     const mySide = (playerId === state.landlord) ? [playerId] : [0, 1, 2].filter(i => i !== state.landlord);
-    const keyOf = (p) => (p === null) ? 'pass' : p.map(c => c.id).sort().join(',');
+    const keyOf = (p) => (p === null || p === ENDGAME_PASS) ? 'pass' : p.map(c => c.id).sort().join(',');
     const agg = new Map();
 
+    let evaluatedWorlds = 0;
+    // 每个候选平均分到的时间片；候选越多每片越短，但总时间受全局 deadline 约束
+    const perCandidateMs = Math.max(30, Math.floor(budgetMs / Math.max(1, worlds * trimmedOptions.length)));
     for (let w = 0; w < worlds; w++) {
         if (Date.now() > deadline) break;
         const worldPlayers = belief.sampleWorld();
         const hands = worldPlayers.map(p => [...p]);
-        const ctx = {
-            nodes: 0, limit: perWorldLimit, tt: new Map(), truncated: false,
-            deadline: Math.min(deadline, Date.now() + Math.max(60, Math.floor(budgetMs / worlds)))
-        };
-        // 候选按启发式顺序评估：预算被截断时，优先保证"最想出的那几手"在每个世界里都被评估到
-        for (const p of options) {
+        evaluatedWorlds++;
+        // 每个候选使用独立 ctx：某个候选被截断时不会污染后续候选，也不会把整轮搜索提前结束。
+        for (const p of trimmedOptions) {
             if (Date.now() > deadline) break;
+            const ctx = {
+                nodes: 0, limit: perWorldLimit, tt: new Map(), truncated: false,
+                deadline: Math.min(deadline, Date.now() + perCandidateMs)
+            };
             let val;
-            if (p === null) {
+            if (p === null || p === ENDGAME_PASS) {
                 val = endgameMinimax(hands, (playerId + 1) % 3, state.lastPlay, state.lastPlayerId, (state.passCount || 0) + 1, mySide, ctx, -Infinity, Infinity);
             } else {
                 _applyPlay(hands, playerId, p);
@@ -1342,7 +1739,7 @@ function solveEndgameBlind(state, playerId, belief, opts) {
                 val = endgameMinimax(hands, (playerId + 1) % 3, getCardType(p), playerId, 0, mySide, ctx, -Infinity, Infinity);
                 _undoPlay(hands, playerId, p);
             }
-            if (ctx.truncated) break;  // 该世界评估不可靠 → 丢弃剩余候选
+            if (ctx.truncated) continue;
             const key = keyOf(p);
             let e = agg.get(key);
             if (!e) { e = { sum: 0, sq: 0, n: 0, play: p }; agg.set(key, e); }
@@ -1350,19 +1747,19 @@ function solveEndgameBlind(state, playerId, belief, opts) {
         }
     }
 
-    // 只在"被同样多的世界评估过"的候选之间比较，避免样本数不同造成的偏差
-    let maxN = 0;
-    for (const e of agg.values()) maxN = Math.max(maxN, e.n);
+    // 候选可能只覆盖部分世界；用覆盖率惩罚替代"必须覆盖所有世界"的硬门槛，
+    // 否则预算稍紧就会把所有候选一起丢掉，残局搜索完全失效。
     let bestPlay = null, bestScore = -Infinity, found = false;
     for (const e of agg.values()) {
-        if (e.n === 0 || e.n < maxN) continue;
+        if (e.n <= 0) continue;
         const mean = e.sum / e.n;
         const variance = Math.max(0, e.sq / e.n - mean * mean);
-        const score = mean - lambda * Math.sqrt(variance);
+        const coverage = evaluatedWorlds > 0 ? e.n / evaluatedWorlds : 0;
+        const score = mean - lambda * Math.sqrt(variance) - 0.2 * (1 - coverage);
         if (score > bestScore) { bestScore = score; bestPlay = e.play; found = true; }
     }
     if (found) return bestPlay;
-    for (const o of options) if (o && o.length > 0) return o;
+    for (const o of trimmedOptions) if (o && o.length > 0) return o;
     return plays[0] || null;
 }
 
@@ -1401,7 +1798,7 @@ function heuristicPlayoutWithMode(state, startPlayer, myId, memory, deterministi
     let s = _cloneStateShallow(state);
     let cp = startPlayer;
     let mySide = (myId === s.landlord) ? [myId] : [0,1,2].filter(i => i !== s.landlord);
-    let hp = cfg('heuristicPlayout');
+    const hp = cfg('heuristicPlayout');
     for (let step = 0; step < hp.stepLimit; step++) {
         for (let i = 0; i < 3; i++) {
             if (s.players[i].length === 0) return mySide.includes(i);
@@ -1409,21 +1806,106 @@ function heuristicPlayoutWithMode(state, startPlayer, myId, memory, deterministi
         if (s.passCount >= 2) { s.lastPlay = null; s.lastPlayerId = -1; s.passCount = 0; }
         s.currentPlayer = cp;
         let hand = s.players[cp];
-        if (hand.length === 0) { cp = (cp + 1) % 3; continue; }
+        if (!hand || hand.length === 0) { cp = (cp + 1) % 3; continue; }
         let needBeat = s.lastPlay && s.lastPlayerId !== cp;
         let plays = needBeat ? getAllValidPlays(hand, s.lastPlay) : getAllValidPlays(hand, null);
         if (plays.length === 0) { s.passCount++; cp = (cp + 1) % 3; continue; }
-        let role = cp === s.landlord ? 'landlord' : 'farmer';
-        let scored = plays.map(p => {
-            let feat = extractPlayFeatures(p, hand, s.lastPlay, role, memory, s);
-            return { play: p, score: scorePlay(feat, role, memory, s, hand) };
-        });
-        scored.sort((a,b) => b.score - a.score);
-        let chosenPlay = scored[0].play;
+        const role = cp === s.landlord ? 'landlord' : 'farmer';
+        const minP = needBeat ? minBeatPower(s.lastPlay.type, s.lastPlay.value, s.lastPlay.length) : 0;
+        let best = null, bestScore = -Infinity, bestOver = Infinity;
+        let second = null, secondScore = -Infinity;
+        let third = null, thirdScore = -Infinity;
+        const richCands = [];
+        for (let i = 0; i < plays.length; i++) {
+            const pl = plays[i];
+            const t = playTypeOf(pl);
+            if (!t) continue;
+            const pw = typePowerOf(t.type, t.value, t.length);
+            let sc = pl.length * 4 - pw * 0.25;
+            const nextCards = (s.players[(cp + 1) % 3] && s.players[(cp + 1) % 3].length) || 0;
+            if (!needBeat && nextCards <= 2) {
+                if (pl.length >= 3) sc += 35;
+                else if (pl.length === 1 && nextCards <= 1) sc -= 90 - Math.min(pw, 20);
+            }
+            if (t.type === CardType.STRAIGHT || t.type === CardType.STRAIGHT_PAIR || t.type === CardType.PLANE) sc += 8;
+            if (t.type === CardType.BOMB || t.type === CardType.ROCKET) sc -= 60;
+            const over = needBeat ? (pw - minP) : 0;
+            if (needBeat && over > 0) sc -= over * 0.6;
+            richCands.push({ play: pl, score: sc });
+            if (sc > bestScore) {
+                third = second; thirdScore = secondScore;
+                second = best; secondScore = bestScore;
+                best = pl; bestScore = sc; bestOver = over;
+            } else if (sc > secondScore) {
+                third = second; thirdScore = secondScore;
+                second = pl; secondScore = sc;
+            } else if (sc > thirdScore) {
+                third = pl; thirdScore = sc;
+            }
+        }
+        if (!best) { s.passCount++; cp = (cp + 1) % 3; continue; }
+        // 关键候选用完整启发式重打分：先按结构分排序并保留牌型多样性，避免截断到"最弱 6 手"。
+        const richPool = [];
+        const seenRich = new Set();
+        const pushRich = (pl) => {
+            if (!pl || !pl.length) return;
+            const key = pl.map(c => c.id).sort().join(',');
+            if (seenRich.has(key)) return;
+            seenRich.add(key);
+            richPool.push(pl);
+        };
+        const sortedRich = richCands.slice().sort((a, b) => b.score - a.score);
+        pushRich(best); pushRich(second); pushRich(third);
+        const seenTypes = new Set();
+        for (const entry of sortedRich) {
+            const t = playTypeOf(entry.play);
+            if (!t) continue;
+            if (!seenTypes.has(t.type)) { seenTypes.add(t.type); pushRich(entry.play); }
+            if (richPool.length >= 8) break;
+        }
+        for (const entry of sortedRich) {
+            if (richPool.length >= 8) break;
+            pushRich(entry.play);
+        }
+        if (richPool.length > 1 && typeof scorePlay === 'function') {
+            let rBest = null, rScore = -Infinity;
+            for (const cand of richPool) {
+                try {
+                    const feat = extractPlayFeatures(cand, hand, s.lastPlay, role, memory, s);
+                    const sc = scorePlay(feat, role, memory, s, hand);
+                    if (sc > rScore) { rScore = sc; rBest = cand; }
+                } catch (e) { /* 忽略单候选异常 */ }
+            }
+            if (rBest) best = rBest;
+        }
+        if (needBeat) {
+            const lastId = s.lastPlayerId;
+            const lastCards = (s.players[lastId] && s.players[lastId].length) || 0;
+            const mateLead = role === 'farmer' && lastId !== s.landlord;
+            const oppUrgent = lastCards <= 2;
+            const cheap = bestOver <= 4;
+            let doPass = false;
+            if (mateLead) {
+                // 队友领出：默认让牌。但如果队友并不领先、且地主/对手下一家很紧，
+                // 需要允许一次“低价接管”，而不是永远机械过牌。
+                const nextAfter = (cp + 1) % 3;
+                const lordRem = s.players[s.landlord] ? s.players[s.landlord].length : 17;
+                const partnerCards = (s.players[lastId] && s.players[lastId].length) || 0;
+                const lordIsNext = role === 'farmer' && nextAfter === s.landlord;
+                doPass = !(lordIsNext && lordRem <= 4 && partnerCards > 2 && cheap);
+            } else if (!cheap && !oppUrgent) doPass = true;
+            if (doPass) {
+                s.passCount = (s.passCount || 0) + 1;
+                if (s.passCount >= 2) { s.lastPlay = null; s.lastPlayerId = -1; s.passCount = 0; }
+                cp = (cp + 1) % 3;
+                continue;
+            }
+        }
+        let chosenPlay = best;
         if (!deterministic) {
-            let r = Math.random();
-            if (r >= hp.bestProb && scored.length > 1) chosenPlay = scored[1].play;
-            if (r >= hp.top2Prob && scored.length > 2) chosenPlay = scored[2].play;
+            const r = Math.random();
+            if (r >= hp.bestProb && second) chosenPlay = second;
+            if (r >= hp.top2Prob && third) chosenPlay = third;
         }
         s.players[cp] = s.players[cp].filter(c => !chosenPlay.includes(c));
         s.lastPlay = getCardType(chosenPlay);
@@ -1432,7 +1914,40 @@ function heuristicPlayoutWithMode(state, startPlayer, myId, memory, deterministi
         if (s.players[cp].length === 0) return mySide.includes(cp);
         cp = (cp + 1) % 3;
     }
-    return false;
+    return _playoutTerminalEval(s, mySide);
+}
+
+function _handTurnsEstimate(hand) {
+    if (!hand || hand.length === 0) return 0;
+    if (hand.length > 20) return Math.ceil(hand.length / 2);
+    let plan = null;
+    try { plan = (hand.length <= 15) ? decomposeHandDP(hand) : greedyDecompose(hand); }
+    catch (e) { plan = greedyDecompose(hand); }
+    return plan && plan.plays ? Math.max(1, plan.plays.length) : Math.max(1, hand.length);
+}
+function _sideTurnsEstimate(players, side) {
+    let turns = 0;
+    for (const i of side) turns += _handTurnsEstimate(players[i] || []);
+    return turns;
+}
+
+function _playoutTerminalEval(s, mySide) {
+    let mine = 0, theirs = 0, myPower = 0, theirPower = 0;
+    for (let i = 0; i < 3; i++) {
+        const p = s.players[i] || [];
+        let pw = 0;
+        for (let j = 0; j < p.length; j++) {
+            const v = p[j].value;
+            pw += 1 + (v >= 12 ? 3 : 0) + (v >= 11 ? 1 : 0);
+        }
+        if (mySide.includes(i)) { mine += p.length; myPower += pw; }
+        else { theirs += p.length; theirPower += pw; }
+    }
+    if (mine !== theirs) return mine < theirs;
+    if (myPower !== theirPower) return myPower > theirPower;
+    const myTurns = _sideTurnsEstimate(s.players, mySide);
+    const theirTurns = _sideTurnsEstimate(s.players, [0, 1, 2].filter(i => !mySide.includes(i)));
+    return myTurns <= theirTurns;
 }
 
 // ======================== MCTS ========================
@@ -1489,14 +2004,62 @@ class MCTSNode {
                     catch (e) { return 0; }
                 };
                 const sorted = plays.slice().sort((a, b) => scoreOf(b) - scoreOf(a));
-                const keep = sorted.slice(0, cap);
-                const keepSet = new Set(keep);
+                const keepSet = new Set();
+                const seenType = new Set();
                 for (const p of sorted) {
-                    const t = getCardType(p);
+                    const t = playTypeOf(p);
+                    if (!t) continue;
+                    if (!seenType.has(t.type)) { seenType.add(t.type); keepSet.add(p); }
+                    if (keepSet.size >= cap) break;
+                }
+                for (const p of sorted) {
+                    if (keepSet.size >= cap) break;
+                    keepSet.add(p);
+                }
+                for (const p of sorted) {
+                    const t = playTypeOf(p);
                     if (t && (t.type === CardType.BOMB || t.type === CardType.ROCKET)) keepSet.add(p);
                     if (p.length === hand.length) keepSet.add(p);
                 }
                 plays = [...keepSet];
+            }
+            if (isRoot) {
+                // 战术过滤：防止短视推演诱导出"开局扔王炸 / 用大牌硬压小牌 / 压队友"等下策
+                const role = this.playerToMove === st.landlord ? 'landlord' : 'farmer';
+                let partnerId = -1;
+                if (role === 'farmer') for (let i = 0; i < 3; i++) if (i !== this.playerToMove && i !== st.landlord) { partnerId = i; break; }
+                const lordRem = st.players[st.landlord] ? st.players[st.landlord].length : 17;
+                const oppRem = role === 'farmer' ? lordRem
+                    : Math.min(st.players[(this.playerToMove + 1) % 3] ? st.players[(this.playerToMove + 1) % 3].length : 17,
+                               st.players[(this.playerToMove + 2) % 3] ? st.players[(this.playerToMove + 2) % 3].length : 17);
+                const urgent = oppRem <= 3;
+                if (!urgent) {
+                    const noBomb = plays.filter(p => {
+                        const t = playTypeOf(p);
+                        return !(t && (t.type === CardType.BOMB || t.type === CardType.ROCKET));
+                    });
+                    if (noBomb.length) {
+                        const bombs = plays.filter(p => {
+                            const t = playTypeOf(p);
+                            return t && (t.type === CardType.BOMB || t.type === CardType.ROCKET);
+                        });
+                        if (bombs.length) noBomb.push(bombs[0]);
+                        plays = noBomb;
+                    }
+                }
+                if (needBeat) {
+                    const minP = minBeatPower(st.lastPlay.type, st.lastPlay.value, st.lastPlay.length);
+                    const partnerLed = role === 'farmer' && st.lastPlayerId === partnerId;
+                    const maxOver = urgent ? 99 : (partnerLed ? 3 : (role === 'farmer' ? 4 : 5));
+                    const kept = plays.filter(p => {
+                        const t = playTypeOf(p);
+                        if (!t) return false;
+                        if (t.type === CardType.BOMB || t.type === CardType.ROCKET) return true;
+                        const pw = typePowerOf(t.type, t.value, t.length);
+                        return pw - minP <= maxOver;
+                    });
+                    if (kept.length) plays = kept;
+                }
             }
             if (needBeat) plays.push([]);
             // 反向存储，pop 时先取启发式最优，提升 alpha 式效率
@@ -1516,6 +2079,7 @@ class MCTSNode {
             if (newState.players[this.playerToMove].length === 0) newState.phase = 'gameover';
         }
         if (newState.passCount >= 2) { newState.lastPlay = null; newState.lastPlayerId = -1; newState.passCount = 0; }
+        newState.currentPlayer = nextPlayer;
         let child = new MCTSNode(newState, play || [], nextPlayer, this.myId);
         // 根节点先验：虚拟访问把搜索预算导向启发式评分靠前的走法
         if (this.parent === null && this.priors) {
@@ -1536,11 +2100,14 @@ class MCTSNode {
         if (this.children.length === 0) return null;
         let maxVisits = 0;
         for (let c of this.children) if (c.visits > maxVisits) maxVisits = c.visits;
-        let best = null, bestRate = -1;
+        let best = null, bestScore = -Infinity;
+        const logN = Math.log(Math.max(2, maxVisits));
         for (let c of this.children) {
-            if (c.visits < Math.max(1, maxVisits * 0.1)) continue;
-            let rate = c.visits > 0 ? c.wins / c.visits : 0;
-            if (rate > bestRate) { bestRate = rate; best = c; }
+            if (c.visits < Math.max(2, maxVisits * 0.15)) continue;
+            const rate = c.wins / c.visits;
+            // 访问量越少，下界惩罚越大：避免低样本节点靠运气胜出。
+            const score = rate - Math.sqrt(logN / c.visits);
+            if (score > bestScore) { bestScore = score; best = c; }
         }
         if (best) return best;
         return this.children.reduce((a, b) => (b.visits > a.visits ? b : a), this.children[0]);
@@ -1553,8 +2120,23 @@ function mctsSearch(state, playerId, iterations, memory, timeLimit, opts) {
     if (!hand || hand.length === 0) return null;
     let root = new MCTSNode(_cloneStateShallow(state), null, state.currentPlayer, playerId, (opts && opts.rootPriors) || null);
     let startTime = Date.now();
+    const allowEarlyStop = !(opts && opts.earlyStop === false);
     for (let i = 0; i < iterations; i++) {
         if (Date.now() - startTime > timeLimit) break;
+        if (allowEarlyStop && (i & 63) === 63 && root.children.length > 1) {
+            let maxV = 0;
+            for (const c of root.children) if (c.visits > maxV) maxV = c.visits;
+            if (maxV >= 400) {
+                let topRate = -1, secondRate = -1;
+                for (const c of root.children) {
+                    if (c.visits < Math.max(1, maxV * 0.2)) continue;
+                    const r = c.visits > 0 ? c.wins / c.visits : 0;
+                    if (r > topRate) { secondRate = topRate; topRate = r; }
+                    else if (r > secondRate) secondRate = r;
+                }
+                if (topRate >= 0.90 && topRate - secondRate >= 0.04) break;
+            }
+        }
         let node = root;
         while (!node.isTerminal && node.children.length > 0 && node.isFullyExpanded) node = node.selectChild();
         if (!node.isTerminal && !node.isFullyExpanded) node = node.expand();
@@ -1565,7 +2147,18 @@ function mctsSearch(state, playerId, iterations, memory, timeLimit, opts) {
         } else {
             result = heuristicPlayoutWithMode(node.state, node.playerToMove, playerId, memory, false);
         }
-        while (node) { node.visits++; if (result) node.wins++; node = node.parent; }
+        // 反向传播：每个节点记录"走到该节点的-player-的胜率"，
+        // 不同阵营的走法必须取反（否则 MCTS 会把对手也当成在帮己方走牌，搜索完全失效）。
+        let mySide = (playerId === state.landlord) ? [playerId] : [0, 1, 2].filter(i => i !== state.landlord);
+        let cur = node;
+        while (cur && cur.parent) {
+            const moverIsMySide = mySide.includes(cur.parent.playerToMove);
+            const winForMover = moverIsMySide ? result : !result;
+            cur.visits++;
+            if (winForMover) cur.wins++;
+            cur = cur.parent;
+        }
+        if (root) root.visits++;
     }
     let best = root.bestChild();
     if (best && Array.isArray(best.play)) {
@@ -1580,6 +2173,45 @@ function mctsSearch(state, playerId, iterations, memory, timeLimit, opts) {
     if (fallbackPlays.length > 0) return { play: fallbackPlays[0], visits: 0, wins: 0 };
     return null;
 }
+// 跨 Worker / 跨世界聚合 MCTS 根统计，返回最稳健的走法。
+function selectPlayFromMctsAgg(entries, worlds, lambda) {
+    const agg = new Map();
+    for (const item of entries || []) {
+        if (!item || !item.key) continue;
+        let a = agg.get(item.key);
+        if (!a) { a = { visits: 0, wins: 0, play: item.play || [], rates: [] }; agg.set(item.key, a); }
+        a.visits += item.visits || 0;
+        a.wins += item.wins || 0;
+        if (Array.isArray(item.rates)) a.rates.push(...item.rates);
+        else if (item.visits > 0) a.rates.push(item.wins / item.visits);
+    }
+    if (!agg.size) return null;
+    let maxVisits = 0;
+    for (const a of agg.values()) maxVisits = Math.max(maxVisits, a.visits);
+    let best = null, bestScore = -Infinity;
+    const totalWorlds = Math.max(1, worlds || 1);
+    for (const a of agg.values()) {
+        if (a.visits < Math.max(1, maxVisits * 0.1)) continue;
+        const rate = a.visits > 0 ? a.wins / a.visits : 0;
+        let score = rate;
+        if (a.rates.length > 0) {
+            const mean = a.rates.reduce((x, y) => x + y, 0) / a.rates.length;
+            let std = 0;
+            if (a.rates.length > 1) {
+                const variance = a.rates.reduce((x, y) => x + (y - mean) * (y - mean), 0) / a.rates.length;
+                std = Math.sqrt(variance);
+            }
+            const coverage = a.rates.length / totalWorlds;
+            score = mean - (lambda || 0.25) * std - 0.15 * (1 - coverage);
+        }
+        if (score > bestScore) { bestScore = score; best = a.play; }
+    }
+    if (best) return best;
+    let top = null;
+    for (const a of agg.values()) if (!top || a.visits > top.visits) top = a;
+    return top ? top.play : null;
+}
+
 // 汇总 MCTS 根节点各走法的访问/胜出统计（供多世界聚合使用）
 function _collectRootStats(root) {
     const stats = new Map();
@@ -1612,12 +2244,28 @@ function _buildRootPriors(state, playerId, memory) {
     }).sort((a, b) => b.s - a.s);
     const map = new Map();
     const K = Math.min(scored.length, 12);
+    // 过牌先验：角色协作（队友领出→倾向过牌；地主领出且未接近走完→倾向压牌）
+    if (needBeat) {
+        let partnerId = -1;
+        if (role === 'farmer') for (let i = 0; i < 3; i++) if (i !== playerId && i !== state.landlord) { partnerId = i; break; }
+        const lordRem = state.players[state.landlord] ? state.players[state.landlord].length : 17;
+        let passPrior = 0.5;
+        if (role === 'farmer') {
+            if (state.lastPlayerId === partnerId) passPrior = (state.players[partnerId] && state.players[partnerId].length <= 2) ? 0.85 : 0.7;
+            else if (state.lastPlayerId === state.landlord) passPrior = lordRem <= 3 ? 0.8 : 0.22;
+        } else {
+            const farmerRem = Math.min(
+                state.players[(playerId + 1) % 3] ? state.players[(playerId + 1) % 3].length : 17,
+                state.players[(playerId + 2) % 3] ? state.players[(playerId + 2) % 3].length : 17);
+            passPrior = farmerRem <= 2 ? 0.7 : 0.25;
+        }
+        map.set('pass', passPrior);
+    }
     for (let i = 0; i < scored.length; i++) {
         const key = scored[i].p.map(c => c.id).sort().join(',');
         const rank = Math.min(i, K);
         map.set(key, 0.5 + 0.3 * (1 - rank / Math.max(1, K)));
     }
-    if (needBeat) map.set('pass', 0.35);
     return map;
 }
 
@@ -1631,6 +2279,10 @@ function mctsSearchBlind(state, playerId, belief, opts) {
     const deadline = Date.now() + budgetMs;
     const memory = opts.memory || null;
     const priors = (cfg('blind.mctsRootPriors.' + (opts.difficulty || 'hard')) !== 0) ? _buildRootPriors(state, playerId, memory) : null;
+    if (priors && opts.leadPref && opts.leadPref.length) {
+        const lk = opts.leadPref.map(c => c.id).sort().join(',');
+        priors.set(lk, Math.max(priors.get(lk) || 0, 0.82));
+    }
     const lambda = opts.robustness !== undefined ? opts.robustness : (cfg('blind.robustness') !== undefined ? cfg('blind.robustness') : 0.25);
     const agg = new Map();
     for (let w = 0; w < worlds; w++) {
@@ -1681,7 +2333,15 @@ function mctsSearchBlind(state, playerId, belief, opts) {
     }
     if (!best) return null;
     const needBeatRoot = state.lastPlay && state.lastPlayerId !== playerId;
-    if (best.length > 0 || needBeatRoot) return { play: best, visits: maxVisits, wins: Math.round(bestRate * maxVisits) };
+    if (best.length > 0 || needBeatRoot) {
+        const result = { play: best, visits: maxVisits, wins: Math.round(bestRate * maxVisits) };
+        if (opts.collectAll) {
+            result.agg = [...agg.entries()].map(([key, a]) => ({
+                key, visits: a.visits, wins: a.wins, play: a.play, rates: a.rates
+            }));
+        }
+        return result;
+    }
     return null;
 }
 
@@ -1702,6 +2362,28 @@ class AICore {
     think(phase, state) {
         if (phase === 'call') return this.callDecision(state);
         return this.playDecision(state);
+    }
+    _recordReasoning(chosen, source, scored) {
+        try {
+            const chosenType = chosen && chosen.length ? (getCardType(chosen) || {}).type || 'unknown' : 'pass';
+            const list = Array.isArray(scored) ? scored : [];
+            this.lastReasoning = {
+                turn: 0,
+                player: this.id,
+                phase: 'play',
+                source: source || 'heuristic',
+                chosen: chosen || [],
+                chosenScore: (list.find(s => s.chosen) || {}).score || 0,
+                candidates: list.slice(0, 10).map(s => ({
+                    type: s.play && s.play.length ? ((getCardType(s.play) || {}).type || 'unknown') : 'pass',
+                    score: s.score,
+                    isChosen: !!s.chosen || s.play === chosen
+                }))
+            };
+            if (!list.length) {
+                this.lastReasoning.candidates = [{ type: chosenType, score: 0, isChosen: true }];
+            }
+        } catch (e) { this.lastReasoning = null; }
     }
     callDecision(state) {
         let curr = state.baseScore;
@@ -1729,7 +2411,7 @@ class AICore {
                 players: state.players.map((p, i) => (i === this.id ? [...p, ...lordCards] : p))
             });
             const belief = new HandBelief(this.id, callState, this.memory);
-            let bestBid = 0, bestEV = -999;
+            let bestBid = 0, bestEV = 0;
             for (let bid = 1; bid <= 3; bid++) {
                 if (bid <= curr) continue;
                 let wins = 0;
@@ -1764,6 +2446,7 @@ class AICore {
         return 0;
     }
     playDecision(state) {
+        this.lastReasoning = null;
         let hand = [...state.players[this.id]];
         if (hand.length === 0) return [];
         let lastPlay = state.lastPlay;
@@ -1783,28 +2466,42 @@ class AICore {
                 timeBudgetMs: this.budgetMs('blind.endgameTimeBudgetMs.' + this.difficulty, 600),
                 memory: this.memory
             });
-            if (egResult !== null) return egResult;
+            if (egResult !== null && egResult !== undefined) {
+                const endgamePlay = (egResult === ENDGAME_PASS || egResult.__endgamePass) ? [] : egResult;
+                this._recordReasoning(endgamePlay, 'endgame', []);
+                return endgamePlay;
+            }
         }
         let mctsLimit = cfg('mcts.handLimit.' + this.difficulty) || 0;
         let mctsIters = cfg('mcts.iterations.' + this.difficulty) || 0;
         if ((this.difficulty === 'hard' || this.difficulty === 'grandmaster' || this.difficulty === 'legendary') && hand.length <= mctsLimit) {
+            let leadPref = null;
+            try {
+                let leadPool = (lastPlay && state.lastPlayerId !== this.id)
+                    ? getAllValidPlays(hand, lastPlay) : getAllValidPlays(hand, null);
+                leadPref = this.selectLeadSmart(leadPool, role, hand, state, partnerId);
+            } catch (e) { leadPref = null; }
             let mctsResult = mctsSearchBlind(state, this.id, belief, {
                 iterations: mctsIters,
                 worlds: cfg('blind.worlds.mcts.' + this.difficulty) || 3,
                 timeBudgetMs: this.budgetMs('blind.mctsTimeBudgetMs.' + this.difficulty, 1000),
                 memory: this.memory,
-                difficulty: this.difficulty
+                difficulty: this.difficulty,
+                leadPref: leadPref
             });
             if (mctsResult && Array.isArray(mctsResult.play)) {
                 let needBeatMcts = lastPlay && state.lastPlayerId !== this.id;
-                if (mctsResult.play.length > 0 || needBeatMcts) return mctsResult.play;
+                if (mctsResult.play.length > 0 || needBeatMcts) {
+                    this._recordReasoning(mctsResult.play, 'mcts', []);
+                    return mctsResult.play;
+                }
             }
         }
         if (lastPlay && state.lastPlayerId !== this.id) {
-            if (lastPlay.type === CardType.ROCKET) return [];
+            if (lastPlay.type === CardType.ROCKET) { this._recordReasoning([], 'rule', []); return []; }
             if (lastPlay.type === CardType.BOMB) {
                 let hasBeatingBomb = Object.values(hand.reduce((a,c)=>(a[c.value]=(a[c.value]||0)+1,a),{})).some(v=>v===4);
-                if (!hasBeatingBomb && !(hand.some(c=>c.value===13) && hand.some(c=>c.value===14))) return [];
+                if (!hasBeatingBomb && !(hand.some(c=>c.value===13) && hand.some(c=>c.value===14))) { this._recordReasoning([], 'rule', []); return []; }
             }
         }
         if (!lastPlay || state.lastPlayerId === this.id) {
@@ -1813,26 +2510,37 @@ class AICore {
             return this.refineLeadByBelief(lead, allPlays, hand, state, role, belief);
         }
         let beatable = getAllValidPlays(hand, lastPlay);
-        if (beatable.length === 0) return [];
+        if (beatable.length === 0) { this._recordReasoning([], 'rule', []); return []; }
         let simWorlds = Math.max(1, cfg('blind.worlds.sim.' + this.difficulty) || 3);
         let simCache = null;
-        let scored = beatable.map(play => {
+        let simDepth = cfg('simulation.depth.' + this.difficulty) || 0;
+        let simHandLimit = cfg('simulation.handLimit.' + this.difficulty) || 0;
+        let dpBonusFactor = cfg('simulation.dpBonusFactor.' + this.difficulty) || 0;
+        let simMax = cfg('simulation.maxCandidates.' + this.difficulty) || 8;
+        let dpMax = cfg('simulation.dpCandidates.' + this.difficulty) || 6;
+        let baseScored = beatable.map(play => {
             let features = extractPlayFeatures(play, hand, lastPlay, role, this.memory, state);
-            let baseScore = scorePlay(features, role, this.memory, state, hand);
+            return { play, score: scorePlay(features, role, this.memory, state, hand) };
+        });
+        baseScored.sort((a, b) => b.score - a.score);
+        const simTargets = new Set(baseScored.slice(0, Math.max(1, simMax)).map(x => x.play));
+        const dpTargets = new Set(baseScored.slice(0, Math.max(1, dpMax)).map(x => x.play));
+        const baseSpread = baseScored.length > 1
+            ? Math.max(0, baseScored[0].score - baseScored[baseScored.length - 1].score) : 0;
+        const simCap = Math.max(6, baseSpread * 0.5);
+        let scored = baseScored.map(entry => {
             let simScore = 0;
-            let simDepth = cfg('simulation.depth.' + this.difficulty) || 0;
-            let simHandLimit = cfg('simulation.handLimit.' + this.difficulty) || 0;
-            let dpBonusFactor = cfg('simulation.dpBonusFactor.' + this.difficulty) || 0;
-            if (simDepth > 0 && hand.length <= simHandLimit) {
+            if (simDepth > 0 && hand.length <= simHandLimit && simTargets.has(entry.play)) {
                 if (!simCache) simCache = belief.sampleWorlds(simWorlds);
-                simScore = simulateOpponentResponseBlind(play, hand, state, role, this.memory, belief, simDepth, simCache);
-                if (dpBonusFactor > 0) {
-                    let newHand = hand.filter(c => !play.includes(c));
-                    let dpPlan = decomposeHandDP(newHand);
+                simScore = simulateOpponentResponseBlind(entry.play, hand, state, role, this.memory, belief, simDepth, simCache);
+                if (dpBonusFactor > 0 && dpTargets.has(entry.play)) {
+                    let newHand = hand.filter(c => !entry.play.includes(c));
+                    let dpPlan = newHand.length <= 15 ? decomposeHandDP(newHand) : greedyDecompose(newHand);
                     simScore += dpPlan.score * dpBonusFactor;
                 }
             }
-            return { play, score: baseScore + simScore * 0.4 };
+            const bonus = Math.max(-simCap, Math.min(simCap, simScore * 0.4));
+            return { play: entry.play, score: entry.score + bonus };
         });
         let passScore = computePassScore(role, state);
         scored.push({ play: [], score: passScore });
@@ -1850,7 +2558,7 @@ class AICore {
             }
         }
         scored.sort((a,b)=>b.score - a.score);
-        if (scored[0].play.length === 0) return [];
+        if (scored[0].play.length === 0) { this._recordReasoning([], 'heuristic', scored.map(s => ({ play: s.play, score: s.score, chosen: s.play.length === 0 }))); return []; }
         let isCritical = (hand.length <= 3) || (this.memory.getMaxOutside(hand) <= 12 && hand.length <= 5);
         let roleP = (state.landlord === this.id) ? 'landlord' : 'farmer';
         let oppCloseToWin;
@@ -1868,21 +2576,7 @@ class AICore {
         } else {
             chosenPlay = scored[0].play;
         }
-        // 记录推理快照（浏览器端供 GameRecorder 使用；Worker/Node 无 window 自动跳过）
-        try {
-            this.lastReasoning = {
-                turn: (typeof state !== 'undefined' && state.actions) ? state.actions.length : 0,
-                player: this.id,
-                phase: 'play',
-                chosen: chosenPlay,
-                chosenScore: scored.find(s => s.play === chosenPlay) ? scored.find(s => s.play === chosenPlay).score : 0,
-                candidates: scored.slice(0, Math.min(scored.length, 10)).map(s => ({
-                    type: s.play.length > 0 ? (getCardType(s.play) ? getCardType(s.play).type : 'unknown') : 'pass',
-                    score: s.score,
-                    isChosen: s.play === chosenPlay
-                }))
-            };
-        } catch (e) { this.lastReasoning = null; }
+        this._recordReasoning(chosenPlay, 'heuristic', scored.map(s => ({ play: s.play, score: s.score, chosen: s.play === chosenPlay })));
         return chosenPlay;
     }
     // 用信念模型评估"领出被压概率"，在启发式首选与更稳的领出之间做小幅取舍
@@ -1917,147 +2611,93 @@ class AICore {
         return best || preferred;
     }
     selectLeadSmart(plays, role, hand, state, partnerId) {
-        if (plays.length === 0) return [];
-        let fullHouse = plays.find(p => p.length === hand.length);
+        if (!plays || plays.length === 0) return [];
+        const handLen = hand.length;
+        const landlordId = state.landlord;
+        const myId = this.id;
+        const countOf = (idx) => {
+            const p = state.players ? state.players[idx] : null;
+            if (!p) return 20;
+            if (Array.isArray(p)) return p.length;
+            if (typeof p === 'number') return p;
+            return typeof p.length === 'number' ? p.length : 20;
+        };
+        const nextId = (state.currentPlayer + 1) % 3;
+        const partnerId2 = role === 'farmer'
+            ? [0,1,2].find(i => i !== myId && i !== landlordId)
+            : -1;
+        const partnerCount = partnerId2 >= 0 ? countOf(partnerId2) : 20;
+        const lordCount = countOf(landlordId);
+        const nextCount = countOf(nextId);
+        const oppCounts = [0,1,2].filter(i => i !== landlordId).map(countOf);
+        const minOpp = Math.min.apply(null, oppCounts);
+        // 手里有"结构牌"(顺子/连对/飞机)时优先成组出，别一张一张地磨
+        const plan = handLen <= 17 ? (handLen <= 15 ? decomposeHandDP(hand) : greedyDecompose(hand)) : null;
+        const planKeys = new Set();
+        if (plan && plan.plays) for (const pl of plan.plays) planKeys.add(pl.map(c=>c.id).sort().join(','));
+        const leadScore = (p) => {
+            const t = getCardType(p);
+            if (!t) return -1e9;
+            const power = getPlayPower(p);
+            let sc = p.length * 12 - power * 0.5;
+            if (t.type === CardType.BOMB || t.type === CardType.ROCKET) sc -= 420;
+            if (t.type === CardType.STRAIGHT || t.type === CardType.STRAIGHT_PAIR ||
+                t.type === CardType.PLANE || t.type === CardType.PLANE_WITH_SINGLE || t.type === CardType.PLANE_WITH_PAIR) sc += 8;
+            if (t.type === CardType.TRIPLE_WITH_SINGLE || t.type === CardType.TRIPLE_WITH_PAIR) sc += 4;
+            if (p.length === handLen) sc += 400;
+            if (planKeys.has(p.map(c=>c.id).sort().join(','))) sc += 10;
+            return sc;
+        };
+        const fullHouse = plays.find(p => p.length === handLen);
         if (fullHouse) return fullHouse;
         if (role === 'landlord') {
-            let _oppMin = Math.min(
-                (state.players[(state.currentPlayer + 1) % 3] || {length:20}).length,
-                (state.players[(state.currentPlayer + 2) % 3] || {length:20}).length
-            );
-            let nextId = (state.currentPlayer + 1) % 3;
-            let nextClose = ((state.players[nextId] || {length:20}).length) <= 2;
-            let dpLimit = cfg('endgameThresholds.' + this.difficulty) || 12;
-            let sl = cfg('selectLead.landlord');
-            if (hand.length <= dpLimit) {
-                let plan = decomposeHandDP(hand);
-                if (plan.plays.length > 0) {
-                    let bestLead = null, bestLeadScore = -Infinity;
-                    for (let p of plan.plays) {
-                        let score = -getPlayPower(p);
-                        let type = getCardType(p);
-                        if (type && (type.type === CardType.BOMB || type.type === CardType.ROCKET)) score += sl.bombPenalty;
-                        if (p.length >= 5) score += sl.longGte5;
-                        else if (p.length >= 3) score += sl.longGte3;
-                        else if (p.length === 2) score += sl.pairPlay;
-                        if (type && type.type === CardType.STRAIGHT) score += sl.straightBonus;
-                        if (type && type.type === CardType.STRAIGHT_PAIR) score += sl.straightPairBonus;
-                        if (type && type.type === CardType.PLANE) score += sl.planeBonus;
-                        if (type && (type.type === CardType.PLANE_WITH_SINGLE || type.type === CardType.PLANE_WITH_PAIR)) score += sl.planeWithBonus;
-                        if (type && (type.type === CardType.TRIPLE_WITH_SINGLE || type.type === CardType.TRIPLE_WITH_PAIR)) score += sl.tripleWithBonus;
-                        let val = p[0].value;
-                        if (nextClose && p.length === 1 && val < 12) {
-                            score = -500 + val * 3;
-                        } else {
-                            if (val <= 6) score += sl.smallValLe6;
-                            if (val >= 12 && p.length <= 2) score += sl.controlValGe12LenLe2;
-                            if (_oppMin <= 2 && p.length <= 2 && val < 12) score -= 500;
-                        }
-                        if (score > bestLeadScore) { bestLeadScore = score; bestLead = p; }
-                    }
-                    if (bestLead) return bestLead;
+            // 对手只剩 1~2 张：出多张组合最安全（他接不上），没有组合才考虑用大牌单张压制
+            if (nextCount <= 2 || minOpp <= 2) {
+                const safeCombos = plays.filter(p => p.length >= (nextCount <= 2 ? 3 : 2) &&
+                    getCardType(p)?.type !== CardType.BOMB && getCardType(p)?.type !== CardType.ROCKET);
+                if (safeCombos.length > 0) {
+                    return safeCombos.sort((a,b) => (b.length - a.length) || (getPlayPower(a) - getPlayPower(b)))[0];
+                }
+                if (nextCount <= 1) {
+                    const singles = plays.filter(p => p.length === 1);
+                    if (singles.length > 0) return singles.sort((a,b) => getPlayPower(b) - getPlayPower(a))[0];
                 }
             }
-            let straightPlays = plays.filter(p => getCardType(p)?.type === CardType.STRAIGHT);
-            if (straightPlays.length) return straightPlays.sort((a,b)=>b.length-a.length)[0];
-            let planePlays = plays.filter(p => {
-                let t = getCardType(p);
-                return t && (t.type === CardType.PLANE || t.type === CardType.PLANE_WITH_SINGLE || t.type === CardType.PLANE_WITH_PAIR);
-            });
-            if (planePlays.length > 0) return planePlays.reduce((a,b) => getCardType(a).value < getCardType(b).value ? a : b);
-            let triplePlays = plays.filter(p => {
-                let t = getCardType(p);
-                return t && (t.type === CardType.TRIPLE_WITH_SINGLE || t.type === CardType.TRIPLE_WITH_PAIR);
-            });
-            if (triplePlays.length > 0) return triplePlays.reduce((a,b) => getCardType(a).value < getCardType(b).value ? a : b);
-            let smallPairs = plays.filter(p => p.length === 2 && getCardType(p).value <= 6);
-            if (smallPairs.length > 0) return smallPairs.reduce((a,b) => getCardType(a).value < getCardType(b).value ? a : b);
-            if (_oppMin > 2) {
-                let twoPlay = plays.find(p => {
-                    if (p.length === hand.length) return true;
-                    let rest = hand.filter(c => !p.includes(c));
-                    let restPlays = getAllValidPlays(rest, null);
-                    return rest.length === 0 || restPlays.some(rp => rp.length === rest.length);
-                });
-                if (twoPlay) return twoPlay;
-            }
-            if (nextClose) {
-                let singles = plays.filter(p => p.length === 1);
-                if (singles.length > 0 && plays.every(p => p.length === 1)) {
-                    return singles.sort((a,b)=>getPlayPower(b)-getPlayPower(a))[0];
-                }
-            }
-            if (_oppMin <= 2) {
-                let safe = plays.filter(p => p.length !== 1 || p[0].value >= 10);
-                if (safe.length > 0) return safe.sort((a,b)=>getPlayPower(a)-getPlayPower(b))[0];
-            }
-            let smallSingles = plays.filter(p => p.length === 1 && p[0].value <= 6);
-            if (smallSingles.length > 0) return smallSingles.reduce((a,b) => a[0].value < b[0].value ? a : b);
-            return plays.sort((a,b)=>getPlayPower(a)-getPlayPower(b))[0];
         } else {
-            let isLordNext = (state.landlord + 1) % 3 === this.id;
-            let partnerCount = state.players[partnerId !== null ? partnerId : -1]?.length || 20;
-            let lordCards = state.players[state.landlord] ? state.players[state.landlord].length : 20;
-            if (isLordNext && partnerCount <= 2 && lordCards > 2) {
-                return plays.reduce((a,b) => getPlayPower(a) < getPlayPower(b) ? a : b);
+            // 队友只剩 1~2 张：把牌让给队友，但只在队友确实是下家时
+            if (partnerCount <= 2 && partnerId2 >= 0 && nextId === partnerId2) {
+                const cheap = plays.slice().sort((a,b) => getPlayPower(a) - getPlayPower(b));
+                return cheap[0];
             }
-            if (lordCards <= 2) {
-                let combos = plays.filter(p => p.length >= 3 && getCardType(p)?.type !== CardType.BOMB && getCardType(p)?.type !== CardType.ROCKET);
-                if (combos.length > 0) return combos.reduce((a,b) => getPlayPower(a) > getPlayPower(b) ? a : b);
-                return plays.reduce((a,b) => getPlayPower(a) > getPlayPower(b) ? a : b);
+            // 地主只剩 1~2 张：同样优先安全组合，其次用最大单张压制
+            if (lordCount <= 2) {
+                const safeCombos = plays.filter(p => p.length >= 3 &&
+                    getCardType(p)?.type !== CardType.BOMB && getCardType(p)?.type !== CardType.ROCKET);
+                if (safeCombos.length > 0) return safeCombos.sort((a,b) => getPlayPower(a) - getPlayPower(b))[0];
+                const singles = plays.filter(p => p.length === 1);
+                if (singles.length > 0) return singles.sort((a,b) => getPlayPower(b) - getPlayPower(a))[0];
             }
-            if (isLordNext) {
-                let midSingle = plays.find(p => p.length === 1 && p[0].value >= 7 && p[0].value <= 10);
-                if (midSingle) return midSingle;
-                let smallSingle = plays.find(p => p.length === 1 && p[0].value <= 6);
-                if (smallSingle) return smallSingle;
-                let smallPair = plays.find(p => p.length === 2 && getCardType(p).value <= 10);
-                if (smallPair) return smallPair;
-                let midPlay = plays.find(p => p.length >= 3 && getPlayPower(p) <= 60);
-                if (midPlay) return midPlay;
-            } else {
-                let nextLordClose = ((state.players[(state.currentPlayer + 1) % 3] || {length:20}).length) <= 4;
-                if (nextLordClose) {
-                    let combos = plays.filter(p => {
-                        let t = getCardType(p);
-                        return p.length >= 3 && t && t.type !== CardType.BOMB && t.type !== CardType.ROCKET;
-                    });
-                    if (combos.length > 0) return combos.reduce((a,b) => getPlayPower(a) > getPlayPower(b) ? a : b);
-                    return plays.reduce((a,b) => getPlayPower(a) > getPlayPower(b) ? a : b);
-                }
-                let midSingle = plays.find(p => p.length === 1 && p[0].value >= 7 && p[0].value <= 10);
-                if (midSingle) return midSingle;
-                let midPair = plays.find(p => p.length === 2 && getCardType(p).value >= 7 && getCardType(p).value <= 10);
-                if (midPair) return midPair;
-                let smallSingle = plays.find(p => p.length === 1 && p[0].value <= 6);
-                if (smallSingle) return smallSingle;
-                let smallPair = plays.find(p => p.length === 2 && getCardType(p).value <= 8);
-                if (smallPair) return smallPair;
-            }
-            let dpLimit = cfg('endgameThresholds.' + this.difficulty) || 12;
-            let sl = cfg('selectLead.farmer');
-            if (hand.length <= dpLimit) {
-                let plan = decomposeHandDP(hand);
-                if (plan.plays.length > 0) {
-                    let bestLead = null, bestLeadScore = -Infinity;
-                    for (let p of plan.plays) {
-                        let score = -getPlayPower(p);
-                        let type = getCardType(p);
-                        if (type && (type.type === CardType.BOMB || type.type === CardType.ROCKET)) score += sl.bombPenalty;
-                        if (p.length >= 3) score += sl.comboGte3;
-                        if (partnerCount <= 3) score += sl.partnerLow;
-                        if (isLordNext) score += sl.lordNext;
-                        if (score > bestLeadScore) { bestLeadScore = score; bestLead = p; }
-                    }
-                    if (bestLead) return bestLead;
-                }
-            }
-            let midSingle2 = plays.find(p => p.length === 1 && p[0].value >= 7 && p[0].value <= 10);
-            if (midSingle2) return midSingle2;
-            let smallPair2 = plays.find(p => p.length === 2 && getCardType(p).value <= 8);
-            if (smallPair2) return smallPair2;
-            return plays.sort((a,b)=>getPlayPower(a)-getPlayPower(b))[0];
         }
+        let best = null, bestScore = -Infinity;
+        for (const p of plays) {
+            let sc = leadScore(p);
+            if (role === 'farmer') {
+                // 农民：地主在下一位时优先"便宜"的牌，别替地主拆大牌
+                if (nextId === landlordId) sc = p.length * 8 - getPlayPower(p) * 0.9;
+                if (nextId === landlordId && p.length === 1 && p[0] && p[0].value <= 3) {
+                    let _tinyPenalty = cfg('leadAdjust.farmerTinySingleVsLandlord');
+                    if (typeof _tinyPenalty !== 'number') _tinyPenalty = 1000;
+                    sc -= _tinyPenalty;
+                }
+                // 队友牌多时不要单张磨蹭，尽量成组出
+                if (partnerCount > 4 && p.length === 1) sc -= 8;
+            } else {
+                // 地主：手牌多时优先成组甩，保留单张控制
+                if (handLen > 8 && p.length === 1) sc -= 6;
+            }
+            if (sc > bestScore) { bestScore = sc; best = p; }
+        }
+        return best || plays[0];
     }
 }
 

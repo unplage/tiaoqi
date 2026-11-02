@@ -9,6 +9,7 @@ const ParamConfig = {
     _defaults: DEFAULT_PARAMS,
 
     init() {
+        if (typeof invalidateParamCache === 'function') invalidateParamCache();
         let saved = localStorage.getItem('landlord_ai_params');
         if (saved) {
             try {
@@ -40,6 +41,7 @@ const ParamConfig = {
     },
 
     set(path, value) {
+        if (typeof invalidateParamCache === 'function') invalidateParamCache();
         if (!this._overrides) {
             this._overrides = JSON.parse(JSON.stringify(this._defaults));
         }
@@ -71,11 +73,14 @@ const ParamConfig = {
     },
 
     reset() {
+        if (typeof invalidateParamCache === 'function') invalidateParamCache();
         this._overrides = null;
         localStorage.removeItem('landlord_ai_params');
+        this._persist();
     },
 
     _persist() {
+        if (typeof invalidateParamCache === 'function') invalidateParamCache();
         if (this._overrides) {
             localStorage.setItem('landlord_ai_params', JSON.stringify(this._overrides));
         } else {
@@ -83,9 +88,8 @@ const ParamConfig = {
         }
         if (typeof window !== 'undefined' && window.AiWorkerPool && window.AiWorkerPool.ready) {
             try {
-                let params = this._overrides ? this._overrides : null;
-                let msg = { cmd: 'init' };
-                if (params) msg.params = params;
+                let msg = { cmd: 'init', params: this._overrides ? this._overrides : null };
+                if (typeof CorrectionRules !== 'undefined') { CorrectionRules.init(); msg.correctionRules = CorrectionRules._rules || []; }
                 for (let w of window.AiWorkerPool.workers) {
                     if (w._ready && !w._dead) w.postMessage(msg);
                 }
@@ -353,6 +357,21 @@ const GameDatabase = {
                 } catch (e) { resolve(0); }
             });
         });
+    },
+
+    countAnalysis() {
+        return this.open().then(db => {
+            if (!db) return 0;
+            return new Promise((resolve) => {
+                try {
+                    let tx = db.transaction(this.ANALYSIS_STORE, 'readonly');
+                    let store = tx.objectStore(this.ANALYSIS_STORE);
+                    let req = store.count();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => resolve(0);
+                } catch (e) { resolve(0); }
+            });
+        });
     }
 };
 
@@ -541,6 +560,7 @@ const GameAnalyzer = {
         try {
             let analysis = this._analyzeGame(game);
             GameDatabase.saveAnalysis(game.id, analysis).then(() => {
+                try { if (typeof GodViewLearner !== 'undefined') GodViewLearner._statsCache.totalAnalyses++; } catch (e) {}
                 CorrectionRules._learnFromAnalysis(game.id, analysis);
                 this._running = false;
                 if (this._queue.length > 0) this.analyze(this._queue.shift());
@@ -863,7 +883,128 @@ const CorrectionRules = {
     },
 
     _learnFromAnalysis(gameId, analysis) {
-        // Deprecated: 学习功能已由 GodViewLearner 接管
+        if (!analysis || !Array.isArray(analysis.mistakes) || analysis.mistakes.length === 0) return;
+        this.init();
+        let changed = false;
+        for (const m of analysis.mistakes) {
+            if (!m || !m.category) continue;
+            const high = m.severity === 'high';
+            const specs = [];
+            if (m.category === 'overkill') {
+                specs.push({
+                    context: { needBeat: true, isBomb: true },
+                    comparators: {},
+                    penalty: high ? -18 : -10,
+                    category: 'overkill',
+                    reason: m.reason || '用炸弹/王炸过度压制，有更小牌型可用',
+                    confidence: high ? 0.78 : 0.62
+                });
+            } else if (m.category === 'high_kicker') {
+                const match = String(m.reason || '').match(/值=(\d+)/);
+                const kicker = match ? parseInt(match[1], 10) : 11;
+                specs.push({
+                    context: { needBeat: true, playType: m.chosenType || CardType.TRIPLE_WITH_SINGLE, kickerValue: kicker },
+                    comparators: { kickerValue: 'gte' },
+                    penalty: -8,
+                    category: 'high_kicker',
+                    reason: m.reason || '三带使用过高 kicker，存在更小带牌',
+                    confidence: high ? 0.75 : 0.6
+                });
+            } else if (m.category === 'bad_pass') {
+                specs.push({
+                    context: { target: 'pass', needBeat: true, opponentHandCount: 3 },
+                    comparators: { opponentHandCount: 'lte' },
+                    penalty: high ? -35 : -20,
+                    category: 'bad_pass',
+                    reason: m.reason || '对手剩余牌少，不应放过，有牌可压',
+                    confidence: high ? 0.8 : 0.64
+                });
+            }
+            for (const spec of specs) {
+                this._mergeCorrectionRule(spec);
+                changed = true;
+            }
+        }
+        if (changed) this._persist();
+    },
+    _learnFromCorrections(corrections) {
+        if (!Array.isArray(corrections)) return;
+        this.init();
+        let changed = false;
+        for (let c of corrections) {
+            if (!c || typeof c.diff !== 'number' || c.diff < 0.25) continue;
+            const specs = [];
+            const actualBomb = c.actualType === CardType.BOMB || c.actualType === CardType.ROCKET;
+            const bestBomb = c.bestType === CardType.BOMB || c.bestType === CardType.ROCKET;
+            if (actualBomb && !bestBomb) specs.push({
+                context: { needBeat: true, isBomb: true },
+                penalty: - (10 + Math.round(c.diff * 20)),
+                category: 'overkill',
+                reason: '用炸弹/王炸过度压制，有更小牌型可用',
+                confidence: Math.min(0.9, 0.55 + c.diff * 0.5),
+                comparators: {}
+            });
+            const highKicker = (
+                (c.actualType === CardType.TRIPLE_WITH_SINGLE || c.actualType === CardType.TRIPLE_WITH_PAIR) &&
+                c.actualFeat && c.actualFeat.kickerValue >= 11 &&
+                (!c.bestFeat || (c.bestFeat.kickerValue || 0) < c.actualFeat.kickerValue)
+            );
+            if (highKicker) specs.push({
+                context: {
+                    needBeat: true,
+                    playType: c.actualType,
+                    kickerValue: 11
+                },
+                comparators: { kickerValue: 'gte' },
+                penalty: -8,
+                category: 'high_kicker',
+                reason: '三带使用过高 kicker，存在更小带牌',
+                confidence: Math.min(0.9, 0.55 + c.diff * 0.4)
+            });
+            const badPass = c.category === 'bad_pass' || (c.actualType === 'pass' && !c.isLead);
+            if (badPass) specs.push({
+                context: { target: 'pass', needBeat: true, opponentHandCount: 3 },
+                comparators: { opponentHandCount: 'lte' },
+                penalty: -Math.round(16 + c.diff * 24),
+                category: 'bad_pass',
+                reason: '对手剩余牌少时不应轻易过牌',
+                confidence: Math.min(0.92, 0.58 + c.diff * 0.5)
+            });
+            if ((bestBomb && !actualBomb) && (c.bestWinRate || 0) > 0.55) specs.push({
+                context: { needBeat: true, isBomb: true, opponentHandCount: 2 },
+                comparators: { opponentHandCount: 'lte' },
+                penalty: 12 + Math.round(c.diff * 18),
+                category: 'missed_bomb',
+                reason: '对手临近走完时错过炸弹/王炸压制',
+                confidence: Math.min(0.9, 0.56 + c.diff * 0.45)
+            });
+            for (const spec of specs) {
+                this._mergeCorrectionRule(spec);
+                changed = true;
+            }
+        }
+        if (changed) this._persist();
+    },
+    _mergeCorrectionRule(spec) {
+        let rule = this._rules.find(r => JSON.stringify(r.context) === JSON.stringify(spec.context) && JSON.stringify(r.comparators || {}) === JSON.stringify(spec.comparators || {}));
+        if (rule) {
+            rule.triggerCount++;
+            rule.confidence = Math.min(0.98, rule.confidence + 0.05);
+            rule.penalty = Math.round((rule.penalty + spec.penalty) / 2);
+            rule.ts = Date.now();
+            return;
+        }
+        if (this._rules.length >= this.MAX_RULES) this._rules.shift();
+        this._rules.push({
+            context: spec.context,
+            comparators: spec.comparators || null,
+            penalty: spec.penalty,
+            category: spec.category,
+            reason: spec.reason,
+            confidence: spec.confidence,
+            triggerCount: 1,
+            ts: Date.now()
+        });
     },
 
     getStats() {
@@ -896,8 +1037,9 @@ const SelfPlayEval = {
     _decide(seat, state, memory, candSeat, cand, base) {
         const prev = ParamConfig._overrides;
         ParamConfig._overrides = (seat === candSeat) ? cand : base;
+        if (typeof invalidateParamCache === 'function') invalidateParamCache();
         try { return new AICore(seat, 'medium', memory).playDecision(state); }
-        finally { ParamConfig._overrides = prev; }
+        finally { ParamConfig._overrides = prev; if (typeof invalidateParamCache === 'function') invalidateParamCache(); }
     },
     _playDeal(deal, landlord, candSeat, cand, base) {
         const players = deal.hands.map(p => p.map(c => ({ ...c })));
@@ -950,11 +1092,18 @@ const SelfPlayEval = {
         }
         return winner;
     },
-    // 返回 Promise<胜率>；每局之间让出主线程，避免自对弈验证阻塞界面
+    // 返回 Promise<{winRate, games, wins}>；每局之间让出主线程，避免自对弈验证阻塞界面
     async evaluate(cand, base, deals, timeBudgetMs) {
         if (typeof AICore === 'undefined' || typeof getAllValidPlays === 'undefined') return null;
         const t0 = Date.now();
-        const budget = timeBudgetMs || 6000;
+        const budget = timeBudgetMs || 12000;
+        const prep = (p) => {
+            let q = JSON.parse(JSON.stringify(p || {}));
+            q.randomFactors = Object.assign({}, q.randomFactors, { easy: 0, medium: 0, hard: 0, grandmaster: 0, legendary: 0 });
+            return q;
+        };
+        const candParams = prep(cand);
+        const baseParams = prep(base);
         let games = 0, wins = 0;
         const yieldToUI = () => new Promise(r => setTimeout(r, 0));
         for (let d = 0; d < deals; d++) {
@@ -965,14 +1114,21 @@ const SelfPlayEval = {
                 if (s > best) { best = s; landlord = i; }
             }
             for (const cfg of [{ seat: landlord }, { seat: (landlord + 1) % 3 }]) {
-                const w = this._playDeal(deal, landlord, cfg.seat, cand, base);
+                const w = this._playDeal(deal, landlord, cfg.seat, candParams, baseParams);
                 const candWon = (cfg.seat === landlord) ? (w === landlord) : (w !== landlord);
                 games++; if (candWon) wins++;
-                if (Date.now() - t0 > budget) return games > 0 ? wins / games : null;
                 await yieldToUI();
+                // 预算耗尽时停止采样，但保留已完成的对局（此前直接 return null，
+                // 导致慢设备上验证永远失败 → 参数更新永不落地）
+                if (Date.now() - t0 > budget) {
+                    const minGames = Math.max(8, Math.floor(deals * 0.6));
+                    if (games < minGames) return null;
+                    return { winRate: games > 0 ? wins / games : 0.5, games, wins, partial: true };
+                }
             }
         }
-        return games > 0 ? wins / games : null;
+        if (games < Math.max(8, deals)) return null;
+        return { winRate: games > 0 ? wins / games : 0.5, games, wins, partial: false };
     }
 };
 
@@ -984,10 +1140,14 @@ const GodViewLearner = {
     _adjustCount: 0,
     _ADJUST_INTERVAL: 1500,
     _lastAdjustTime: 0,
-    _statsCache: { total: 0, recent20: 0, totalAdjustments: 0, avgDiff: 0 },
+    _rngState: 0x9e3779b9,
+    _statsCache: { total: 0, totalAnalyses: 0, recent20: 0, totalAdjustments: 0, avgDiff: 0 },
+    _seed(seed) { this._rngState = (seed >>> 0) || 0x9e3779b9; },
+    _rand() { this._rngState = (Math.imul(this._rngState, 1664525) + 1013904223) >>> 0; return this._rngState / 4294967296; },
 
     _initCache() {
         GameDatabase.countCorrections().then(t => { this._statsCache.total = t; }).catch(()=>{});
+        GameDatabase.countAnalysis().then(t => { this._statsCache.totalAnalyses = t; }).catch(()=>{});
         GameDatabase.getRecentCorrections(20).then(d => {
             if (d && d.length) {
                 this._statsCache.recent20 = d.length;
@@ -1018,10 +1178,12 @@ const GodViewLearner = {
 
     async _run(game) {
         try {
+            this._seed(game.timestamp || Date.now());
             let stats = { checked: 0, corrected: 0, totalDelta: 0 };
             let corrections = this._analyzeGame(game, stats);
             if (corrections.length > 0) {
                 this._saveCorrections(corrections);
+                try { CorrectionRules._learnFromCorrections(corrections); } catch (e) {}
                 await this._applyAdjustments(corrections, stats); // 内部完成候选构建→自对弈验证→按需持久化
             }
         } catch (e) {
@@ -1073,29 +1235,15 @@ const GodViewLearner = {
 
         let allPlays = getAllValidPlays(hand, needBeat ? state.lastPlay : null);
         if (!isLead && allPlays.length === 0) return null;
+        let candidates = allPlays.slice();
+        if (needBeat) candidates.push([]);
 
-        // Step 1: Find optimal play + its win rate
-        let opt = this._findOptimal(state, action.p, allPlays);
+        // Step 1: Find optimal action + its win rate（过牌作为一等候选，不再单独用低样本补丁比较）
+        let opt = this._findOptimal(state, action.p, candidates);
         let bestPlay = opt && opt.bestPlay ? opt.bestPlay : null;
         let bestWinRate = opt ? opt.bestWinRate : 0;
 
-        // Step 2: If not lead, also evaluate "pass"
-        let passWinRate = -1;
-        if (!isLead) {
-            let ps = JSON.parse(JSON.stringify(state));
-            ps.passCount++;
-            let pw = 0, pt = 6;
-            for (let t = 0; t < pt; t++) {
-                if (this._simulateGame(ps, (action.p+1)%3, action.p, lordIdx)) pw++;
-            }
-            passWinRate = pw / pt;
-            if (passWinRate > bestWinRate + 0.05) {
-                bestPlay = [];
-                bestWinRate = passWinRate;
-            }
-        }
-
-        // Step 3: Evaluate actual action's win rate
+        // Step 2: Evaluate actual action's win rate
         let actualWinRate = this._evalPlay(state, action, action.p, lordIdx);
 
         // Step 4: Compare
@@ -1126,14 +1274,22 @@ const GodViewLearner = {
             actualFeat = extractPlayFeatures(actualPlay, hand, state.lastPlay, aiRole, memory, state);
         }
 
+        let category = 'suboptimal';
+        if (actualPlay.length === 0) category = 'bad_pass';
+        else if (bestPlay.length === 0) category = 'bad_keep';
+        else if ((actualType && (actualType.type === CardType.BOMB || actualType.type === CardType.ROCKET)) &&
+                 !(bestType && (bestType.type === CardType.BOMB || bestType.type === CardType.ROCKET))) category = 'overkill';
+        else if ((bestType && (bestType.type === CardType.BOMB || bestType.type === CardType.ROCKET)) &&
+                 !(actualType && (actualType.type === CardType.BOMB || actualType.type === CardType.ROCKET))) category = 'missed_bomb';
         return {
             turnIdx, player: action.p, role: aiRole,
             diff: bestWinRate - actualWinRate,
             bestWinRate, actualWinRate,
             handSize: hand.length,
             lordSize: state.players[lordIdx]?.length || 0,
+            opponentHandCount: state.lastPlayerId >= 0 && state.players[state.lastPlayerId] ? state.players[state.lastPlayerId].length : 0,
             lastPlayType: state.lastPlay?.type || 'none', lastPlayPower: state.lastPlay?.value || 0,
-            isLead,
+            isLead, category,
             actualType: actualType?.type || 'pass', bestType: bestType?.type || 'pass',
             optFeat, actualFeat
         };
@@ -1154,21 +1310,33 @@ const GodViewLearner = {
     },
 
     _solveExact(state, playerId, allPlays) {
-        let bestPlay = null, bestScore = -Infinity;
+        let bestPlay = null, bestScore = -Infinity, found = false;
         for (let p of allPlays) {
             let simState = JSON.parse(JSON.stringify(state));
-            let pIds = new Set(p.map(c => c.id));
-            simState.players[playerId] = simState.players[playerId].filter(c => !pIds.has(c.id));
-            if (simState.players[playerId].length === 0) {
-                return { bestPlay: p, bestWinRate: 1.0 };
+            let nextPlayer = (playerId + 1) % 3;
+            let lastPlay, lastPlayerId, passCount;
+            if (!p || p.length === 0) {
+                passCount = (simState.passCount || 0) + 1;
+                lastPlay = simState.lastPlay;
+                lastPlayerId = simState.lastPlayerId;
+                if (passCount >= 2) { lastPlay = null; lastPlayerId = -1; passCount = 0; }
+            } else {
+                let pIds = new Set(p.map(c => c.id));
+                simState.players[playerId] = simState.players[playerId].filter(c => !pIds.has(c.id));
+                if (simState.players[playerId].length === 0) {
+                    return { bestPlay: p, bestWinRate: 1.0 };
+                }
+                lastPlay = getCardType(p);
+                lastPlayerId = playerId;
+                passCount = 0;
             }
-            simState.lastPlay = getCardType(p);
-            simState.lastPlayerId = playerId;
-            simState.passCount = 0;
-            let score = minimaxEndgame(simState, (playerId+1)%3, playerId, 0, 20);
-            if (score > bestScore) { bestScore = score; bestPlay = p; }
+            simState.lastPlay = lastPlay;
+            simState.lastPlayerId = lastPlayerId;
+            simState.passCount = passCount;
+            let score = minimaxEndgame(simState, nextPlayer, playerId, 0, 20);
+            if (score > bestScore) { bestScore = score; bestPlay = p; found = true; }
         }
-        if (bestPlay) {
+        if (found) {
             let wr = Math.max(0, Math.min(1, (bestScore + 100) / 200));
             return { bestPlay, bestWinRate: wr };
         }
@@ -1179,32 +1347,56 @@ const GodViewLearner = {
         let memory = this._buildMemoryFromState(state);
         let role = playerId === state.landlord ? 'landlord' : 'farmer';
         let scored = allPlays.map(p => {
+            if (!p || p.length === 0) return { play: [], score: computePassScore(role, state) };
             let feat = extractPlayFeatures(p, state.players[playerId], state.lastPlay, role, memory, state);
             return { play: p, score: scorePlay(feat, role, memory, state, state.players[playerId]) };
         });
         scored.sort((a, b) => b.score - a.score);
-        let topN = Math.min(Math.min(8, scored.length), Math.max(3, Math.floor(scored.length * 0.3)));
+        // 不再只看启发式 top-8：保留全部候选中的高分项 + 牌型多样性 + 少量探索项，
+        // 让复盘能发现启发式之外的更优动作。
+        const candidates = [];
+        const seen = new Set();
+        const push = (play) => {
+            const key = play.length ? play.map(c => c.id).sort().join(',') : 'pass';
+            if (seen.has(key)) return;
+            seen.add(key);
+            candidates.push(play);
+        };
+        const seenTypes = new Set();
+        for (const entry of scored) {
+            const t = entry.play.length ? getCardType(entry.play) : null;
+            if (!t || !seenTypes.has(t.type)) { if (t) seenTypes.add(t.type); push(entry.play); }
+            if (candidates.length >= 10) break;
+        }
+        for (const entry of scored) {
+            if (candidates.length >= 12) break;
+            push(entry.play);
+        }
         let bestPlay = null, bestWinRate = -1;
-
-        for (let j = 0; j < topN; j++) {
-            let play = scored[j].play;
-            let ids = new Set(play.map(c => c.id));
+        for (const play of candidates) {
             let simState = JSON.parse(JSON.stringify(state));
-            simState.players[playerId] = simState.players[playerId].filter(c => !ids.has(c.id));
-            simState.lastPlay = getCardType(play);
-            simState.lastPlayerId = playerId;
-            simState.passCount = 0;
-            if (simState.players[playerId].length === 0) {
-                return { bestPlay: play, bestWinRate: 1.0 };
+            if (!play || play.length === 0) {
+                const pc = (simState.passCount || 0) + 1;
+                if (pc >= 2) { simState.lastPlay = null; simState.lastPlayerId = -1; simState.passCount = 0; }
+                else simState.passCount = pc;
+            } else {
+                let ids = new Set(play.map(c => c.id));
+                simState.players[playerId] = simState.players[playerId].filter(c => !ids.has(c.id));
+                simState.lastPlay = getCardType(play);
+                simState.lastPlayerId = playerId;
+                simState.passCount = 0;
+                if (simState.players[playerId].length === 0) {
+                    return { bestPlay: play, bestWinRate: 1.0 };
+                }
             }
-            let wins = 0, trials = 6;
+            let wins = 0, trials = 12;
             for (let t = 0; t < trials; t++) {
                 if (this._simulateGame(simState, (playerId+1)%3, playerId, state.landlord)) wins++;
             }
             let wr = wins / trials;
             if (wr > bestWinRate) { bestWinRate = wr; bestPlay = play; }
         }
-        if (bestPlay && bestWinRate >= 0) return { bestPlay, bestWinRate };
+        if (bestWinRate >= 0) return { bestPlay, bestWinRate };
         return null;
     },
 
@@ -1220,7 +1412,7 @@ const GodViewLearner = {
             simState.passCount = 0;
         }
         if (simState.players[action.p].length === 0) return 1.0;
-        let wins = 0, trials = 6;
+        let wins = 0, trials = 12;
         for (let t = 0; t < trials; t++) {
             if (this._simulateGame(simState, (action.p+1)%3, aiPlayerId, lordIdx)) wins++;
         }
@@ -1264,9 +1456,16 @@ const GodViewLearner = {
                 let feat = extractPlayFeatures(p, hand, s.lastPlay, role, memory, s);
                 return { play: p, score: scorePlay(feat, role, memory, s, hand) };
             });
+            // 过牌必须作为候选之一：之前 rollout 只会“有牌必打”，会严重高估主动出牌。
+            scored.push({ play: [], score: computePassScore(role, s) });
             scored.sort((a, b) => b.score - a.score);
             let chosen = scored[0].play;
-            if (Math.random() < 0.12 && scored.length > 1 && scored[1].play.length > 0) {
+            if (chosen.length === 0) {
+                s.passCount++;
+                cp = (cp + 1) % 3;
+                continue;
+            }
+            if (this._rand() < 0.12 && scored.length > 1 && scored[1].play.length > 0) {
                 chosen = scored[1].play;
             }
             s.players[cp] = s.players[cp].filter(c => !chosen.includes(c));
@@ -1276,7 +1475,24 @@ const GodViewLearner = {
             s.passCount = 0;
             cp = (cp + 1) % 3;
         }
-        return false;
+        // 到达 step limit 时，用“我方是否更快走完 + 牌力”给出近似终局判断，
+        // 而不是永远返回 false（会把所有 rollout 都判成输，污染反事实标签）。
+        try {
+            let mySide = (aiPlayerId === lordIdx) ? [aiPlayerId] : [0, 1, 2].filter(i => i !== lordIdx);
+            let myLen = 0, oppLen = 0;
+            for (let i = 0; i < 3; i++) {
+                const len = (s.players[i] || []).length;
+                if (mySide.includes(i)) myLen += len; else oppLen += len;
+            }
+            if (myLen !== oppLen) return myLen < oppLen;
+            let myPower = 0, oppPower = 0;
+            for (let i = 0; i < 3; i++) {
+                let pw = 0;
+                for (const c of (s.players[i] || [])) pw += 1 + (c.value >= 12 ? 3 : 0) + (c.value >= 11 ? 1 : 0);
+                if (mySide.includes(i)) myPower += pw; else oppPower += pw;
+            }
+            return myPower >= oppPower;
+        } catch (e) { return false; }
     },
 
     _advanceState(state, action) {
@@ -1405,15 +1621,33 @@ const GodViewLearner = {
         }
         if (changed === 0) return;
 
-        // 自我对弈 A/B 验证：候选参数必须不劣于当前参数才采纳（0.45 容忍小样本噪声）
+        // 自我对弈 A/B 验证：候选参数必须不劣于当前参数才采纳。
+        // 之前 6 副牌 + 0.45 门禁，几乎无法区分噪声与真实提升，因此这里提升到
+        // 10 副牌 / 20 paired games，并要求 A/B 胜率不低于 50%。
         let base = this._effectiveParams();
-        let wr = null;
-        try { wr = await SelfPlayEval.evaluate(candidate, base, 6, 5000); } catch (e) { wr = null; }
+        let validation = null;
+        try { validation = await SelfPlayEval.evaluate(candidate, base, 20, 16000); } catch (e) { validation = null; }
         stats.validated = true;
-        stats.validationWinRate = wr;
-        if (wr !== null && wr < 0.45) {
+        stats.validationWinRate = validation ? validation.winRate : null;
+        stats.validationGames = validation ? validation.games : 0;
+        let accepted = false;
+        if (validation && validation.games >= 20) {
+            // 非劣检验 + 轻微提升门禁：
+            //   - 点估计 p >= 0.52：候选至少不劣于当前参数
+            //   - Wilson 下界 > 0.42：排除"样本噪声导致的假提升"，同时不像 >0.5 那样几乎永远无法通过
+            const n = validation.games;
+            const p = validation.winRate;
+            const z = 1.28;
+            const denom = 1 + z * z / n;
+            const centre = p + z * z / (2 * n);
+            const margin = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+            const lower = (centre - margin) / denom;
+            accepted = p >= 0.52 && lower > 0.42;
+            stats.validationLowerBound = lower;
+        }
+        if (!accepted) {
             this._statsCache.rejected = (this._statsCache.rejected || 0) + 1;
-            this._statsCache.lastValidation = wr;
+            this._statsCache.lastValidation = stats.validationWinRate;
             return;
         }
 
@@ -1422,7 +1656,7 @@ const GodViewLearner = {
         this._adjustCount++;
         this._statsCache.totalAdjustments = this._adjustCount;
         this._statsCache.accepted = (this._statsCache.accepted || 0) + 1;
-        this._statsCache.lastValidation = wr;
+        this._statsCache.lastValidation = stats.validationWinRate;
     },
 
     getStats() { return this._statsCache; },
@@ -1491,7 +1725,7 @@ const ParamExporter = {
             <div id="aiParamInfo" class="text-[10px] text-gray-300 mb-3 space-y-1">
                 <div>📌 参数版本: v${ParamConfig.get('version')} ${isCustom ? '✨ 已自定义' : '📄 默认'}</div>
                 <div>📏 纠错规则: ${ruleStats.active}/${ruleStats.total} 条生效</div>
-                <div>🧠 反事实学习: ${learnStats.total} 次复盘 · ${learnStats.recent20} 近期修正</div>
+                <div>🧠 反事实学习: ${learnStats.totalAnalyses || 0} 局已复盘 · ${learnStats.total || 0} 条修正</div>
             </div>
             <div class="flex flex-col gap-2">
                 <button onclick="ParamExporter.copyToClipboard()" class="pixel-btn bg-blue-500 text-[10px] w-full">📋 复制参数 JSON</button>
@@ -1586,9 +1820,9 @@ const ParamExporter = {
         let stats = GodViewLearner.getStats();
         let adjTotal = ParamConfig._overrides ? ParamConfig.get('version') + stats.totalAdjustments : stats.totalAdjustments;
         container.innerHTML = `<div class="text-[10px] text-gray-300 mb-3 space-y-1">
-            <div>📊 总复盘: ${stats.total} 次 · 修正 ${stats.recent20} 条</div>
+            <div>📊 总复盘: ${stats.totalAnalyses || 0} 局 · 修正 ${stats.total || 0} 条</div>
             <div>⚡ 参数调整: ${stats.totalAdjustments} 次 · 平均差异 ${(stats.avgDiff*100).toFixed(0)}%</div>
-            <div>🧠 特征权重: 线性更新 · 学习率 ${(0.02/(1+0.001*(stats.totalAdjustments||1))).toFixed(4)}</div>
+            <div>🧠 特征权重: 线性更新 · 学习率 ${(0.05/(1+0.002*(stats.totalAdjustments||1))).toFixed(4)}</div>
         </div><div id="learnTabBody" class="text-center text-gray-400 text-[10px] py-4">⏳ 加载中...</div>
         <div class="text-[8px] text-gray-500 mt-2">每局结束后用 minimax/rollout 搜索最优解，基于特征差调整评分权重</div>`;
         GodViewLearner.getRecentCorrections(15).then(data => {

@@ -7,7 +7,7 @@ const BASE_PATH = self.location.pathname.replace(/[^/]+$/, '');
 // 构建带项目标识的缓存名称，避免多项目冲突
 // 例如 '/ddz/' -> 'pwa-cache-ddz-v1'
 const PROJECT_PREFIX = `pwa-cache${BASE_PATH.replace(/\//g, '-').replace(/--/g, '-').replace(/(^-|-$)/g, '')}`;
-const CACHE_VERSION = 'v74';
+const CACHE_VERSION = 'v81';
 const CACHE_NAME = `${PROJECT_PREFIX}${CACHE_VERSION}`;
 // 允许离线使用的跨域依赖（CDN）与主机白名单
 const OFFLINE_ASSET_URLS = [
@@ -80,7 +80,15 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // 立即控制所有页面
+    })
+      // 立即控制所有页面：让"版本号已更新但 SW 还没接管"的状态尽快消失
+      .then(() => self.clients.claim())
+      .then(() => {
+        // 激活后立刻把当前版本号告知所有客户端，页面可据此提示刷新
+        return self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(c => c.postMessage({ type: 'VERSION', version: CACHE_VERSION, cacheName: CACHE_NAME }));
+        });
+      })
   );
 });
 
@@ -130,23 +138,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ----- 5.2 静态资源/CDN 请求：缓存优先，未命中则网络请求并缓存 -----
+  // ----- 5.2 静态资源/CDN 请求：缓存优先 + 后台更新（stale-while-revalidate） -----
+  // 纯缓存优先会导致"发布新版本后必须刷新两次才生效"；这里先返回缓存保证秒开，
+  // 同时后台拉取新资源写回缓存，下次加载即命中新版本。
   if (isStaticResource(url) || isPrecachedExternal) {
+    // 注意：event.waitUntil 必须在事件派发的同步阶段调用，因此网络请求在这里就发起
+    const networkPromise = fetch(request).then(networkResponse => {
+      if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone)).catch(() => {});
+      }
+      return networkResponse;
+    }).catch(() => null);
+    event.waitUntil(networkPromise.then(() => {}));
     event.respondWith(
       caches.match(request).then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(request).then(networkResponse => {
-          if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone)).catch(() => {});
-          }
-          return networkResponse;
-        }).catch(() => {
-          // 完全离线且无缓存，返回空响应（可自定义）
-          return new Response('', { status: 408 });
-        });
+        if (cachedResponse) return cachedResponse;
+        return networkPromise.then(r => r || new Response('', { status: 408 }));
       })
     );
     return;
