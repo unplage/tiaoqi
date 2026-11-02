@@ -9,28 +9,28 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
             min-height: 100dvh; height: 100dvh;
-            display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
-            gap: 8px; padding: 8px;
+            display: grid; grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+            gap: 4px 0; padding: 0;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             color: #f8fafc;
             background: radial-gradient(900px 500px at 10% -10%, #7c3aed22, transparent 60%),
                         linear-gradient(160deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%);
             overflow: hidden;
         }
-        .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .topbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 8px; }
         .topbar a { color:#c4b5fd; text-decoration:none; padding:8px 10px; border:1px solid #312e81; background:#0f172a; border-radius:10px; }
         .title { flex:1; font-size:clamp(1.1rem,4vw,1.4rem); font-weight:900; text-shadow:0 2px 12px #7c3aed88; }
-        .hud { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+        .hud { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 8px; }
         .hud-card { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:4px 6px; text-align:center; min-height:34px; }
         .hud-label { font-size:.72rem; color:#a5b4fc; }
         .hud-value { font-size:1.1rem; font-weight:800; }
-        .progress-wrap { position:relative; height:20px; background:#0f172a99; border:1px solid #312e81; border-radius:999px; overflow:hidden; }
+        .progress-wrap { position:relative; height:20px; background:#0f172a99; border:1px solid #312e81; border-radius:999px; overflow:hidden; padding:0 8px; }
         .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#22c55e,#84cc16); transition:width .25s ease; }
         .progress-label { position:absolute; inset:0; display:grid; place-items:center; font-size:.72rem; font-weight:800; text-shadow:0 1px 2px #000; }
-        #boardWrap { position:relative; display:grid; place-items:center; min-height:0; }
+        #boardWrap { position:relative; width:100%; height:100%; display:flex; justify-content:center; align-items:center; min-height:0; padding:0; }
         #board {
-            display:grid; gap:4px; width:min(96vw,72vh,560px); aspect-ratio:1/1;
-            padding:8px; border-radius:18px;
+            display:grid; gap:4px; width:100%; max-width:560px; aspect-ratio:1/1;
+            max-height:100%; padding:0; border-radius:12px;
             background:linear-gradient(145deg,#ffffff18,#00000033);
             border:1px solid #a5b4fc55;
             box-shadow:0 16px 40px #0006;
@@ -83,10 +83,10 @@
             pointer-events:none;
         }
         .disabled { filter:grayscale(.7) brightness(.6); }
-        #statusPanel { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:4px 10px; min-height:34px; }
+        #statusPanel { background:#0f172a99; border:1px solid #312e81; border-radius:12px; padding:4px 10px; min-height:34px; padding-left:8px; padding-right:8px; }
         .status-line { min-height:1.4em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
         .status-sub { font-size:.8rem; color:#a5b4fc; min-height:1.2em; }
-        .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+        .footerbar { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; padding:0 8px; }
         .footerbar button { position:relative; padding:4px 8px; font-size:.85rem; }
         .badge { position:absolute; top:-6px; right:-6px; background:#f43f5e; color:#fff; border-radius:999px; font-size:.65rem; min-width:16px; padding:1px 4px; font-weight:900; }
         .modal-backdrop {
@@ -119,8 +119,9 @@
         }
         .modal-backdrop button { padding:8px 12px; border-radius:8px; border:1px solid #312e81; background:#1e1b4b; color:#e9d5ff; font-weight:700; }
         @media (max-width:520px) {
-            body { padding:4px; gap:4px; }
-            #board { width:min(96vw,50vh,320px); }
+            body { gap:4px 0; }
+            #board { max-width:none; border-radius:0; }
+            .topbar, .hud, .progress-wrap, #statusPanel, .footerbar { padding:0 4px; }
         }
     </style>
 </head>
@@ -130,6 +131,12 @@
         <div class="title">🐾 消消乐</div>
         <div style="color:#a5b4fc;font-size:.8rem;" id="levelText">第 1 关</div>
         <button id="soundBtn" onclick="game.toggleSound()">🔊</button>
+    </div>
+    <div class="footerbar">
+        <button onclick="game.openLevels()">🗺 关卡<span class="badge" id="starBadge">0</span></button>
+        <button onclick="game.restartLevel()">🔄 重开</button>
+        <button onclick="game.shuffleBoard()">🔀 洗牌<span class="badge" id="shuffleBadge">3</span></button>
+        <button onclick="game.toggleHint()">💡 提示<span class="badge" id="hintBadge">3</span></button>
     </div>
     <div class="hud">
         <div class="hud-card"><div class="hud-label">分数</div><div class="hud-value" id="scoreText">0</div></div>
@@ -143,12 +150,6 @@
     </div>
     <div id="boardWrap">
         <div id="board" aria-label="消消乐棋盘"></div>
-    </div>
-    <div class="footerbar">
-        <button onclick="game.openLevels()">🗺 关卡<span class="badge" id="starBadge">0</span></button>
-        <button onclick="game.restartLevel()">🔄 重开</button>
-        <button onclick="game.shuffleBoard()">🔀 洗牌<span class="badge" id="shuffleBadge">3</span></button>
-        <button onclick="game.toggleHint()">💡 提示<span class="badge" id="hintBadge">3</span></button>
     </div>
 
     <div class="modal-backdrop" id="levelModal">
