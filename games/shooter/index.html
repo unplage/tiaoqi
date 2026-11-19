@@ -571,7 +571,8 @@ player.engine-=dt;
 if(player.engine<=0){player.engine=2;spawnParticles(player.x+player.w/2+(Math.random()-.5)*6,player.y+player.h-2,WEAPONS[S.weapon].color,1);}
 if(player.fireCd<=0)shoot();
 for(let i=bullets.length-1;i>=0;i--){
-const b=bullets[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+const b=bullets[i];if(!b)continue;
+b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
 if(b.y<-40||b.x<-20||b.x>W+20||b.life<=0){bullets.splice(i,1);continue;}
 let consumed=false;
 for(let j=enemies.length-1;j>=0;j--){
@@ -884,10 +885,11 @@ ctx.restore();
 drawOverlayFX();
 }
 function loop(now){
+requestAnimationFrame(loop);
 const dt=Math.min(2.6,(now-last)/16.67||1);last=now;
 updateBackground(dt);
 if(S.mode==='playing')update(dt);
-draw();requestAnimationFrame(loop);
+draw();
 }
 function togglePause(){
 if(S.mode==='playing'){S.mode='paused';show('pauseScreen',true);}
