@@ -27,7 +27,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 .overlay{position:absolute;inset:0;background:linear-gradient(180deg,#020617e6,#041424f2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;text-align:center;padding:18px;z-index:8;backdrop-filter:blur(3px)}
 .overlay.hidden{display:none}
 .overlay h2{font-size:clamp(1.5rem,6.5vw,2.3rem);color:#22d3ee;text-shadow:0 0 18px #22d3ee99;letter-spacing:2px}
-.overlay.win h2{color:#4ade80;text-shadow:0 0 18px #4ade8099}
 .overlay.lose h2{color:#f87171;text-shadow:0 0 18px #f8717199}
 .overlay p{color:#bae6fd;font-size:.86rem;line-height:1.65;max-width:420px}
 .overlay .big{font-size:1.9rem;color:#fde047;font-weight:900;text-shadow:0 0 16px #f59e0b88}
@@ -48,9 +47,6 @@ button:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .ach{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:360px}
 .ach span{font-size:.64rem;padding:3px 7px;border-radius:20px;border:1px solid #155e75;color:#475569;background:#061426}
 .ach span.on{color:#fde047;border-color:#f59e0b88;background:#3a2608;box-shadow:0 0 8px #f59e0b33}
-.rank{font-size:3.4rem;font-weight:900;line-height:1;background:linear-gradient(160deg,#fde047,#f59e0b,#f472b6);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px #f59e0b88)}
-.stats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:.78rem;color:#bae6fd}
-.stats b{color:#fde047}
 .boss-bar{position:absolute;top:6px;left:8px;right:8px;height:16px;border:1px solid #fca5a5;border-radius:8px;background:#300808cc;overflow:hidden;display:none;z-index:3;box-shadow:0 0 12px #ef444466}
 .boss-bar.show{display:block}
 .boss-bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ef4444,#f59e0b,#facc15);transition:width .12s}
@@ -134,13 +130,6 @@ details ul{padding-left:18px;margin-top:6px}
 <button id="resumeBtn">继续游戏</button>
 <button class="ghost" id="quitBtn">保存并返回菜单</button>
 </div>
-<div class="overlay win hidden" id="levelScreen">
-<h2>关卡完成</h2>
-<div class="rank" id="clearRank">A</div>
-<div class="stats" id="clearStats"></div>
-<p class="big" id="clearBonus">+0</p>
-<button id="nextBtn">进入下一关</button>
-</div>
 <div class="overlay lose hidden" id="overScreen">
 <h2>游戏结束</h2>
 <p class="big" id="finalScore">0</p>
@@ -163,6 +152,7 @@ details ul{padding-left:18px;margin-top:6px}
 <li>炸弹清空敌弹并重创全场，开局携带 2 枚，拾取 B 补充。</li>
 <li>BOSS 分三阶段：瞄准弹、扇形弹、旋转弹、召唤僚机与扫射激光，阶段切换会清弹。</li>
 <li>每关按受击次数与最高连击评定 S/A/B/C 评价并获得额外奖励，成绩进入本地排行榜。</li>
+<li>关卡时长会逐步提升，击破 BOSS 后自动无缝进入下一关；只有点击暂停键或按 P 才会中断战斗。</li>
 <li>成就：击破 BOSS、20 连击、无伤过关、S 评价、单局一万分等。</li>
 </ul>
 </details>
@@ -197,6 +187,7 @@ const ACHS={
 firstBoss:'击破 BOSS',combo20:'20 连击',noHit:'无伤过关',sRank:'S 评价',level3:'抵达第 3 关',bomb3:'炸弹专家',score10k:'万分手速'
 };
 const SECTORS=['近地轨道','陨石带','深空航道','敌舰残骸','母舰外围','星门裂隙','未知星域'];
+const LEVEL_SECONDS=40,LEVEL_STEP=6,LEVEL_CAP=100;
 let W=360,H=480,dpr=1,last=0;
 let S={},player={x:0,y:0,w:30,h:36,tx:0,ty:0,drag:false,inv:0,fireCd:0,engine:0};
 let bullets=[],ebullets=[],enemies=[],powerups=[],parts=[],shocks=[],floaters=[],pending=[],stars=[],nebulas=[];
@@ -219,7 +210,7 @@ function initState(){
 const st=load();
 S={mode:'menu',best:st.best,board:st.board,unlocks:st.unlocks,diff:st.diff,muted:st.muted,shakeOn:st.shake,particles:st.particles,
 level:1,score:0,lives:3,bombs:2,power:1,weapon:'pulse',combo:0,comboTimer:0,maxCombo:0,levelMaxCombo:0,
-kills:0,levelKills:0,hits:0,levelHits:0,levelTime:0,levelStart:0,quota:0,spawned:0,spawnTimer:0,
+kills:0,levelKills:0,hits:0,levelHits:0,levelTime:0,levelMinTime:0,levelStart:0,quota:0,spawned:0,spawnTimer:0,
 boss:null,bossIntro:0,shake:0,flash:0,hitFlash:0,shield:0,bombCd:0,bombUsed:0,time:0,rank:'',stats:null,clearBonus:0};
 }
 function save(){
@@ -328,7 +319,8 @@ bullets=[];ebullets=[];enemies=[];powerups=[];parts=[];shocks=[];floaters=[];pen
 startLevel();
 }
 function startLevel(){
-S.quota=Math.min(52,12+S.level*5);S.spawned=0;S.spawnTimer=46;S.boss=null;S.bossIntro=0;S.combo=0;S.comboTimer=0;
+S.quota=Math.min(120,30+S.level*10);S.levelMinTime=Math.min(LEVEL_CAP,LEVEL_SECONDS+(S.level-1)*LEVEL_STEP)*60;
+S.spawned=0;S.spawnTimer=46;S.boss=null;S.bossIntro=0;S.combo=0;S.comboTimer=0;
 S.shield=0;S.bombCd=0;S.levelMaxCombo=0;S.levelKills=0;S.levelHits=0;S.levelTime=0;S.levelStart=S.score;
 enemies=[];ebullets=[];bullets=[];powerups=[];pending=[];
 player.inv=110;player.x=Math.min(Math.max(player.x,4),W-player.w-4);
@@ -337,7 +329,7 @@ if(S.level>=3)unlock('level3');
 sfx('warn');syncHUD();
 }
 function startGame(){
-audio();show('startScreen',false);show('overScreen',false);show('levelScreen',false);show('pauseScreen',false);
+audio();show('startScreen',false);show('overScreen',false);show('pauseScreen',false);
 resetRun();S.mode='playing';syncHUD();
 }
 function pickType(){
@@ -353,8 +345,9 @@ function queueSpawn(type,x,y,delay){
 pending.push({type,x,y,delay:delay||10});
 }
 function spawnWave(){
-if(S.spawned>=S.quota)return;
-const n=Math.min(3+Math.floor(S.level/2),6,S.quota-S.spawned);
+const overtime=S.spawned>=S.quota;
+if(overtime&&S.levelTime>=S.levelMinTime)return;
+const n=overtime?1:Math.min(3+Math.floor(S.level/2),6,Math.max(1,S.quota-S.spawned));
 const f=['line','v','pincer','random'][Math.floor(Math.random()*4)];
 for(let i=0;i<n;i++){
 const type=pickType(),cfg=TYPES[type];
@@ -541,13 +534,12 @@ S.stats={kills:S.levelKills,maxCombo:S.levelMaxCombo,hits:S.levelHits,time:Math.
 save();
 if(noHit)unlock('noHit');
 if(grade==='S')unlock('sRank');
-$('clearRank').textContent=grade;
-$('clearStats').innerHTML=`击落 <b>${S.levelKills}</b> · 最高连击 <b>${S.levelMaxCombo}</b> · 受击 <b>${S.levelHits}</b> · 用时 <b>${S.stats.time}s</b>`;
-$('clearBonus').textContent='+'+bonus.toLocaleString('en-US');
-show('levelScreen',true);S.mode='clear';sfx('clear');syncHUD();
+toast('第 '+S.level+' 关完成 · '+grade+' 评价 +'+bonus.toLocaleString('en-US'));
+sfx('clear');syncHUD();
+nextLevel();
 }
 function nextLevel(){
-show('levelScreen',false);S.level++;
+S.level++;
 if(S.level%2===0)S.lives=Math.min(6,S.lives+1);
 S.power=Math.min(6,S.power+1);
 startLevel();S.mode='playing';syncHUD();
@@ -611,9 +603,13 @@ for(let i=pending.length-1;i>=0;i--){
 const p=pending[i];p.delay-=dt;
 if(p.delay<=0){spawnEnemy(p.type,p.x,p.y);pending.splice(i,1);}
 }
-if(S.spawned<S.quota&&enemies.length+pending.length<16){
+if((S.spawned<S.quota||S.levelTime<S.levelMinTime)&&enemies.length+pending.length<16){
 S.spawnTimer-=dt;
-if(S.spawnTimer<=0){spawnWave();S.spawnTimer=Math.max(24,62-S.level*3);}
+if(S.spawnTimer<=0){
+spawnWave();
+const overtime=S.spawned>=S.quota;
+S.spawnTimer=overtime?Math.max(50,90-S.level*2):Math.max(30,70-S.level*3);
+}
 }
 for(let i=enemies.length-1;i>=0;i--){
 const e=enemies[i];e.phase+=.035*dt;e.born+=dt;
@@ -638,7 +634,7 @@ continue;
 }
 if(player.inv<=0&&rectHit(e,player,7)){enemies.splice(i,1);hitPlayer();}
 }
-if(S.spawned>=S.quota&&enemies.length===0&&pending.length===0&&!S.boss&&S.mode==='playing')spawnBoss();
+if(S.spawned>=S.quota&&S.levelTime>=S.levelMinTime&&enemies.length===0&&pending.length===0&&!S.boss&&S.mode==='playing')spawnBoss();
 if(S.boss){
 const b=S.boss;b.t+=dt;
 if(b.hit>0)b.hit-=dt;
@@ -929,7 +925,6 @@ if(e.code==='KeyQ')switchWeapon(1);
 if(e.code==='Space'&&S.mode==='playing')bomb();
 if(e.code==='Enter'){
 if(S.mode==='menu')startGame();
-else if(S.mode==='clear')nextLevel();
 else if(S.mode==='over')startGame();
 }
 });
@@ -941,10 +936,9 @@ $('overMenuBtn').onclick=()=>{show('overScreen',false);show('startScreen',true);
 $('resumeBtn').onclick=togglePause;
 $('quitBtn').onclick=()=>{save();show('pauseScreen',false);show('startScreen',true);S.mode='menu';renderBoard($('startBoard'));syncHUD();};
 $('pauseBtn').onclick=togglePause;
-$('nextBtn').onclick=nextLevel;
 $('menuBtn').onclick=()=>{
 save();S.mode='menu';S.boss=null;bullets=[];ebullets=[];enemies=[];powerups=[];parts=[];shocks=[];floaters=[];pending=[];
-show('startScreen',true);show('overScreen',false);show('levelScreen',false);show('pauseScreen',false);
+show('startScreen',true);show('overScreen',false);show('pauseScreen',false);
 renderBoard($('startBoard'));syncHUD();
 };
 $('soundBtn').onclick=()=>{S.muted=!S.muted;save();syncHUD();};
