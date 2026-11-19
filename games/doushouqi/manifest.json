@@ -1,0 +1,20 @@
+{
+  "name": "斗兽棋 · TiaoQi Arcade",
+  "short_name": "斗兽棋",
+  "description": "经典斗兽棋：完整陷阱与水域规则、狮虎跳河、三级人机 AI、悔棋与提示。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#052e16",
+  "theme_color": "#14532d",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "categories": ["games"],
+  "icons": [
+    { "src": "../../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "../../icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

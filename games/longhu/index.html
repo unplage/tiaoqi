@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>龙虎斗 · TiaoQi Arcade</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="../../icons/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="../../icons/icon-180.png" sizes="180x180">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:system-ui,-apple-system,'Segoe UI','Microsoft YaHei',sans-serif}
+body{min-height:100vh;color:#f0fdf4;background:radial-gradient(900px 500px at 15% -10%,#16653488,transparent 60%),radial-gradient(800px 500px at 100% 10%,#a1620755,transparent 55%),linear-gradient(160deg,#052e16,#0b3d20 60%,#062b17);padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));display:flex;justify-content:center}
+.app{width:min(100%,960px);display:grid;gap:14px}
+header{text-align:center}
+h1{font-size:clamp(1.8rem,6vw,2.7rem);letter-spacing:6px;color:#fde047;text-shadow:0 0 18px #f59e0b77}
+.subtitle{color:#bbf7d0;font-size:.9rem;margin-top:4px}
+.card{background:linear-gradient(160deg,#0b2b18,#0a2014);border:1px solid #3f7d4f;border-radius:18px;padding:16px;box-shadow:0 14px 34px #0006}
+.top{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.top h2,.section h2{font-size:1rem;color:#fde047;margin-bottom:10px;border-bottom:1px solid #3f7d4f;padding-bottom:7px}
+.stat-row{display:flex;justify-content:space-between;gap:8px;font-size:.9rem;color:#d1fae5;padding:4px 0}
+.stat-row b{color:#fde047;font-variant-numeric:tabular-nums}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:80px;border:1px solid #3f7d4f;background:#123a20;color:#dcfce7;border-radius:9px;padding:9px 6px;font-size:.85rem;cursor:pointer;transition:.15s}
+.seg button:hover{background:#1b4b2b}
+.seg button.on{background:#f59e0b;color:#1a2e05;border-color:#fde047;font-weight:800}
+.seg button:disabled{opacity:.45;cursor:not-allowed}
+.arena{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.side{background:rgba(6,30,15,.75);border:2px solid #3f7d4f;border-radius:16px;padding:14px;text-align:center;transition:.2s}
+.side.on{border-color:#fde047;box-shadow:0 0 18px #f59e0b55;transform:translateY(-3px)}
+.side h3{font-size:1.25rem;color:#fde047;margin-bottom:12px}
+.cards{display:flex;justify-content:center;min-height:158px;align-items:center}
+.pcard{width:96px;height:134px;border-radius:10px;background:#fff;color:#111;display:flex;flex-direction:column;justify-content:space-between;padding:8px;box-shadow:0 8px 18px #0007;position:relative;font-weight:800}
+.pcard.back{background:linear-gradient(135deg,#b91c1c,#7f1d1d);color:#fecaca;align-items:center;justify-content:center;font-size:1.2rem;letter-spacing:3px;writing-mode:vertical-rl}
+.pcard.red{color:#dc2626}.pcard.black{color:#111827}
+.pcard .corner{font-size:1rem;line-height:1.1}
+.pcard .center{font-size:3rem;text-align:center;flex:1;display:grid;place-items:center}
+.flip{animation:flip .5s ease-out}
+@keyframes flip{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+.side small{display:block;color:#bbf7d0;font-size:.85rem;margin-top:8px;min-height:20px}
+.bet-panel{margin-top:14px;display:grid;gap:10px}
+.bet-panel.off{display:none}
+.bet-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.88rem;color:#d1fae5}
+.bet-line span{min-width:52px}
+.bet-line button{flex:0 0 auto;border:1px solid #3f7d4f;background:#123a20;color:#dcfce7;border-radius:8px;padding:7px 11px;cursor:pointer;font-size:.85rem}
+.bet-line button.on{background:#f59e0b;color:#1a2e05;border-color:#fde047;font-weight:800}
+.bet-line button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.actions button{border:none;border-radius:10px;padding:12px 22px;font-size:1rem;font-weight:800;cursor:pointer;background:linear-gradient(100deg,#f59e0b,#ea580c);color:#fff;box-shadow:0 6px 18px #f59e0b44;transition:.15s}
+.actions button:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px)}
+.actions button:disabled{opacity:.5;cursor:not-allowed}
+.actions button.ghost{background:#14432a;border:1px solid #3f7d4f;box-shadow:none}
+.result{text-align:center;background:#062116;border:1px solid #3f7d4f;border-radius:14px;padding:14px;min-height:70px;display:grid;align-content:center;gap:4px}
+.result strong{font-size:1.5rem;color:#fde047}
+.result small{color:#bbf7d0;font-size:.9rem}
+.result.win strong{color:#86efac}.result.lose strong{color:#fca5a5}.result.tie strong{color:#fcd34d}
+.history-list{display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow:auto}
+.history-list div{background:#0a2917;border:1px solid #2f6b3f;border-radius:8px;padding:6px 9px;font-size:.78rem;color:#dcfce7}
+.history-list .win{border-left:3px solid #4ade80}
+.history-list .lose{border-left:3px solid #f87171}
+.history-list .tie{border-left:3px solid #fcd34d}
+.rules{font-size:.84rem;color:#d1fae5;line-height:1.8;padding-left:18px}
+.back{color:#93c5fd;text-decoration:none;text-align:center;font-size:.87rem}
+@media(max-width:600px){.arena{grid-template-columns:1fr}.pcard{width:82px;height:118px}.cards{min-height:132px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<h1>龙 虎 斗</h1>
+<p class="subtitle">同点即和 · 押注筹码 · 经典 / 双人 / 押注三种玩法</p>
+</header>
+<div class="top">
+<div class="card">
+<h2>对局状态</h2>
+<div class="stat-row"><span>比分（龙 - 和 - 虎）</span><b id="scoreLine">0 - 0 - 0</b></div>
+<div class="stat-row"><span>当前回合</span><b id="turnText">—</b></div>
+<div class="stat-row"><span>牌堆剩余</span><b id="deckLeft">52</b></div>
+</div>
+<div class="card">
+<h2>筹码与战绩</h2>
+<div class="stat-row"><span>持有筹码</span><b id="chips">1000</b></div>
+<div class="stat-row"><span>胜 / 负</span><b id="wl">0 / 0</b></div>
+<div class="stat-row"><span>连胜 / 最高</span><b id="streak">0 / 0</b></div>
+</div>
+<div class="card">
+<h2>游戏模式</h2>
+<div class="seg" id="modeSeg">
+<button data-mode="classic" class="on">经典人机</button>
+<button data-mode="pvp">双人对弈</button>
+<button data-mode="bet">押注模式</button>
+</div>
+<div class="bet-panel off" id="betPanel">
+<div class="bet-line"><span>押注方向</span>
+<button data-side="dragon" class="on">龙</button>
+<button data-side="tiger">虎</button>
+<button data-side="tie">和</button>
+</div>
+<div class="bet-line"><span>下注额</span>
+<button data-bet="10">10</button>
+<button data-bet="50">50</button>
+<button data-bet="100" class="on">100</button>
+<button data-bet="500">500</button>
+</div>
+</div>
+</div>
+</div>
+<div class="card arena">
+<div class="side on" id="dragonSide">
+<h3>🐉 龙（玩家 / 先手）</h3>
+<div class="cards" id="dragonCards"><div class="pcard back">龍</div></div>
+<small id="dragonInfo">等待发牌…</small>
+</div>
+<div class="side" id="tigerSide">
+<h3>🐯 虎（庄家 / 后手）</h3>
+<div class="cards" id="tigerCards"><div class="pcard back">虎</div></div>
+<small id="tigerInfo">等待发牌…</small>
+</div>
+</div>
+<div class="card">
+<div class="result" id="result">
+<strong id="resultTitle">欢迎来到龙虎斗</strong>
+<small id="resultDetail">选择模式后点击下方按钮开始</small>
+</div>
+<div class="actions">
+<button id="playBtn">发牌</button>
+<button class="ghost" id="newMatchBtn">重新开局</button>
+<button class="ghost" id="resetBtn">重置数据</button>
+</div>
+<div class="bet-panel off" id="betHint">
+<p style="color:#bbf7d0;font-size:.82rem;text-align:center;margin-top:8px">龙/虎押中得 1:1；押“和”中得 1:8；点数相同即为和局。</p>
+</div>
+</div>
+<div class="card">
+<h2>历史记录</h2>
+<div class="history-list" id="history"><div style="color:#64748b">暂无记录</div></div>
+</div>
+<div class="card">
+<h2>规则</h2>
+<ul class="rules">
+<li>使用 52 张扑克（无大小王），A 最小、K 最大，点数相同判为和局，花色不影响胜负。</li>
+<li>经典人机 / 双人对弈：先得 5 分者获胜；和局双方不得分。</li>
+<li>押注模式：先选押注方向与金额，再发牌；筹码不足时无法下注，可重置数据领取新筹码。</li>
+<li>快捷键：1 / 2 / 3 选择押注方向，空格键发牌。</li>
+</ul>
+</div>
+<a class="back" href="../../index.html">← 返回游戏集</a>
+</div>
+<script>
+(function(){
+'use strict';
+const KEY='tiaoqi.longhu.v1';
+const $=id=>document.getElementById(id);
+const SUITS=[{key:'spades',sym:'♠',name:'黑桃',red:false},{key:'hearts',sym:'♥',name:'红心',red:true},{key:'clubs',sym:'♣',name:'梅花',red:false},{key:'diamonds',sym:'♦',name:'方块',red:true}];
+const VALUES=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const load=()=>{try{const d=JSON.parse(localStorage.getItem(KEY)||'{}');return{mode:['classic','pvp','bet'].includes(d.mode)?d.mode:'bet',chips:Number.isFinite(d.chips)?d.chips:1000,wins:d.wins||0,losses:d.losses||0,bestStreak:d.bestStreak||0,history:Array.isArray(d.history)?d.history.slice(0,16):[]};}catch(e){return{mode:'bet',chips:1000,wins:0,losses:0,bestStreak:0,history:[]};}};
+let S=Object.assign(load(),{deck:[],dragon:null,tiger:null,turn:'dragon',phase:'idle',busy:false,dScore:0,tScore:0,ties:0,streak:0,bet:100,side:'dragon',delta:0});
+let dealToken=0;
+function save(){try{localStorage.setItem(KEY,JSON.stringify({mode:S.mode,chips:S.chips,wins:S.wins,losses:S.losses,bestStreak:S.bestStreak,history:S.history}));}catch(e){}}
+function newDeck(){S.deck=[];SUITS.forEach(s=>VALUES.forEach((v,i)=>S.deck.push({suit:s,value:v,weight:i+1})));for(let i=S.deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[S.deck[i],S.deck[j]]=[S.deck[j],S.deck[i]];}}
+function draw(){if(!S.deck.length)newDeck();return S.deck.pop();}
+function cardText(c){return c?`${c.value}${c.suit.sym}`:'—';}
+function cardEl(c){
+const el=document.createElement('div');
+el.className='pcard '+(c.suit.red?'red':'black')+' flip';
+el.innerHTML=`<div class="corner">${c.value}<br>${c.suit.sym}</div><div class="center">${c.suit.sym}</div><div class="corner" style="text-align:right">${c.value}<br>${c.suit.sym}</div>`;
+setTimeout(()=>el.classList.remove('flip'),520);
+return el;
+}
+function renderCard(which){
+const box=$(which==='dragon'?'dragonCards':'tigerCards');
+const card=which==='dragon'?S.dragon:S.tiger;
+box.innerHTML='';
+if(card)box.appendChild(cardEl(card));
+else{const back=document.createElement('div');back.className='pcard back';back.textContent=which==='dragon'?'龍':'虎';box.appendChild(back);}
+$(which+'Info').textContent=card?`${card.value} · ${card.suit.name}`:'等待发牌…';
+}
+function result(label,detail,cls){
+$('resultTitle').textContent=label;$('resultDetail').textContent=detail;
+$('result').className='result'+(cls?' '+cls:'');
+}
+function sync(){
+document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
+document.querySelectorAll('[data-side]').forEach(b=>{b.classList.toggle('on',b.dataset.side===S.side);b.disabled=S.mode!=='bet'||S.phase!=='idle'||S.busy;});
+document.querySelectorAll('[data-bet]').forEach(b=>{b.classList.toggle('on',+b.dataset.bet===S.bet);b.disabled=S.mode!=='bet'||S.phase!=='idle'||S.busy;});
+$('betPanel').classList.toggle('off',S.mode!=='bet');
+$('betHint').classList.toggle('off',S.mode!=='bet');
+$('scoreLine').textContent=`${S.dScore} - ${S.ties} - ${S.tScore}`;
+$('chips').textContent=S.chips;$('wl').textContent=`${S.wins} / ${S.losses}`;
+$('streak').textContent=`${S.streak} / ${S.bestStreak}`;
+$('deckLeft').textContent=S.deck.length;
+$('turnText').textContent=S.phase==='matchover'?'比赛结束':S.mode==='pvp'?(S.turn==='dragon'?'龙方':'虎方'):(S.phase==='idle'?'待发牌':'已发牌');
+$('dragonSide').classList.toggle('on',S.mode==='pvp'&&S.turn==='dragon'&&S.phase==='idle'||S.mode!=='pvp'&&S.phase==='idle');
+$('tigerSide').classList.toggle('on',S.mode==='pvp'&&S.turn==='tiger'&&S.phase==='idle');
+let label='发牌';
+if(S.phase==='matchover')label='开始新比赛';
+else if(S.phase==='dealt')label=S.mode==='bet'?'下一局':'下一轮';
+else if(S.mode==='pvp')label=S.turn==='dragon'?'龙方发牌':'虎方发牌';
+else if(S.mode==='bet')label=`押${S.side==='dragon'?'龙':S.side==='tiger'?'虎':'和'} ${S.bet} · 发牌`;
+$('playBtn').textContent=label;
+$('playBtn').disabled=S.busy||(S.mode==='bet'&&S.phase==='idle'&&S.bet>S.chips);
+renderHistory();
+}
+function renderHistory(){
+const box=$('history');box.innerHTML='';
+if(!S.history.length){const d=document.createElement('div');d.style.color='#64748b';d.textContent='暂无记录';box.appendChild(d);return;}
+S.history.forEach(h=>{
+const d=document.createElement('div');
+d.className=h.result==='tie'?'tie':(h.won?'win':'lose');
+d.textContent=`${h.dragon} vs ${h.tiger} · ${h.result==='tie'?'和':h.result==='dragon'?'龙胜':'虎胜'}${h.delta?` (${h.delta>0?'+':''}${h.delta})`:''}`;
+box.appendChild(d);
+});
+}
+function decide(){
+const a=S.dragon.weight,b=S.tiger.weight;
+return a>b?'dragon':a<b?'tiger':'tie';
+}
+function addHistory(winner,delta,won){
+S.history.unshift({dragon:cardText(S.dragon),tiger:cardText(S.tiger),result:winner,delta:delta||0,won:!!won});
+S.history=S.history.slice(0,16);
+}
+function settle(){
+const winner=decide();
+const rank={dragon:'龙',tiger:'虎',tie:'和'}[winner];
+let detail=`${S.dragon.value}${S.dragon.suit.sym} 对 ${S.tiger.value}${S.tiger.suit.sym} · `;
+if(winner==='tie')detail+='点数相同，平局';
+else detail+=`点数 ${winner==='dragon'?S.dragon.value:S.tiger.value} 更大，${rank}胜`;
+if(S.mode==='bet'){
+let won=false,delta=-S.bet;
+if(S.side==='tie'){if(winner==='tie'){won=true;delta=S.bet*8;}}
+else if(winner!=='tie'&&S.side===winner){won=true;delta=S.bet;}
+S.chips+=delta;
+if(won){S.wins++;S.streak++;if(S.streak>S.bestStreak)S.bestStreak=S.streak;detail+=` · 押中${rank}，${delta>0?'+':''}${delta} 筹码`;}
+else{S.losses++;S.streak=0;detail+=` · 未押中，${delta} 筹码`;}
+addHistory(winner,delta,won);
+result(won?'🎉 押注命中':(winner==='tie'?'🤝 和局':'💥 押注失败'),detail,won?'win':winner==='tie'?'tie':'lose');
+save();
+}else{
+if(winner==='dragon')S.dScore++;
+else if(winner==='tiger')S.tScore++;
+else S.ties++;
+addHistory(winner,0,false);
+result(winner==='tie'?'🤝 和局':winner==='dragon'?'🐉 龙方获胜':'🐯 虎方获胜',detail,winner==='tie'?'tie':winner==='dragon'?'win':'lose');
+if(S.dScore>=5||S.tScore>=5){
+S.phase='matchover';
+result(S.dScore>S.tScore?'🏆 龙方赢得比赛':'🏆 虎方赢得比赛',`最终比分 ${S.dScore} - ${S.ties} - ${S.tScore}`,'win');
+}
+}
+S.phase=S.phase==='matchover'?'matchover':'dealt';
+sync();
+}
+function deal(){
+if(S.phase==='matchover'){newMatch();return;}
+if(S.phase==='dealt'){nextRound();return;}
+if(S.busy)return;
+if(S.mode==='bet'&&S.bet>S.chips){result('筹码不足','请降低下注额或重置数据','lose');return;}
+const token=++dealToken;
+S.busy=true;
+if(S.mode==='pvp'){
+if(S.turn==='dragon'){S.dragon=draw();renderCard('dragon');S.turn='tiger';S.busy=false;result('龙方已发牌',`龙方拿到 ${cardText(S.dragon)}，请虎方发牌`);sync();return;}
+S.tiger=draw();renderCard('tiger');S.busy=false;settle();return;
+}
+S.dragon=draw();renderCard('dragon');
+result('发牌中…','庄家正在亮牌');
+setTimeout(()=>{
+if(token!==dealToken)return;
+S.tiger=draw();renderCard('tiger');S.busy=false;settle();
+},480);
+sync();
+}
+function nextRound(){
+dealToken++;S.busy=false;S.dragon=null;S.tiger=null;S.phase='idle';S.turn='dragon';
+renderCard('dragon');renderCard('tiger');
+if(S.deck.length<12){newDeck();result('牌堆已重洗','新的一副牌已就绪');}
+else result('新一轮','请点击下方按钮继续');
+sync();
+}
+function newMatch(){
+dealToken++;S.dScore=0;S.tScore=0;S.ties=0;S.streak=0;
+nextRound();
+}
+function switchMode(mode){
+if(mode===S.mode)return;
+S.mode=mode;save();newMatch();
+result('已切换模式',mode==='bet'?'选择押注方向后发牌':mode==='pvp'?'两位玩家轮流发牌':'先得 5 分者获胜');
+sync();
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>switchMode(b.dataset.mode));
+document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>{if(S.mode!=='bet'||S.phase!=='idle')return;S.side=b.dataset.side;sync();});
+document.querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{if(S.mode!=='bet'||S.phase!=='idle')return;S.bet=+b.dataset.bet;sync();});
+$('playBtn').onclick=deal;
+$('newMatchBtn').onclick=()=>{newMatch();result('比赛重新开始','比分已归零');};
+$('resetBtn').onclick=()=>{
+if(!confirm('重置筹码为 1000 并清空战绩？'))return;
+S.chips=1000;S.wins=0;S.losses=0;S.streak=0;S.bestStreak=0;S.history=[];
+save();newMatch();result('数据已重置','领取 1000 筹码，继续游戏');
+};
+document.addEventListener('keydown',e=>{
+if(e.code==='Digit1'&&S.mode==='bet'){S.side='dragon';sync();}
+if(e.code==='Digit2'&&S.mode==='bet'){S.side='tiger';sync();}
+if(e.code==='Digit3'&&S.mode==='bet'){S.side='tie';sync();}
+if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();deal();}
+});
+newDeck();renderCard('dragon');renderCard('tiger');sync();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('../../sw.js').catch(console.error);
+}
+</script>
+</body>
+</html>

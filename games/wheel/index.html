@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<title>幸运大转盘 · TiaoQi Arcade</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="../../icons/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="../../icons/icon-180.png" sizes="180x180">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;font-family:system-ui,-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#eef2ff;background:radial-gradient(900px 500px at 15% -10%,#4c1d95aa,transparent 60%),radial-gradient(800px 500px at 100% 10%,#db277755,transparent 55%),linear-gradient(160deg,#0b1024,#1a1a2e 60%,#16213e);padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom))}
+.app{max-width:1060px;margin:0 auto;display:grid;gap:18px}
+header{text-align:center;padding:6px 0}
+h1{font-size:clamp(1.7rem,6vw,2.6rem);letter-spacing:2px;background:linear-gradient(100deg,#fde68a,#fb7185,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.subtitle{color:#a5b4fc;font-size:.95rem;margin-top:6px;line-height:1.6}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:20px;align-items:start}
+.stage{position:relative;background:linear-gradient(160deg,#111827,#1f2937);border:1px solid #334155;border-radius:24px;padding:18px;box-shadow:0 18px 45px #0007;display:flex;flex-direction:column;align-items:center;gap:14px}
+.wheel-wrap{position:relative;width:min(100%,520px);aspect-ratio:1/1;filter:drop-shadow(0 18px 30px #0008)}
+canvas{width:100%;height:100%;display:block;border-radius:50%;background:#2d3047}
+.pointer{position:absolute;top:-16px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:46px solid #fb7185;filter:drop-shadow(0 4px 4px #0008);z-index:4}
+.pointer::after{content:'';position:absolute;top:-58px;left:-10px;width:20px;height:20px;border-radius:50%;background:#fb7185;box-shadow:0 0 12px #fb7185}
+.hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70px;height:70px;border-radius:50%;border:5px solid #fb7185;background:radial-gradient(circle at 35% 30%,#475569,#1e293b);color:#fff;font-size:1.1rem;font-weight:800;display:grid;place-items:center;cursor:pointer;z-index:5;box-shadow:0 0 20px #fb718566;transition:transform .15s}
+.hub:active{transform:translate(-50%,-50%) scale(.92)}
+.hub:disabled{cursor:default;opacity:.7}
+.confetti{position:absolute;inset:-20px;pointer-events:none;overflow:hidden;border-radius:24px;z-index:6}
+.bit{position:absolute;width:9px;height:14px;top:-20px;animation:fall 1.5s ease-in forwards}
+@keyframes fall{to{transform:translateY(560px) rotate(720deg);opacity:0}}
+.stage-tip{color:#94a3b8;font-size:.85rem;text-align:center;line-height:1.6}
+.panel{background:linear-gradient(160deg,#111827,#0f172a);border:1px solid #334155;border-radius:24px;padding:18px;display:grid;gap:16px;box-shadow:0 18px 45px #0006}
+.panel h2{font-size:1.05rem;color:#fde68a;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+label{display:block;color:#cbd5e1;font-size:.85rem;margin:10px 0 6px}
+input[type=text],select{width:100%;padding:11px 12px;border-radius:11px;border:1px solid #475569;background:#0b1220;color:#fff;font-size:1rem;outline:none}
+input[type=text]:focus{border-color:#fb7185;box-shadow:0 0 0 3px #fb718533}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1;min-width:110px}
+button{border:none;border-radius:11px;padding:11px 14px;font-size:.95rem;font-weight:700;cursor:pointer;color:#fff;background:#334155;transition:.18s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.primary{background:linear-gradient(100deg,#fb7185,#f59e0b);box-shadow:0 6px 16px #fb718544}
+.ghost{background:#1e293b;border:1px solid #475569}
+.warn{background:#7f1d1d}
+.opts{max-height:186px;overflow:auto;display:grid;gap:6px;padding-right:4px}
+.opt{display:flex;align-items:center;gap:8px;background:#0b1220;border:1px solid #334155;border-radius:10px;padding:8px 10px;font-size:.92rem}
+.opt span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt b{width:24px;height:24px;border-radius:7px;border:none;background:#7f1d1d;color:#fecaca;font-size:.9rem;padding:0}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff;box-shadow:0 0 10px #fff8}
+input[type=range]{width:100%;accent-color:#fb7185}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.presets button{flex:1;min-width:96px;padding:8px;font-size:.82rem;background:#1e293b;border:1px solid #475569}
+input[type=checkbox]{accent-color:#fb7185;width:18px;height:18px;vertical-align:middle}
+.toggle{display:flex;align-items:center;gap:8px;color:#cbd5e1;font-size:.88rem;padding:4px 0}
+.result{border:1px solid #fb7185;background:linear-gradient(160deg,#4c1d9555,#0b1220);border-radius:16px;padding:16px;text-align:center;display:none}
+.result.show{display:block;animation:pop .45s ease-out}
+@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+.result small{color:#c4b5fd}
+.result strong{display:block;font-size:1.8rem;color:#fde68a;margin:6px 0;text-shadow:0 0 18px #f59e0b77}
+.history h2{font-size:1rem}
+.hist{display:grid;gap:6px;max-height:160px;overflow:auto}
+.hist div{display:flex;justify-content:space-between;gap:8px;background:#0b1220;border:1px solid #334155;border-radius:9px;padding:7px 10px;font-size:.82rem;color:#e2e8f0}
+.hist time{color:#64748b}
+.hist .empty{color:#64748b;justify-content:center}
+.back{display:inline-block;margin-top:4px;color:#93c5fd;text-decoration:none;font-size:.9rem}
+@media(max-width:820px){.layout{grid-template-columns:1fr}.panel{gap:14px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<h1>🎡 幸运大转盘</h1>
+<p class="subtitle">自定义奖池，一键抽取结果；支持去重抽奖、抽奖记录与离线存档。</p>
+</header>
+<div class="layout">
+<div class="stage" id="stage">
+<div class="wheel-wrap" id="wrap">
+<canvas id="canvas" aria-label="抽奖转盘"></canvas>
+<div class="pointer"></div>
+<button class="hub" id="hub" title="点击开始旋转">GO</button>
+<div class="confetti" id="confetti"></div>
+</div>
+<p class="stage-tip">点击中心 GO 或按空格键开始旋转 · 结果自动保存</p>
+</div>
+<div class="panel">
+<section>
+<h2>🎁 奖池设置</h2>
+<label for="optInput">添加选项（最多 12 项）</label>
+<div class="row">
+<input id="optInput" type="text" maxlength="18" placeholder="例如：一等奖 / 谢谢参与" autocomplete="off">
+<button class="primary" id="addBtn">添加</button>
+</div>
+<div class="presets" style="margin-top:10px">
+<button data-preset="draw">抽奖预设</button>
+<button data-preset="food">今天吃什么</button>
+<button data-preset="fun">周末活动</button>
+</div>
+<div class="opts" id="opts" style="margin-top:10px"></div>
+<div class="row" style="margin-top:10px">
+<button class="ghost" id="resetBtn">默认奖池</button>
+<button class="warn" id="clearBtn">清空奖池</button>
+</div>
+</section>
+<section>
+<h2>⚙️ 转盘设置</h2>
+<label>配色主题</label>
+<div class="swatches" id="swatches"></div>
+<label for="spinTime">旋转时长：<span id="spinTimeVal">5.0 秒</span></label>
+<input type="range" id="spinTime" min="2" max="10" step="0.5" value="5">
+<label for="textSize">文字大小：<span id="textSizeVal">18 px</span></label>
+<input type="range" id="textSize" min="12" max="28" step="1" value="18">
+<label class="toggle"><input type="checkbox" id="removeChk"> 抽中后移出奖池（去重抽奖）</label>
+<label class="toggle"><input type="checkbox" id="muteChk"> 关闭音效</label>
+</section>
+<section class="result" id="result">
+<small>🎊 本次抽中</small>
+<strong id="resultText">—</strong>
+<button class="primary" id="againBtn">再抽一次</button>
+</section>
+<section class="history">
+<h2>📜 抽奖记录</h2>
+<div class="hist" id="hist"></div>
+</section>
+<a class="back" href="../../index.html">← 返回游戏集</a>
+</div>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+const TAU=Math.PI*2;
+const KEY='tiaoqi.wheel.v1';
+const THEMES={
+sunset:{name:'落日',colors:['#fb7185','#f59e0b','#f97316','#e11d48','#facc15','#ef4444'],ring:'#fb7185'},
+ocean:{name:'海洋',colors:['#38bdf8','#0ea5e9','#2563eb','#22d3ee','#6366f1','#0891b2'],ring:'#38bdf8'},
+forest:{name:'森林',colors:['#34d399','#10b981','#059669','#a3e635','#14b8a6','#22c55e'],ring:'#34d399'},
+grape:{name:'葡萄',colors:['#a78bfa','#8b5cf6','#7c3aed','#c084fc','#6d28d9','#9333ea'],ring:'#a78bfa'},
+candy:{name:'糖果',colors:['#f472b6','#fb923c','#facc15','#818cf8','#f87171','#2dd4bf'],ring:'#f472b6'}
+};
+const PRESETS={
+draw:['一等奖','二等奖','三等奖','谢谢参与'],
+food:['火锅','烧烤','寿司','拉面','披萨','沙拉','快餐','自己做饭'],
+fun:['看电影','爬山','打游戏','逛街','钓鱼','骑行','宅家','约朋友']
+};
+const defaults=()=>({options:PRESETS.draw.slice(),theme:'sunset',spinTime:5,textSize:18,removeOnWin:false,muted:false,history:[]});
+let state=load();
+let rotation=0,spinning=false,raf=0,audio=null,lastTick=-1;
+const $=id=>document.getElementById(id);
+const canvas=$('canvas'),ctx=canvas.getContext('2d'),wrap=$('wrap');
+function load(){
+try{const raw=localStorage.getItem(KEY);if(!raw)return defaults();const d=JSON.parse(raw);return Object.assign(defaults(),d,{options:Array.isArray(d.options)?d.options.slice(0,12):PRESETS.draw.slice(),history:Array.isArray(d.history)?d.history.slice(0,30):[]});}catch(e){return defaults();}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+function resize(){
+const w=Math.max(220,Math.min(wrap.clientWidth||400,520));
+const dpr=Math.min(window.devicePixelRatio||1,2);
+canvas.width=Math.round(w*dpr);canvas.height=Math.round(w*dpr);
+canvas.style.width=w+'px';canvas.style.height=w+'px';
+ctx.setTransform(dpr,0,0,dpr,0,0);draw();
+}
+function draw(){
+const size=canvas.width/(Math.min(window.devicePixelRatio||1,2));
+const cx=size/2,cy=size/2,radius=size/2-8;
+ctx.clearRect(0,0,size,size);
+if(!state.options.length){
+ctx.fillStyle='#2d3047';ctx.beginPath();ctx.arc(cx,cy,radius,0,TAU);ctx.fill();
+ctx.fillStyle='#94a3b8';ctx.font='16px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('请先添加选项',cx,cy);return;
+}
+const theme=THEMES[state.theme]||THEMES.sunset;
+ctx.save();ctx.translate(cx,cy);ctx.rotate(rotation);
+ctx.beginPath();ctx.arc(0,0,radius,0,TAU);ctx.fillStyle='#2d3047';ctx.fill();
+ctx.lineWidth=6;ctx.strokeStyle=theme.ring;ctx.stroke();
+const n=state.options.length,step=TAU/n;
+for(let i=0;i<n;i++){
+const a0=i*step,a1=(i+1)*step;
+ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,radius-5,a0,a1);ctx.closePath();
+ctx.fillStyle=theme.colors[i%theme.colors.length];ctx.fill();
+ctx.strokeStyle='#0b1220aa';ctx.lineWidth=2;ctx.stroke();
+const mid=a0+step/2;
+ctx.save();ctx.rotate(mid);
+ctx.fillStyle='#fff';ctx.textAlign='right';ctx.textBaseline='middle';
+ctx.font=`700 ${state.textSize}px system-ui, sans-serif`;
+ctx.shadowColor='#0008';ctx.shadowBlur=4;
+let txt=String(state.options[i]);
+const maxW=radius*0.78;
+while(ctx.measureText(txt).width>maxW&&txt.length>1)txt=txt.slice(0,-1);
+if(txt!==state.options[i])txt=txt.slice(0,-1)+'…';
+ctx.fillText(txt,radius-18,0);ctx.restore();
+}
+ctx.restore();
+}
+function beep(freq,dur,type,vol){
+if(state.muted)return;
+try{
+audio=audio||new (window.AudioContext||window.webkitAudioContext)();
+if(audio.state==='suspended')audio.resume();
+const o=audio.createOscillator(),g=audio.createGain();
+o.type=type||'sine';o.frequency.value=freq;
+g.gain.setValueAtTime(vol||0.03,audio.currentTime);
+g.gain.exponentialRampToValueAtTime(0.0001,audio.currentTime+(dur||0.08));
+o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+(dur||0.08));
+}catch(e){}
+}
+function chime(){beep(523,.12,'triangle',.05);setTimeout(()=>beep(659,.12,'triangle',.05),120);setTimeout(()=>beep(784,.22,'triangle',.05),240);}
+function confetti(){
+const box=$('confetti');box.innerHTML='';
+const colors=THEMES[state.theme].colors;
+for(let i=0;i<44;i++){
+const b=document.createElement('i');b.className='bit';
+b.style.left=(Math.random()*100)+'%';b.style.background=colors[i%colors.length];
+b.style.animationDelay=(Math.random()*.35)+'s';b.style.transform=`rotate(${Math.random()*360}deg)`;
+box.appendChild(b);
+}
+setTimeout(()=>{box.innerHTML='';},1900);
+}
+function renderOptions(){
+const box=$('opts');box.innerHTML='';
+state.options.forEach((text,i)=>{
+const row=document.createElement('div');row.className='opt';
+const num=document.createElement('b');num.textContent=i+1;num.style.background='#1e293b';num.style.color='#93c5fd';num.style.cursor='default';
+const span=document.createElement('span');span.textContent=text;
+const del=document.createElement('button');del.textContent='×';del.title='删除';
+del.onclick=()=>{if(spinning)return;state.options.splice(i,1);save();renderOptions();draw();};
+row.append(num,span,del);box.appendChild(row);
+});
+$('addBtn').disabled=spinning||state.options.length>=12;
+$('resetBtn').disabled=spinning;$('clearBtn').disabled=spinning;
+document.querySelectorAll('[data-preset]').forEach(b=>b.disabled=spinning);
+}
+function renderThemes(){
+const box=$('swatches');box.innerHTML='';
+Object.keys(THEMES).forEach(key=>{
+const sw=document.createElement('div');sw.className='sw'+(state.theme===key?' on':'');
+sw.title=THEMES[key].name;sw.style.background=`linear-gradient(135deg,${THEMES[key].colors[0]},${THEMES[key].colors[2]})`;
+sw.onclick=()=>{if(spinning)return;state.theme=key;save();renderThemes();draw();};
+box.appendChild(sw);
+});
+}
+function renderHistory(){
+const box=$('hist');box.innerHTML='';
+if(!state.history.length){const d=document.createElement('div');d.className='empty';d.textContent='还没有抽奖记录';box.appendChild(d);return;}
+state.history.forEach(h=>{
+const row=document.createElement('div');
+const s=document.createElement('span');s.textContent='🎯 '+h.text;
+const t=document.createElement('time');t.textContent=h.at;
+row.append(s,t);box.appendChild(row);
+});
+}
+function syncControls(){
+$('spinTime').value=state.spinTime;$('spinTimeVal').textContent=state.spinTime.toFixed(1)+' 秒';
+$('textSize').value=state.textSize;$('textSizeVal').textContent=state.textSize+' px';
+$('removeChk').checked=state.removeOnWin;$('muteChk').checked=state.muted;
+$('hub').disabled=spinning||!state.options.length;
+}
+function spin(){
+if(spinning||!state.options.length)return;
+spinning=true;lastTick=-1;$('result').classList.remove('show');syncControls();renderOptions();
+const idx=Math.floor(Math.random()*state.options.length);
+const picked=state.options[idx];
+const step=TAU/state.options.length;
+let delta=-Math.PI/2-(idx+.5)*step-rotation;
+delta=((delta%TAU)+TAU)%TAU+TAU*(4+Math.floor(Math.random()*3));
+const start=rotation,duration=state.spinTime*1000,t0=performance.now();
+function frame(now){
+const p=Math.min(1,(now-t0)/duration),e=1-Math.pow(1-p,3);
+rotation=start+delta*e;
+const tick=Math.floor(((rotation%TAU)+TAU)%TAU/step);
+if(tick!==lastTick){lastTick=tick;beep(880,.025,'square',.012);}
+draw();
+if(p<1){raf=requestAnimationFrame(frame);return;}
+rotation=((rotation%TAU)+TAU)%TAU;draw();
+spinning=false;
+state.history.unshift({text:picked,at:new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})});
+state.history=state.history.slice(0,30);save();
+$('resultText').textContent=picked;$('result').classList.add('show');
+confetti();chime();renderHistory();syncControls();renderOptions();
+if(state.removeOnWin){setTimeout(()=>{const i=state.options.indexOf(picked);if(i>=0&&state.options.length>1){state.options.splice(i,1);save();renderOptions();draw();}},900);}
+}
+raf=requestAnimationFrame(frame);
+}
+$('addBtn').onclick=()=>{
+const v=$('optInput').value.trim();if(!v){alert('请输入选项内容');return;}
+if(state.options.length>=12){alert('最多 12 个选项');return;}
+if(state.options.includes(v)){alert('该选项已存在');return;}
+state.options.push(v);$('optInput').value='';save();renderOptions();draw();
+};
+$('optInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('addBtn').click();});
+$('resetBtn').onclick=()=>{state.options=PRESETS.draw.slice();save();renderOptions();draw();};
+$('clearBtn').onclick=()=>{if(confirm('确定清空奖池吗？')){state.options=[];save();renderOptions();draw();}};
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{state.options=PRESETS[b.dataset.preset].slice();save();renderOptions();draw();});
+$('spinTime').oninput=e=>{state.spinTime=parseFloat(e.target.value);$('spinTimeVal').textContent=state.spinTime.toFixed(1)+' 秒';save();};
+$('textSize').oninput=e=>{state.textSize=parseInt(e.target.value,10);$('textSizeVal').textContent=state.textSize+' px';save();draw();};
+$('removeChk').onchange=e=>{state.removeOnWin=e.target.checked;save();};
+$('muteChk').onchange=e=>{state.muted=e.target.checked;save();};
+$('hub').onclick=spin;$('againBtn').onclick=spin;
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON'){e.preventDefault();spin();}});
+window.addEventListener('resize',resize);
+if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);
+renderOptions();renderThemes();renderHistory();syncControls();resize();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('../../sw.js').catch(console.error);
+}
+</script>
+</body>
+</html>

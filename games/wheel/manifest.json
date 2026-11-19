@@ -1,0 +1,20 @@
+{
+  "name": "幸运大转盘 · TiaoQi Arcade",
+  "short_name": "大转盘",
+  "description": "自定义奖池的幸运抽奖转盘，支持去重抽奖、抽奖记录与离线存档。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1024",
+  "theme_color": "#1a1a2e",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "../../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "../../icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

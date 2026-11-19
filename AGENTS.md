@@ -15,6 +15,10 @@ and is launched by normal relative navigation.
 - `games/dds/`: whack-a-mole.
 - `games/elsfk/`: Tetris.
 - `games/mahjong/`: Mahjong (multi-player base rules).
+- `games/wheel/`: 幸运大转盘（自定义奖池、去重抽奖、抽奖记录）。
+- `games/doushouqi/`: 斗兽棋（完整规则 + MiniMax AI + 三档难度）。
+- `games/shooter/`: 星际战机（拖拽射击 + 连击 + BOSS 弹幕）。
+- `games/longhu/`: 龙虎斗（经典/双人/押注三种玩法）。
 
 ## Important facts
 - Chinese checkers game logic and AI tests are integrated through

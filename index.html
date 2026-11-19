@@ -65,7 +65,7 @@
     <div class="shell">
         <section class="hero">
             <h1>🎮 轻休闲游戏集 Arcade</h1>
-            <p>一个可离线安装的多游戏合集：集合跳棋、五子棋、斗地主、拼图、贪吃蛇、打地鼠与俄罗斯方块。每款游戏独立运行，保留原版玩法、PWA、AI与离线能力，安装后可一键切换、互不影响。</p>
+            <p>一个可离线安装的多游戏合集：集合跳棋、五子棋、斗地主、拼图、贪吃蛇、俄罗斯方块、消消乐、大转盘、斗兽棋、星际战机与龙虎斗。每款游戏独立运行，安装后可一键切换、互不影响。</p>
             <div class="toolbar">
                 <button onclick="clearCaches()">🧹 清理缓存</button>
                 <button onclick="location.reload()">🔄 刷新</button>
@@ -146,6 +146,38 @@
             </article>
 
             <article class="game-card">
+                <span class="badge">可玩</span>
+                <h2>🎡 幸运大转盘</h2>
+                <p>自定义奖池的幸运抽奖：五种配色、去重抽奖、抽奖记录、快捷预设与本地存档，离线也能转。</p>
+                <div class="mode-list"><span>自定义奖池</span><span>去重抽奖</span><span>抽奖记录</span><span>离线</span></div>
+                <button class="play-btn" onclick="openGame('wheel')">进入游戏</button>
+            </article>
+
+            <article class="game-card">
+                <span class="badge">可玩</span>
+                <h2>🐅 斗兽棋</h2>
+                <p>经典兽棋完整规则：陷阱、水域、鼠克象、狮虎跳河，三级 MiniMax AI、悔棋与提示。</p>
+                <div class="mode-list"><span>双人</span><span>人机三档</span><span>电脑对战</span><span>离线</span></div>
+                <button class="play-btn" onclick="openGame('doushouqi')">进入游戏</button>
+            </article>
+
+            <article class="game-card">
+                <span class="badge">可玩</span>
+                <h2>🚀 星际战机</h2>
+                <p>纵向射击：三重武器、六种敌机、五种道具、连击评价与三阶段 BOSS 弹幕，支持拖拽/键盘、暂停与本地排行。</p>
+                <div class="mode-list"><span>三重武器</span><span>连击评价</span><span>阶段 BOSS</span><span>离线</span></div>
+                <button class="play-btn" onclick="openGame('shooter')">进入游戏</button>
+            </article>
+
+            <article class="game-card">
+                <span class="badge">可玩</span>
+                <h2>🐉 龙虎斗</h2>
+                <p>同点即和的比大小游戏：经典人机、双人对弈与筹码押注三种玩法，战绩与筹码本地保存。</p>
+                <div class="mode-list"><span>经典</span><span>双人</span><span>押注筹码</span><span>离线</span></div>
+                <button class="play-btn" onclick="openGame('longhu')">进入游戏</button>
+            </article>
+
+            <article class="game-card">
                 <span class="badge soon">规划中</span>
                 <h2>🃏 更多游戏</h2>
                 <p>预留统一注册接口，后续可加入围棋/国际象棋/军棋等，新增游戏不必修改现有游戏代码。</p>
@@ -161,7 +193,7 @@
             <div class="feature"><h3>数据沙盒</h3><p>存档、设置、成绩分游戏隔离；可导入/导出。</p></div>
         </section>
 
-        <footer>版本 v1 · 数据仅保存在本设备 · 可清空浏览器数据重置</footer>
+        <footer>版本 v2 · 数据仅保存在本设备 · 可清空浏览器数据重置</footer>
     </div>
 
     <script>

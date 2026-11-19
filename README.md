@@ -14,6 +14,10 @@
 | 打地鼠 | `games/dds/` | 并发地鼠、难度曲线、五类目标、纪录 |
 | 俄罗斯方块 | `games/elsfk/` | SRS、T-Spin、多模式、DAS/ARR、移动端手势 |
 | 麻将 | `games/mahjong/` | 2/3/4 人、国标/香港/四川基础、吃碰胡 |
+| 幸运大转盘 | `games/wheel/` | 自定义奖池、去重抽奖、抽奖记录、配色与本地存档 |
+| 斗兽棋 | `games/doushouqi/` | 陷阱/水域/跳河完整规则、三级 MiniMax AI、悔棋与提示 |
+| 星际战机 | `games/shooter/` | 三重武器、六种敌机、连击评价、五种道具与三阶段 BOSS 弹幕 |
+| 龙虎斗 | `games/longhu/` | 同点即和，经典/双人/押注三模式，筹码战绩存档 |
 
 每个游戏目录都是独立应用，保留原版入口 `index.html`、Service Worker 与资源路径；主入口 `index.html` 只做游戏集主页与跳转。
 
