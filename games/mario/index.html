@@ -87,6 +87,23 @@ body.is-touch #touch{display:block}
   #bar .brand{display:none}
   .chip{font-size:11px;padding:7px 9px}
 }
+#rotateTip{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);
+  z-index:5;pointer-events:none;white-space:nowrap;padding:6px 12px;border-radius:99px;
+  background:rgba(10,8,16,.72);border:1px solid rgba(255,210,74,.5);
+  color:#ffd24a;font-size:13px;font-weight:bold;letter-spacing:.04em}
+@media(orientation:portrait){#rotateTip{display:block}}
+@media(orientation:landscape){
+  #shell{gap:4px;padding:4px;justify-content:center}
+  #screen{width:min(100vw,calc((100vh - 44px) * 16 / 9));max-height:calc(100vh - 44px);border-radius:8px}
+  #bar{width:100%;font-size:12px;gap:4px 8px;padding:0}
+  #bar>span:not(.brand){display:none}
+  .chip{font-size:10px;padding:5px 9px}
+  #btnLeft,#btnRight{height:30%}
+  #btnDown{height:26%}
+  #btnJump{height:38%}
+  #btnRun{height:26%}
+  #rotateTip{display:none}
+}
 </style>
 </head>
 <body>
@@ -96,6 +113,7 @@ body.is-touch #touch{display:block}
     <canvas id="game"></canvas>
     <div class="scan"></div>
     <div class="glass"></div>
+    <div id="rotateTip">↻ 请横屏游玩，体验更佳</div>
     <div id="touch">
       <div class="tb" id="btnLeft">&#9664;</div>
       <div class="tb" id="btnRight">&#9654;</div>
@@ -558,7 +576,7 @@ const ONEWAY = {'-':1};
 function createLevelBuilder(width){
   const grid=[];
   for(let y=0;y<ROWS;y++) grid.push(new Array(width).fill('.'));
-  const items=new Map(), hidden=new Map(), warps=new Map(), waterZones=[];
+  const items=new Map(), hidden=new Map(), warps=new Map(), spawns=[], waterZones=[];
   const B={
     width, grid, items, hidden, warps, spawns, waterZones, checkpointX:null, bossGateX:null,
     in(x,y){ return x>=0&&x<width&&y>=0&&y<ROWS; },
