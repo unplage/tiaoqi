@@ -91,6 +91,12 @@ body.is-touch #touch{display:block}
   z-index:5;pointer-events:none;white-space:nowrap;padding:6px 12px;border-radius:99px;
   background:rgba(10,8,16,.72);border:1px solid rgba(255,210,74,.5);
   color:#ffd24a;font-size:13px;font-weight:bold;letter-spacing:.04em}
+#floatFull{position:absolute;left:50%;top:42px;transform:translateX(-50%);z-index:6;
+  pointer-events:auto;white-space:nowrap;padding:6px 14px;border-radius:99px;
+  background:rgba(255,210,74,.92);border:1px solid #fff3b0;color:#241500;
+  font-size:12px;font-weight:bold;letter-spacing:.04em;cursor:pointer;
+  box-shadow:0 3px 12px rgba(0,0,0,.45)}
+#floatFull:active{transform:translateX(-50%) scale(.94)}
 @media(orientation:portrait){#rotateTip{display:block}}
 @media(orientation:landscape){
   #shell{gap:4px;padding:4px;justify-content:center}
@@ -103,6 +109,7 @@ body.is-touch #touch{display:block}
   #btnJump{height:38%}
   #btnRun{height:26%}
   #rotateTip{display:none}
+  #floatFull{top:8px}
 }
 </style>
 </head>
@@ -114,6 +121,7 @@ body.is-touch #touch{display:block}
     <div class="scan"></div>
     <div class="glass"></div>
     <div id="rotateTip">↻ 请横屏游玩，体验更佳</div>
+    <div id="floatFull">⛶ 横屏</div>
     <div id="touch">
       <div class="tb" id="btnLeft">&#9664;</div>
       <div class="tb" id="btnRight">&#9654;</div>
@@ -1040,8 +1048,10 @@ document.getElementById('cBack').onclick=()=>{ window.location.assign('../../ind
 
 /* ---------- 横屏按钮：全屏 + 锁定方向 ---------- */
 function updateFullBtn(){
-  const b=document.getElementById('cFull');
-  if(b) b.textContent=document.fullscreenElement?'退出横屏':'横屏';
+  const label=document.fullscreenElement?'退出横屏':'横屏';
+  const b=document.getElementById('cFull'), f=document.getElementById('floatFull');
+  if(b) b.textContent=label;
+  if(f) f.textContent=document.fullscreenElement?'⛶ 退出横屏':'⛶ 横屏';
 }
 async function enterLandscape(){
   const el=document.documentElement;
@@ -1055,8 +1065,10 @@ async function enterLandscape(){
   setTimeout(resize,260);
   updateFullBtn();
   if(!document.fullscreenElement){
-    const b=document.getElementById('cFull');
-    if(b){ b.textContent='请手动旋转'; setTimeout(updateFullBtn,3000); }
+    const b=document.getElementById('cFull'),f=document.getElementById('floatFull');
+    if(b) b.textContent='请手动旋转';
+    if(f) f.textContent='⛶ 请手动旋转';
+    setTimeout(updateFullBtn,3000);
   }
 }
 async function exitLandscape(){
@@ -1069,6 +1081,7 @@ function toggleLandscape(){
   if(document.fullscreenElement) exitLandscape(); else enterLandscape();
 }
 document.getElementById('cFull').onclick=()=>{ AudioSys.resume(); toggleLandscape(); };
+document.getElementById('floatFull').onclick=()=>{ AudioSys.resume(); toggleLandscape(); };
 document.addEventListener('fullscreenchange',()=>{ updateFullBtn(); setTimeout(resize,220); });
 window.addEventListener('orientationchange',()=>setTimeout(resize,300));
 

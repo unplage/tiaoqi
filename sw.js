@@ -7,7 +7,7 @@ const BASE_PATH = self.location.pathname.replace(/[^/]+$/, '');
 // 构建带项目标识的缓存名称，避免多项目冲突
 // 例如 '/pwa1/' -> 前缀 'pwa-cache-pwa1-'
 const CACHE_PREFIX = `pwa-cache${BASE_PATH.replace(/\//g, '-')}`;
-const CACHE_NAME = `${CACHE_PREFIX}v36`;
+const CACHE_NAME = `${CACHE_PREFIX}v37`;
 
 // 预缓存资源列表（全部使用相对于当前 sw.js 的路径）
 const PRECACHE_URLS = [
@@ -54,6 +54,7 @@ function isNavigateRequest(request) {
 // ---------- 3. 安装阶段 ----------
 self.addEventListener('install', (event) => {
   console.log('[SW] 安装中，BASE_PATH =', BASE_PATH);
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -69,6 +70,7 @@ self.addEventListener('install', (event) => {
 // ---------- 4. 激活阶段（只清理当前项目的旧缓存） ----------
 self.addEventListener('activate', (event) => {
   console.log('[SW] 激活中...');
+  self.clients.claim();
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
