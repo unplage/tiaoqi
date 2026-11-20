@@ -126,11 +126,12 @@ body.is-touch #touch{display:block}
   <div id="bar">
     <span class="brand">SUPER PIXEL BROS</span>
     <span class="sep">/</span>
-    <span>方向键移动 · ↓蹲下/钻管道 · 空格跳跃 · Shift 跑步/火球 · P 暂停 · R 重开 · M 静音 · C 继续</span>
+    <span>方向键移动 · ↓蹲下/钻管道 · 空格跳跃 · Shift 跑步/火球 · P 暂停 · R 重开 · M 静音 · C 继续 · 点「横屏」全屏游玩</span>
     <button class="chip" id="cStart">START</button>
     <button class="chip" id="cContinue" disabled>CONTINUE</button>
     <button class="chip" id="cSound">SOUND ON</button>
     <button class="chip" id="cPause">PAUSE</button>
+    <button class="chip" id="cFull">横屏</button>
     <button class="chip" id="cBack">返回游戏集</button>
   </div>
 </div>
@@ -1036,6 +1037,40 @@ document.getElementById('cContinue').onclick=()=>{ AudioSys.resume(); continueGa
 document.getElementById('cSound').onclick=()=>{ AudioSys.resume(); toggleMute(); };
 document.getElementById('cPause').onclick=()=>{ AudioSys.resume(); togglePause(); };
 document.getElementById('cBack').onclick=()=>{ window.location.assign('../../index.html'); };
+
+/* ---------- 横屏按钮：全屏 + 锁定方向 ---------- */
+function updateFullBtn(){
+  const b=document.getElementById('cFull');
+  if(b) b.textContent=document.fullscreenElement?'退出横屏':'横屏';
+}
+async function enterLandscape(){
+  const el=document.documentElement;
+  try{ if(el.requestFullscreen) await el.requestFullscreen(); }catch(e){}
+  try{
+    if(screen.orientation&&screen.orientation.lock){
+      try{ await screen.orientation.lock('landscape'); }
+      catch(e){ try{ await screen.orientation.lock('landscape-primary'); }catch(e2){} }
+    }
+  }catch(e){}
+  setTimeout(resize,260);
+  updateFullBtn();
+  if(!document.fullscreenElement){
+    const b=document.getElementById('cFull');
+    if(b){ b.textContent='请手动旋转'; setTimeout(updateFullBtn,3000); }
+  }
+}
+async function exitLandscape(){
+  try{ if(screen.orientation&&screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
+  try{ if(document.fullscreenElement&&document.exitFullscreen) await document.exitFullscreen(); }catch(e){}
+  setTimeout(resize,260);
+  updateFullBtn();
+}
+function toggleLandscape(){
+  if(document.fullscreenElement) exitLandscape(); else enterLandscape();
+}
+document.getElementById('cFull').onclick=()=>{ AudioSys.resume(); toggleLandscape(); };
+document.addEventListener('fullscreenchange',()=>{ updateFullBtn(); setTimeout(resize,220); });
+window.addEventListener('orientationchange',()=>setTimeout(resize,300));
 
 /* =====================================================================
    6. 瓦片碰撞
