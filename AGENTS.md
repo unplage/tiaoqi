@@ -17,7 +17,7 @@ and is launched by normal relative navigation.
 - `games/mahjong/`: Mahjong (multi-player base rules).
 - `games/wheel/`: 幸运大转盘（自定义奖池、去重抽奖、抽奖记录）。
 - `games/doushouqi/`: 斗兽棋（完整规则 + MiniMax AI + 三档难度）。
-- `games/shooter/`: 星际战机（拖拽射击 + 连击 + BOSS 弹幕）。
+- `games/shooter/`: 星际战机（拖拽射击 + 全机型预警弹幕 + 三阶段随机招式 BOSS + 平衡武器 + 评级/续关）。
 - `games/longhu/`: 龙虎斗（经典/双人/押注三种玩法）。
 - `games/mario/`: 超级像素兄弟（马里奥式横版跳跃，4 世界含水下关、像素精灵动画、蹲下/钻管道/隐藏砖、旗杆评分、本地存档、吐火 BOSS，键盘与多点触控，离线可用）。
 
