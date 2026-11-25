@@ -85,7 +85,7 @@ body.skipRotate #rotate{display:none!important}
   #bar{font-size:12px;gap:4px 8px}
   #bar .tip{display:none}
   #touch{height:auto;padding:2px 10px}
-  .actions{gap:6px}
+  .actions{gap:6px;grid-template-columns:repeat(5,var(--act))}
   .tb{font-size:11px;border-radius:12px}
   .tb.atk{font-size:13px}
   .dpad .tb{border-radius:14px;font-size:16px}
@@ -1048,7 +1048,7 @@ function triggerMorale(){
   SFX.skill();vib(20);
 }
 function killEnemy(e){
-  if(!e||e.dead)return;
+  if(!e||e.dead||e.hp>=1)return;
   e.dead=true;e.deadT=0;
   G.perf.kills++;
   const mult=1+Math.min(5,Math.floor(G.combo/8));
@@ -1275,8 +1275,8 @@ function showShopMsg(t){G.shopMsg=t;G.shopMsgT=2.2;}
 
 function spawnEnemy(type,elite){
   if(enemies.filter(e=>!e.dead).length>=MAXENEMY)return;
-  const side=Math.random()<.5?-1:1;
-  const x=side<0?LEFT-52:RIGHT+52;
+  const side=1;
+  const x=RIGHT+52;
   const y=rnd(GY0+34,GY1-14);
   const e=newEnemy(type,x,y,elite);
   e.face=-side;e.entering=.8;
@@ -1346,9 +1346,9 @@ function updatePlayer(dt){
   P.inv=Math.max(0,P.inv-dt);
   P.hitT=Math.max(0,P.hitT-dt);
   P.dodgeCd=Math.max(0,P.dodgeCd-dt);
-  P.skillCd=Math.max(0,P.skillCd-dt);
-  P.finCd=Math.max(0,P.finCd-dt);
-  P.troopCd=Math.max(0,P.troopCd-dt);
+  G.skillCd=Math.max(0,G.skillCd-dt);
+  G.finCd=Math.max(0,G.finCd-dt);
+  G.troopCd=Math.max(0,G.troopCd-dt);
   P.guardBreak=Math.max(0,P.guardBreak-dt);
   G.comboT=Math.max(0,G.comboT-dt);
   if(G.comboT<=0)G.combo=0;
@@ -1798,6 +1798,8 @@ function update(dt){
     updateEffects(dt);
     return;
   }
+  for(const en of enemies)if(en.hp<1&&!en.dead)killEnemy(en);
+  if(G.boss&&G.boss.hp<1&&!G.boss.dead)defeatBoss();
   if(G.hitStop>0){G.hitStop-=dt;dt*=.3;}
   G.time+=dt;
   G.shake=Math.max(0,G.shake-dt*40);
@@ -1836,9 +1838,12 @@ function update(dt){
   updateHazards(dt);
   updateEffects(dt);
   if(G.state!=='playing')return;
-  if(G.gate&&G.gate.hp<=0)breakGate();
-  if(G.boss&&!G.boss.dead&&G.boss.hp<=0)defeatBoss();
+  if(G.gate&&G.gate.hp<1)breakGate();
+  if(G.boss&&!G.boss.dead&&G.boss.hp<1)defeatBoss();
   if(G.state!=='playing')return;
+  for(const en of enemies)if(en.hp<1&&!en.dead)killEnemy(en);
+  if(G.gate&&G.gate.hp<1)breakGate();
+  if(G.boss&&!G.boss.dead&&G.boss.hp<1)defeatBoss();
   enemies=enemies.filter(e=>!e.dead||e.deadT<.75);
   troops=troops.filter(t=>!t.dead||t.deadT<.6);
   if(P.hp<=0&&G.state==='playing')loseLife();
@@ -2360,7 +2365,7 @@ function drawHUD(){
     ctx.globalAlpha=.35+.65*a;
     ctx.font='900 46px "Segoe UI",sans-serif';
     ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.6)';
-    ctx.strokeText(G.combo,VW-VW,0);
+    ctx.strokeText(G.combo,0,0);
     ctx.fillStyle='#ffd24a';ctx.fillText(G.combo,0,0);
     ctx.font='700 15px "Segoe UI","Microsoft YaHei",sans-serif';
     ctx.fillStyle='#f0e2cc';ctx.fillText('连斩',0,22);
@@ -2600,31 +2605,60 @@ function renderGame(){
   else if(G.state==='win')drawWin();
   if(G.state==='playing'||G.state==='paused')drawBannerAndToast();
 }
-function toggleFullscreen(){
-  const d=document;
-  if(!d.fullscreenElement&&!d.webkitFullscreenElement){
-    const el=d.documentElement;
-    const req=el.requestFullscreen||el.webkitRequestFullscreen;
-    if(req)req.call(el).catch(()=>{});
-    document.body.classList.add('fullscreen');
-  }else{
-    const ex=d.exitFullscreen||d.webkitExitFullscreen;
-    if(ex)ex.call(d);
-    document.body.classList.remove('fullscreen');
+let fullBusy=false;
+async function lockLandscape(){
+  const so=screen&&screen.orientation;
+  if(!so||!so.lock)return false;
+  try{ await so.lock('landscape'); return true; }
+  catch(e){
+    try{ await so.lock('landscape-primary'); return true; }
+    catch(e2){ return false; }
   }
-  setTimeout(resize,120);
+}
+async function toggleFullscreen(){
+  if(fullBusy)return;
+  fullBusy=true;
+  const d=document;
+  try{
+    if(!d.fullscreenElement&&!d.webkitFullscreenElement){
+      const el=d.documentElement;
+      const req=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(req){ try{ await req.call(el); }catch(e){} }
+      const locked=await lockLandscape();
+      document.body.classList.add('fullscreen');
+      setTimeout(resize,150);
+      if(!locked)toast('无法自动锁定方向，请手动旋转手机',2.2);
+    }else{
+      const so=screen&&screen.orientation;
+      if(so&&so.unlock){ try{ so.unlock(); }catch(e){} }
+      const ex=d.exitFullscreen||d.webkitExitFullscreen;
+      if(ex){ try{ await ex.call(d); }catch(e){} }
+      document.body.classList.remove('fullscreen');
+      setTimeout(resize,150);
+    }
+  }finally{ fullBusy=false; }
 }
 $('cNew').onclick=()=>{AU.resume();startNew();};
 $('cCont').onclick=()=>continueGame();
 $('cSound').onclick=()=>toggleSound();
 $('cPause').onclick=()=>{if(G.state==='playing'||G.state==='paused')togglePause();};
 $('cFull').onclick=()=>toggleFullscreen();
-$('cExitFull').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.body.classList.remove('fullscreen');};
+$('cExitFull').onclick=()=>{
+  const so=screen&&screen.orientation;
+  if(so&&so.unlock){try{so.unlock();}catch(e){}}
+  if(document.fullscreenElement||document.webkitFullscreenElement){
+    const ex=document.exitFullscreen||document.webkitExitFullscreen;
+    if(ex)ex.call(document);
+  }else document.body.classList.remove('fullscreen');
+};
 $('cBack').onclick=()=>{location.href='../../';};
-document.addEventListener('fullscreenchange',()=>{
-  document.body.classList.toggle('fullscreen',!!document.fullscreenElement);
+function syncFullClass(){
+  const on=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  document.body.classList.toggle('fullscreen',on);
   setTimeout(resize,80);
-});
+}
+document.addEventListener('fullscreenchange',syncFullClass);
+document.addEventListener('webkitfullscreenchange',syncFullClass);
 let lastT=performance.now(),accT=0,uiT=0;
 function frame(now){
   const dt=Math.min(.06,(now-lastT)/1000);
