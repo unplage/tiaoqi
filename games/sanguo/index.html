@@ -28,25 +28,58 @@ background:rgba(255,255,255,.03);color:var(--txt);cursor:pointer;transition:.18s
 .chip:hover{background:rgba(245,196,81,.14);transform:translateY(-2px)}
 .chip:active{transform:translateY(1px)}
 .chip:disabled{opacity:.35;cursor:not-allowed;transform:none}
-#touch{width:min(100%,1160px);display:none;align-items:center;justify-content:space-between;gap:10px;padding:2px 12px;pointer-events:auto;touch-action:none}
+:root{--pad:64px;--dpad:192px;--act:66px}
+#touch{width:min(100%,1160px);display:none;align-items:center;justify-content:space-between;gap:12px;padding:4px 12px;pointer-events:auto;touch-action:none}
 body.is-touch #touch{display:flex}
-.tgroup{display:flex;align-items:center;gap:10px}
+.dpad{position:relative;width:var(--dpad);height:var(--dpad);flex:0 0 auto}
+.dpad .tb{position:absolute;width:var(--pad);height:var(--pad);border-radius:18px;font-size:19px}
+#bUp{left:var(--pad);top:0}
+#bLeft{left:0;top:var(--pad)}
+#bRight{left:calc(var(--pad)*2);top:var(--pad)}
+#bDown{left:var(--pad);top:calc(var(--pad)*2)}
+.actions{display:grid;grid-template-columns:repeat(4,var(--act));grid-auto-rows:var(--act);gap:8px;flex:0 0 auto}
 .tb{position:relative;pointer-events:auto;touch-action:none;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-width:62px;height:62px;border-radius:50%;font-weight:800;font-size:14px;color:rgba(255,255,255,.85);
-background:rgba(255,255,255,.10);border:2px solid rgba(255,255,255,.22);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-.tb:active,.tb.on{background:rgba(245,196,81,.55);color:#241500;border-color:#ffe6a0}
-.tb.act{width:70px;height:70px;background:rgba(224,80,60,.2);border-color:rgba(224,80,60,.5)}
-.tb.skill{background:rgba(95,208,176,.16);border-color:rgba(95,208,176,.45)}
-.tb.fin{background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.5)}
-.tb.block{background:rgba(143,216,255,.16);border-color:rgba(143,216,255,.45)}
+width:var(--act);height:var(--act);border-radius:18px;font-size:13px;font-weight:800;letter-spacing:.02em;
+color:rgba(255,255,255,.9);background:rgba(255,255,255,.10);
+border:2px solid rgba(255,255,255,.22);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+transition:background .12s,transform .08s,box-shadow .2s}
+.tb:active,.tb.on{background:rgba(245,196,81,.55);color:#241500;border-color:#ffe6a0;transform:scale(.94)}
+.tb.atk{background:rgba(224,80,60,.24);border-color:rgba(224,80,60,.6);font-size:15px}
+.tb.fin{background:rgba(245,196,81,.16);border-color:rgba(245,196,81,.5)}
+.tb.skill{background:rgba(95,208,176,.16);border-color:rgba(95,208,176,.5)}
+.tb.block{background:rgba(143,216,255,.16);border-color:rgba(143,216,255,.5)}
+.tb.troop{background:rgba(168,140,240,.16);border-color:rgba(168,140,240,.5)}
+.tb.ready{box-shadow:0 0 16px 3px rgba(245,196,81,.65);animation:pulse .7s ease-in-out infinite alternate}
+.tb.ready.cool{box-shadow:0 0 14px 2px rgba(95,208,176,.5)}
+@keyframes pulse{from{filter:brightness(1)}to{filter:brightness(1.45)}}
+body.fullscreen #shell{gap:0;padding:0;background:#000}
+body.fullscreen #screen{width:min(100vw,calc(100vh*16/9));max-height:100vh;border-radius:0;box-shadow:none}
+body.fullscreen #bar{display:none}
+body.fullscreen #touch{
+  position:fixed;left:0;right:0;bottom:0;height:auto;z-index:20;
+  pointer-events:none;background:transparent;padding:0 2vw 2vh;
+  align-items:flex-end;
+}
+body.fullscreen .dpad,body.fullscreen .actions{opacity:.5;transition:opacity .15s}
+body.fullscreen .dpad:hover,body.fullscreen .actions:hover,
+body.fullscreen .dpad:active,body.fullscreen .actions:active{opacity:1}
+body.fullscreen .tb{pointer-events:auto;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+body.fullscreen .tb.ready{box-shadow:0 0 16px 3px rgba(245,196,81,.65)}
+#cExitFull{display:none;position:absolute;right:10px;top:10px;z-index:9;
+  width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.35);
+  background:rgba(0,0,0,.5);color:#fff;font-size:18px;cursor:pointer;opacity:.55}
+body.fullscreen #cExitFull{display:block}
 @media(max-width:760px){#bar{font-size:12px}.chip{font-size:11px;padding:6px 9px}}
 @media(orientation:landscape){
-  #shell{gap:4px;padding:4px}
-  #screen{width:min(100vw,calc((100vh - 132px)*16/9));max-height:calc(100vh - 132px);border-radius:8px}
+  :root{--pad:46px;--dpad:138px;--act:54px}
+  #shell{gap:3px;padding:3px}
+  #screen{width:min(100vw,calc((100vh - 168px)*16/9));max-height:calc(100vh - 168px);border-radius:8px}
   #bar{font-size:12px;gap:4px 8px}
   #bar .tip{display:none}
-  #touch{height:80px}
-  .tb{width:58px;height:58px}.tb.act{width:66px;height:66px}
+  #touch{height:128px;padding:2px 10px}
+  .actions{gap:6px}
+  .tb{font-size:12px}
+  .tb.atk{font-size:14px}
 }
 </style>
 </head>
@@ -55,22 +88,24 @@ background:rgba(255,255,255,.10);border:2px solid rgba(255,255,255,.22);backdrop
   <div id="screen">
     <canvas id="game"></canvas>
     <div class="scan"></div>
+    <button id="cExitFull" title="退出全屏">&#10005;</button>
   </div>
   <div id="touch">
-    <div class="tgroup">
+    <div class="dpad">
+      <div class="tb" id="bUp">&#9650;</div>
       <div class="tb" id="bLeft">&#9664;</div>
       <div class="tb" id="bRight">&#9654;</div>
-      <div class="tb" id="bUp">&#9650;</div>
       <div class="tb" id="bDown">&#9660;</div>
     </div>
-    <div class="tgroup">
-      <div class="tb" id="bBlock">挡</div>
-      <div class="tb" id="bDodge">闪</div>
-      <div class="tb" id="bNext">换兵</div>
-      <div class="tb" id="bTroop">召兵</div>
-      <div class="tb skill" id="bSkill">技</div>
-      <div class="tb fin" id="bFin">斩</div>
-      <div class="tb act" id="bAtk">斩</div>
+    <div class="actions">
+      <div class="tb atk" id="bAtk">连斩</div>
+      <div class="tb skill" id="bSkill">技能</div>
+      <div class="tb fin" id="bFin">狂斩</div>
+      <div class="tb" id="bDodge">闪避</div>
+      <div class="tb block" id="bBlock">格挡</div>
+      <div class="tb troop" id="bTroop">召兵</div>
+      <div class="tb troop" id="bNext">换兵</div>
+      <div class="tb" id="bWeapon">武器</div>
     </div>
   </div>
   <div id="bar">
@@ -241,6 +276,7 @@ bind($('bSkill'),'skill',doSkill);
 bind($('bFin'),'fin',doFinish);
 bind($('bTroop'),'troop',doSummon);
 bind($('bNext'),'next',()=>setTroop((G.troopType+1)%TROOPS.length));
+bind($('bWeapon'),'weapon',()=>switchWeapon(1));
 bind($('bDodge'),'dodge',doDodge);
 bind($('bBlock'),'block',()=>{P.block=true;});
 if(('ontouchstart' in window)||navigator.maxTouchPoints>0)document.body.classList.add('is-touch');
@@ -265,15 +301,16 @@ function localPoint(e){
 }
 canvas.addEventListener('pointerdown',e=>{
   AU.resume();
+  const p0=localPoint(e);
   if(G.state==='menu'){
-    const p=localPoint(e);
+    const p=p0;
     if(p.y>360&&p.y<404){
       const i=clamp(Math.floor((p.x-VW/2+180)/90),0,DIFFS.length-1);
       setDiff(i);return;
     }
   }
   if(G.state!=='playing'){onConfirm();return;}
-  drag={x:0,y:0,t:performance.now(),id:e.pointerId};
+  drag={x:p0.x,y:p0.y,t:performance.now(),id:e.pointerId};
   try{canvas.setPointerCapture(e.pointerId);}catch(err){}
 },{passive:true});
 canvas.addEventListener('pointermove',e=>{
@@ -319,63 +356,128 @@ function art(w,h,paint){
   paint(c.getContext('2d'),w,h);return c;
 }
 const PAL={
-  hero:{a:'#c8352c',b:'#f5c451',s:'#f0c49a',d:'#2b1812',w:'#dfe8f0',n:'#1c100c'},
+  hero:{a:'#d8dce4',b:'#f5c451',s:'#f0c49a',d:'#2b1812',w:'#eef4ff',n:'#1c100c',cape:'#c8352c',plume:'#e0503c'},
   shield:{a:'#6b6f7a',b:'#c9ccd2',s:'#e2bb94',d:'#262a30',w:'#9aa0aa',n:'#191c20'},
   spear:{a:'#7a48b8',b:'#c39af0',s:'#e6c09a',d:'#2a1740',w:'#cfd6e0',n:'#1b1028'},
-  archer:{a:'#2f8f5e',b:'#8fe0ae',s:'#e6c09a',d:'#163a26',w:'#a8743c',n:'#102a1c'},
-  captain:{a:'#8a2d24',b:'#e8a05a',s:'#dfb48c',d:'#2a100c',w:'#d8d2c4',n:'#1a0a08'},
-  boss:{a:'#2a2028',b:'#e8b447',s:'#d8a878',d:'#120c12',w:'#d7dde6',n:'#0a060a'},
-  troop:{a:'#d89232',b:'#ffe08a',s:'#e8c09a',d:'#3a2410',w:'#d0d6dc',n:'#241408'}
+  archer:{a:'#2f8f5e',b:'#8fe0ae',s:'#e6c09a',d:'#163a26',w:'#a8743c',n:'#102a1c',plume:'#c8a860'},
+  captain:{a:'#8a2d24',b:'#e8a05a',s:'#dfb48c',d:'#2a100c',w:'#e0d8c8',n:'#1a0a08',cape:'#5a1c18',plume:'#f5c451'},
+  boss:{a:'#2a2028',b:'#e8b447',s:'#d8a878',d:'#120c12',w:'#e8d0a0',n:'#0a060a',cape:'#7a1f1f',plume:'#e0503c'},
+  troop:{a:'#d89232',b:'#ffe08a',s:'#e8c09a',d:'#3a2410',w:'#d0d6dc',n:'#241408'},
+  t_spear:{a:'#2a6cc8',b:'#8fd8ff',s:'#e8c09a',d:'#142948',w:'#dfe8f0',n:'#0d1c30'},
+  t_shield:{a:'#1f8f8a',b:'#8ff0e0',s:'#e8c09a',d:'#123b38',w:'#d0e8e4',n:'#0b2825'},
+  t_archer:{a:'#3a86c8',b:'#a8e0ff',s:'#e8c09a',d:'#16324e',w:'#cfe4f0',n:'#0d1e30'},
+  t_cavalry:{a:'#4a72d0',b:'#b8d0ff',s:'#e8c09a',d:'#1e2c50',w:'#e0e8ff',n:'#111a30'},
+  t_healer:{a:'#2fa88a',b:'#a8ffe0',s:'#e8c09a',d:'#124437',w:'#d0f0e4',n:'#0b2a22'},
+  t_hammer:{a:'#50607e',b:'#b8cce8',s:'#e8c09a',d:'#222c3e',w:'#dde6f2',n:'#131a28'}
 };
 function paintFighter(g,w,h,o){
-  const R=(x,y,ww,hh,c)=>{g.fillStyle=c;g.fillRect(x,y,ww,hh);};
-  const p=o.pal,pose=o.pose;
-  const lean=(pose==='atk2'?1:pose==='atk3'?-1:0);
-  const bob=(pose==='walk1'||pose==='walk3')?1:0;
-  const legA=(pose==='walk1')?-2:(pose==='walk3')?2:0;
-  const legB=(pose==='walk1')?2:(pose==='walk3')?-2:0;
-  const big=o.big?1.25:1;
-  const cx=Math.floor(w/2);
+  const R=(x,y,ww,hh,c)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),Math.round(ww),Math.round(hh));};
+  const p=o.pal,pose=o.pose,style=o.style||'soldier';
+  const big=o.big?1.18:1;
+  const cx=w/2;
+  const lean=pose==='atk2'?1:(pose==='atk3'?-1:0);
+  const step=pose==='walk1'?-2:(pose==='walk3'?2:0);
+  const top=2+(pose==='walk1'||pose==='walk3'?1:0);
+  const cape=p.cape;
+  const plume=p.plume||'#c8352c';
+
   if(pose==='dead'){
-    R(3,h-8,w-6,6,p.a);R(5,h-4,7,4,p.d);R(w-12,h-4,7,4,p.d);
-    R(cx-5,h-13,10,5,p.s);return;
+    R(2,h-7,w-4,5,p.a);
+    R(4,h-3,7,3,p.d);R(w-11,h-3,7,3,p.d);
+    R(cx-5,h-13,10,5,p.s);
+    R(cx-7,h-16,14,3,p.b);
+    return;
   }
-  const top=Math.round(2+bob*big);
-  const headW=Math.round(8*big),bodyW=Math.round(12*big);
-  const hx=cx-Math.floor(headW/2)+lean;
-  R(hx,top,headW,Math.round(8*big),p.s);
-  R(hx-1,top-1,headW+2,2,p.n);
-  R(hx+1,top+3,2,2,p.n);R(hx+headW-3,top+3,2,2,p.n);
-  R(hx-2,top-2,headW+4,3,p.b);
-  R(cx-Math.floor(bodyW/2)+lean,top+Math.round(8*big),bodyW,Math.round(11*big),p.a);
-  R(cx-Math.floor(bodyW/2)+lean,top+Math.round(8*big),bodyW,2,p.b);
-  const by=top+Math.round(18*big);
-  const ly=Math.round(11*big);
-  R(cx-6+legA,by,5,ly,p.a);R(cx+1+legB,by,5,ly,p.a);
-  R(cx-7+legA,by+ly-1,7,3,p.n);R(cx+legB,by+ly-1,7,3,p.n);
-  const ay=top+Math.round(9*big);
-  let wx=cx+9,wy=ay+2,ang=0;
-  if(pose==='atk1'){wx=cx+11;wy=ay-1;ang=.5;}
-  else if(pose==='atk2'){wx=cx+12;wy=ay+3;ang=1.2;}
-  else if(pose==='atk3'){wx=cx+10;wy=ay-2;ang=-.6;}
-  else if(pose==='hurt'){wx=cx-9;wy=ay+2;}
-  R(cx+5,ay,4,Math.round(8*big),p.a);
-  if(o.shield){
-    R(cx-2,ay+1,7,10,p.b);R(cx,ay+3,3,6,p.a);
+
+  /* 披风（主将/敌将） */
+  if(cape){
+    R(cx-9+lean,top+10,18,17,cape);
+    R(cx-10+lean,top+14,4,12,p.d);
+    R(cx+7+lean,top+14,4,12,p.d);
+    R(cx-8+lean,top+24,16,3,p.d);
   }
-  if(o.spear){
-    const len=Math.round(15*big);
-    R(wx,wy-len,2,len+6,p.w);
-    R(wx-1,wy-len-3,4,4,p.b);
-  }else if(o.bow){
-    g.strokeStyle=p.w;g.lineWidth=2;
-    g.beginPath();g.arc(wx+2,wy+4,7,-1.1,1.1);g.stroke();
-    g.strokeStyle=p.b;g.beginPath();g.moveTo(wx+1,wy-3);g.lineTo(wx+1,wy+11);g.stroke();
+
+  /* 头盔 / 斗笠 */
+  const hy=top;
+  if(style==='archer'){
+    g.fillStyle=p.d;
+    g.beginPath();
+    g.moveTo(cx-11,hy+6);g.lineTo(cx,hy-3);g.lineTo(cx+11,hy+6);g.closePath();g.fill();
+    R(cx-11,hy+5,22,2,p.b);
   }else{
-    const len=Math.round(11*big);
-    R(wx,wy-len,3,len,p.w);
-    R(wx-1,wy-len-2,5,3,p.b);
-    R(wx+1,wy,2,4,p.d);
+    R(cx-6+lean,hy+1,12,5,p.a);
+    R(cx-7+lean,hy+5,14,2,p.b);
+    if(style==='boss'||style==='captain'){
+      R(cx-9+lean,hy-1,3,5,p.b);R(cx+7+lean,hy-1,3,5,p.b);
+      R(cx-10+lean,hy-4,3,4,p.b);R(cx+8+lean,hy-4,3,4,p.b);
+    }
+    R(cx-1+lean,hy-4,3,5,plume);
+    R(cx-3+lean,hy-6,6,2,plume);
+  }
+
+  /* 面部 */
+  const fy=hy+7;
+  R(cx-4+lean,fy,8,6,p.s);
+  R(cx-3+lean,fy+2,2,2,p.n);
+  R(cx+2+lean,fy+2,2,2,p.n);
+  R(cx-2+lean,fy+5,4,1,p.d);
+
+  /* 身躯：明光铠 */
+  const by=fy+6;
+  R(cx-7+lean,by,14,11,p.a);
+  R(cx-7+lean,by,14,2,p.b);
+  R(cx-6+lean,by+3,12,1,p.b);
+  R(cx-6+lean,by+6,12,1,p.b);
+  R(cx-5+lean,by+9,10,1,p.b);
+  R(cx-8+lean,by+1,3,6,p.d);
+  R(cx+6+lean,by+1,3,6,p.d);
+  R(cx-8+lean,by,4,3,p.b);
+  R(cx+5+lean,by,4,3,p.b);
+  R(cx-7+lean,by+10,14,2,p.d);
+  R(cx-1+lean,by+10,2,2,p.b);
+
+  /* 战裙与腿 */
+  const sy=by+12;
+  R(cx-8+lean,sy,5,7,p.a);R(cx-1+lean,sy,5,7,p.a);
+  R(cx-8+lean,sy+6,5,1,p.b);R(cx-1+lean,sy+6,5,1,p.b);
+  R(cx-6+step,sy+7,5,6,p.d);R(cx+2-step,sy+7,5,6,p.d);
+  R(cx-7+step,sy+11,7,3,p.n);R(cx+1-step,sy+11,7,3,p.n);
+
+  /* 手臂 */
+  const ay=by+2;
+  let wx=cx+10+lean,wy=ay+2;
+  if(pose==='atk1'){wx=cx+13;wy=ay-2;}
+  else if(pose==='atk2'){wx=cx+14;wy=ay+4;}
+  else if(pose==='atk3'){wx=cx+11;wy=ay-4;}
+  else if(pose==='hurt'){wx=cx-11;wy=ay+2;}
+  R(cx+7+lean,ay,4,7,p.a);
+  R(cx+7+lean,ay+5,4,2,p.b);
+
+  /* 兵器 */
+  if(o.shield){
+    R(cx-4,ay+1,9,11,p.d);
+    R(cx-3,ay+2,7,9,p.b);
+    R(cx,ay+5,3,3,p.a);
+  }
+  if(o.spear||style==='hero'||style==='boss'){
+    const len=17;
+    R(wx,wy-len,2,len+7,p.d);
+    R(wx-1,wy-len-4,4,5,p.w);
+    R(wx,wy-len-6,2,3,p.b);
+    R(wx+1,wy-2,4,2,plume);
+  }else if(o.bow){
+    g.strokeStyle=p.d;g.lineWidth=2;
+    g.beginPath();g.arc(wx+3,wy+4,8,-1.2,1.2);g.stroke();
+    g.strokeStyle=p.b;g.beginPath();g.moveTo(wx+2,wy-4);g.lineTo(wx+2,wy+12);g.stroke();
+  }else if(o.hammer){
+    R(wx,wy-9,2,10,p.d);
+    R(wx-3,wy-12,8,5,p.w);
+    R(wx-2,wy-11,6,2,p.b);
+  }else{
+    const len=12;
+    R(wx,wy-len,3,len,p.d);
+    R(wx-1,wy-len-3,5,4,p.w);
+    R(wx,wy-1,2,3,p.b);
   }
 }
 function buildFighter(pal,opt){
@@ -391,13 +493,19 @@ function buildFighter(pal,opt){
 }
 const ART={};
 function buildArt(){
-  ART.hero=buildFighter(PAL.hero,{});
+  ART.hero=buildFighter(PAL.hero,{style:'hero'});
   ART.shield=buildFighter(PAL.shield,{shield:true});
   ART.spear=buildFighter(PAL.spear,{spear:true});
-  ART.archer=buildFighter(PAL.archer,{bow:true});
-  ART.captain=buildFighter(PAL.captain,{});
-  ART.boss=buildFighter(PAL.boss,{big:true});
+  ART.archer=buildFighter(PAL.archer,{bow:true,style:'archer'});
+  ART.captain=buildFighter(PAL.captain,{style:'captain'});
+  ART.boss=buildFighter(PAL.boss,{big:true,style:'boss'});
   ART.troop=buildFighter(PAL.troop,{});
+  ART.troop_spear=buildFighter(PAL.t_spear,{spear:true,style:'spear'});
+  ART.troop_shield=buildFighter(PAL.t_shield,{shield:true,style:'shield'});
+  ART.troop_archer=buildFighter(PAL.t_archer,{bow:true,style:'archer'});
+  ART.troop_cavalry=buildFighter(PAL.t_cavalry,{});
+  ART.troop_healer=buildFighter(PAL.t_healer,{});
+  ART.troop_hammer=buildFighter(PAL.t_hammer,{hammer:true,style:'hammer'});
   ART.coin=art(10,10,(g)=>{
     g.fillStyle='#b8801c';g.fillRect(2,1,6,8);
     g.fillStyle='#f5c451';g.fillRect(3,2,4,6);
@@ -430,23 +538,23 @@ const G={
   time:0,shake:0,flash:0,hitStop:0,combo:0,comboT:0,
   skillCd:0,finCd:0,finMeter:0,troopCd:0,troopType:0,
   stage:0,message:'',messageT:0,clearT:0,overT:0,result:'',
-  hazards:[],morale:0,moraleT:0,dyn:1,perf:{kills:0,time:0,hits:0},rank:'C',maxCombo:0
+  hazards:[],morale:0,moraleT:0,dyn:1,perf:{kills:0,time:0,hits:0},rank:'C',maxCombo:0,autoTip:false,finTip:false
 };
 const P={
-  x:260,y:430,w:36,h:58,vx:0,vy:0,face:1,
+  x:260,y:430,w:50,h:80,vx:0,vy:0,face:1,
   hp:100,maxHp:100,state:'idle',t:0,atkStep:0,queue:0,inv:0,hitT:0,
   gold:0,skillLv:1,troopLv:1,armorLv:1,weapon:0,dodgeT:0,block:false
 };
 let enemies=[],troops=[],arrows=[],effects=[],floats=[],dust=[];
 
 const ENEMY={
-  shield:{name:'刀盾兵',hp:26,spd:52,atk:7,range:44,w:34,h:52,score:60,gold:3,cool:1.5,art:'shield'},
-  spear:{name:'长枪兵',hp:20,spd:66,atk:9,range:66,w:32,h:52,score:70,gold:4,cool:1.7,art:'spear'},
-  archer:{name:'弓兵',hp:16,spd:38,atk:7,range:280,w:32,h:50,score:80,gold:4,cool:2.1,art:'archer'},
-  cavalry:{name:'轻骑兵',hp:38,spd:118,atk:11,range:56,w:42,h:58,score:120,gold:7,cool:1.8,art:'captain'},
-  strategist:{name:'策士',hp:18,spd:34,atk:5,range:230,w:32,h:50,score:130,gold:8,cool:2.4,art:'archer'},
-  hammer:{name:'重锤兵',hp:58,spd:42,atk:15,range:58,w:40,h:56,score:150,gold:9,cool:2.2,art:'shield'},
-  captain:{name:'敌校尉',hp:70,spd:58,atk:13,range:56,w:40,h:60,score:240,gold:16,cool:1.5,art:'captain'}
+  shield:{name:'刀盾兵',hp:26,spd:52,atk:7,range:44,w:48,h:73,score:60,gold:3,cool:1.5,art:'shield'},
+  spear:{name:'长枪兵',hp:20,spd:66,atk:9,range:66,w:46,h:73,score:70,gold:4,cool:1.7,art:'spear'},
+  archer:{name:'弓兵',hp:16,spd:38,atk:7,range:280,w:46,h:71,score:80,gold:4,cool:2.1,art:'archer'},
+  cavalry:{name:'轻骑兵',hp:38,spd:118,atk:11,range:56,w:60,h:82,score:120,gold:7,cool:1.8,art:'captain'},
+  strategist:{name:'策士',hp:18,spd:34,atk:5,range:230,w:46,h:71,score:130,gold:8,cool:2.4,art:'archer'},
+  hammer:{name:'重锤兵',hp:58,spd:42,atk:15,range:58,w:58,h:80,score:150,gold:9,cool:2.2,art:'shield'},
+  captain:{name:'敌校尉',hp:70,spd:58,atk:13,range:56,w:58,h:85,score:240,gold:16,cool:1.5,art:'captain'}
 };
 const TROOPS=[
   {name:'长枪兵',key:'spear',hp:30,atk:8,spd:78,range:46,cost:8},
@@ -496,7 +604,7 @@ function newEnemy(type,x,y){
 function newTroop(type,x,y){
   const lv=P.troopLv,c=TROOPS[type],hp=Math.round((c.hp+lv*9)*G.dyn);
   return{
-    type:c.key,name:c.name,x:x,y:y,w:30,h:46,hp:hp,maxHp:hp,
+    type:c.key,name:c.name,x:x,y:y,w:44,h:66,hp:hp,maxHp:hp,
     spd:c.spd,atk:c.atk+lv*2,range:c.range,wait:rnd(.2,.6),
     state:'walk',t:0,hitT:0,face:1,dead:false,healT:3
   };
@@ -516,6 +624,15 @@ function floatText(x,y,txt,color){
   floats.push({x:x,y:y,txt:txt,color:color||'#f5c451',life:.9});
 }
 function shake(n){G.shake=Math.max(G.shake,n);}
+function killEnemy(e){
+  if(!e||e.dead||e.hp>=1||e.type==='boss')return;
+  e.dead=true;e.deadT=0;
+  G.score+=e.score*(1+Math.min(4,Math.floor(G.combo/8)));
+  G.gold+=e.gold;G.perf.kills++;
+  G.finMeter=clamp(G.finMeter+4,0,100);
+  addFX(e.x+e.w/2,e.y-e.h*.5,'dot','#f5c451',14);
+  floatText(e.x,e.y-e.h,'+'+e.score,'#f5c451');
+}
 
 
 /* ==================== 7. 流程控制 ==================== */
@@ -555,7 +672,8 @@ function beginLevel(){
   G.wave=0;G.waveMax=L.waves;G.spawned=0;G.spawnT=1.4;
   G.boss=null;G.gate=null;G.stage=0;G.clearT=0;
   G.skillCd=0;G.finCd=0;G.finMeter=0;G.troopCd=0;
-  G.hazards=[];G.perf={kills:0,time:0,hits:0};G.dyn=1;G.morale=0;G.moraleT=0;G.maxCombo=0;G.rank='C';
+  G.hazards=[];G.perf={kills:0,time:0,hits:0};G.dyn=1;G.morale=0;G.moraleT=0;G.maxCombo=0;G.rank='C';G.autoTip=false;G.finTip=false;
+  G.hitStop=0;G.combo=0;G.comboT=0;G.shake=0;G.flash=0;G.messageT=0;G.finMeter=0;G.finCd=0;
   enemies=[];troops=[];arrows=[];effects=[];floats=[];dust=[];
   P.x=180;P.y=430;P.vx=0;P.vy=0;P.face=1;P.state='idle';P.t=0;
   P.hp=P.maxHp=100;P.inv=1.2;P.atkStep=0;P.queue=0;P.dodgeT=0;P.block=false;
@@ -611,17 +729,17 @@ function doAttack(){
 function doSkill(){
   if(G.state!=='playing'||G.skillCd>0||P.dodgeT>0)return;
   G.skillCd=Math.max(4,9-P.skillLv*.7);
-  const dmg=26+P.skillLv*12;
+  let dmg=26+P.skillLv*12;
   for(const e of enemies){
     if(e.dead)continue;
-    if(Math.hypot(e.x-P.x,e.y-P.y)<170){
-      e.hp-=dmg;e.hitT=.25;hitFX(e,dmg);
+    if(Math.hypot(e.x-P.x,e.y-P.y)<220){
+      dmg=Math.max(1,Math.round(dmg));e.hp-=dmg;e.hitT=.25;hitFX(e,dmg);
     }
   }
   if(G.boss&&Math.hypot(G.boss.x-P.x,G.boss.y-P.y)<190){
-    G.boss.hp-=dmg*1.2;G.boss.hitT=.25;
+    G.boss.hp-=Math.max(1,Math.round(dmg*1.2));G.boss.hitT=.25;
   }
-  if(G.gate&&Math.hypot(G.gate.x-P.x,G.gate.y-P.y)<190)G.gate.hp-=dmg;
+  if(G.gate&&Math.hypot(G.gate.x-P.x,G.gate.y-P.y)<190)G.gate.hp-=Math.max(1,Math.round(dmg));
   addFX(P.x+20,P.y-24,'ring','#5fd0b0',26);
   G.flash=.2;shake(9);G.hitStop=.05;
   SFX.skill();floatText(P.x,P.y-60,'横扫千军','#5fd0b0');
@@ -638,7 +756,7 @@ function tryFinish(x,y,ang){
   for(const e of enemies){
     if(e.dead)continue;
     const rx=e.x-P.x,ry=(e.y-P.y)*1.6;
-    if(rx*dx+ry*dy>-30&&Math.abs(-rx*dy+ry*dx)<95){
+    if(rx*dx+ry*dy>-30&&Math.abs(-rx*dy+ry*dx)<128){
       e.hp-=70+P.level*10;e.hitT=.4;hitFX(e,70);hitCount++;
     }
   }
@@ -732,14 +850,35 @@ function damagePlayer(raw){
 }
 
 /* ==================== 9. 更新 ==================== */
+function defeatBoss(){
+  if(!G.boss||G.boss.dead||G.boss.hp>=1)return;
+  G.boss.dead=true;G.boss=null;
+  G.score+=600+G.level*240;G.gold+=40+G.level*10;
+  addFX(820,400,'ring','#f5c451',50);
+  G.state='clear';G.clearT=0;
+  G.rank=rankOf();
+  if(G.perf.hits===0)unlockAch('noHit');
+  if(G.rank==='S')unlockAch('srank');
+  unlockAch('first');
+  if(G.level>=save.unlocked)save.unlocked=Math.min(LEVELS.length,G.level+1);
+  if(G.rank==='S')save.rank='S';else if(G.rank==='A'&&save.rank!=='S')save.rank='A';
+  save.best=Math.max(save.best,G.score);persist();
+  SFX.win();msg('关隘已破 · '+G.rank+' 评价！',2.4);
+}
 function update(dt){
   G.time+=dt;
   if(G.shake>0)G.shake=Math.max(0,G.shake-dt*26);
   if(G.flash>0)G.flash=Math.max(0,G.flash-dt);
   if(G.messageT>0)G.messageT-=dt;
+  for(const e of enemies)if(e.hp<1&&!e.dead)killEnemy(e);
+  if(G.boss&&G.boss.hp<1&&!G.boss.dead)defeatBoss();
   if(G.hitStop>0){G.hitStop-=dt;return;}
   if(G.comboT>0){G.comboT-=dt;if(G.comboT<=0)G.combo=0;}
-  if(G.state==='clear'){G.clearT+=dt;return;}
+  if(G.state==='clear'){
+    G.clearT+=dt;
+    if(G.clearT>=8)advanceLevel();
+    return;
+  }
   if(G.state!=='playing')return;
 
   if(G.skillCd>0)G.skillCd=Math.max(0,G.skillCd-dt);
@@ -748,6 +887,9 @@ function update(dt){
   if(P.inv>0)P.inv-=dt;
   if(P.hitT>0)P.hitT-=dt;
   if(P.dodgeT>0)P.dodgeT=Math.max(0,P.dodgeT-dt);
+  if(!G.finTip&&G.finMeter>=100&&G.finCd<=0){
+    G.finTip=true;msg('狂斩就绪 · 点按钮或快速划屏！',2.4);SFX.skill();
+  }
   if(G.moraleT>0){G.moraleT-=dt;if(G.moraleT<=0)msg('奋勇结束',1);}
   G.perf.time+=dt;
   if(G.perf.time>12&&G.perf.hits===0)G.dyn=Math.max(.8,G.dyn-.02*dt);
@@ -770,18 +912,18 @@ function update(dt){
     const dur=(P.atkStep===2?.38:.3)*wp.speed;
     if(!P.hitDone&&P.t>=dur*.3){
       P.hitDone=true;
-      const dmg=(9+P.atkStep*5+P.skillLv*2)*wp.dmg*(G.moraleT>0?1.5:1);
+      let dmg=(9+P.atkStep*5+P.skillLv*2)*wp.dmg*(G.moraleT>0?1.5:1);
       for(const e of enemies){
         if(e.dead)continue;
-        if(Math.abs(e.y-P.y)<40&&((e.x+e.w/2-P.x)*P.face>-18)&&Math.abs(e.x-P.x)<(70+P.atkStep*10)*wp.reach){
-          e.hp-=dmg;e.hitT=.22;hitFX(e,dmg);
+        if(Math.abs(e.y-P.y)<55&&((e.x+e.w/2-P.x)*P.face>-18)&&Math.abs(e.x-P.x)<(96+P.atkStep*14)*wp.reach){
+          dmg=Math.max(1,Math.round(dmg));e.hp-=dmg;e.hitT=.22;hitFX(e,dmg);
         }
       }
-      if(G.boss&&Math.abs(G.boss.y-P.y)<62&&Math.abs(G.boss.x-P.x)<(100+P.atkStep*12)*wp.reach){
-        G.boss.hp-=dmg*1.1;G.boss.hitT=.2;hitFX(G.boss,dmg);
+      if(G.boss&&Math.abs(G.boss.y-P.y)<82&&Math.abs(G.boss.x-P.x)<(135+P.atkStep*16)*wp.reach){
+        G.boss.hp-=Math.max(1,Math.round(dmg*1.1));G.boss.hitT=.2;hitFX(G.boss,Math.round(dmg));
       }
       if(G.gate&&Math.abs(G.gate.y-P.y)<90&&Math.abs(G.gate.x-P.x)<100){
-        G.gate.hp-=dmg;hitFX(G.gate,dmg);
+        G.gate.hp-=Math.round(dmg);hitFX(G.gate,Math.round(dmg));
       }
     }
     if(P.t>=dur){
@@ -801,9 +943,13 @@ function update(dt){
     for(const e of enemies){
       if(e.dead)continue;
       const d=Math.abs(e.x-P.x);
-      if(d<nd&&Math.abs(e.y-P.y)<36){nd=d;near=e;}
+      if(d<nd&&Math.abs(e.y-P.y)<60){nd=d;near=e;}
     }
-    if(near&&nd<92){P.face=near.x>P.x?1:-1;doAttack();}
+    if(near&&nd<142){
+      P.face=near.x>P.x?1:-1;
+      if(!G.autoTip){G.autoTip=true;msg('站立自动攻击 · 连斩可三连击',2.4);}
+      doAttack();
+    }
   }
 
   if(G.stage===0){
@@ -814,13 +960,13 @@ function update(dt){
     }
     if(G.wave>=G.waveMax&&enemies.length===0&&G.gate===null){
       const ghp=Math.round((120+G.level*70)*diff().hp);
-      G.gate={x:884,y:436,w:56,h:120,hp:ghp,maxHp:ghp,dead:false};
+      G.gate={x:884,y:436,w:80,h:170,hp:ghp,maxHp:ghp,dead:false};
       msg('城门已破防 · 击破城门！',2.4);
     }
-    if(G.gate&&G.gate.hp<=0){
+    if(G.gate&&G.gate.hp<1){
       G.gate=null;
       const L=LEVELS[G.level-1];
-      G.boss={x:790,y:430,w:82,h:104,hp:L.bossHp,maxHp:L.bossHp,
+      G.boss={x:790,y:430,w:115,h:147,hp:L.bossHp,maxHp:L.bossHp,
         state:'walk',t:0,hitT:0,inv:0,wait:1.2,face:-1,dead:false,atkT:0};
       msg('敌将登场！',2.4);SFX.warn();shake(10);
     }
@@ -846,21 +992,8 @@ function update(dt){
     const d=dust[i];d.x-=dt*18*d.s;d.life-=dt;
     if(d.life<=0||d.x<-10)dust.splice(i,1);
   }
-
-  if(G.boss&&G.boss.hp<=0&&!G.boss.dead){
-    G.boss.dead=true;G.boss=null;
-    G.score+=600+G.level*240;G.gold+=40+G.level*10;
-    addFX(820,400,'ring','#f5c451',50);
-    G.state='clear';G.clearT=0;
-    G.rank=rankOf();
-    if(G.perf.hits===0)unlockAch('noHit');
-    if(G.rank==='S')unlockAch('srank');
-    unlockAch('first');
-    if(G.level>=save.unlocked)save.unlocked=Math.min(LEVELS.length,G.level+1);
-    if(G.rank==='S')save.rank='S';else if(G.rank==='A'&&save.rank!=='S')save.rank='A';
-    save.best=Math.max(save.best,G.score);persist();
-    SFX.win();msg('关隘已破 · '+G.rank+' 评价！',2.4);
-  }
+  for(const e of enemies)if(e.hp<1&&!e.dead)killEnemy(e);
+  if(G.boss&&G.boss.hp<1&&!G.boss.dead)defeatBoss();
 }
 function updateHazards(dt){
   const h=fg(),kind=LEVELS[h].hazard;
@@ -889,19 +1022,11 @@ function updateEnemies(dt){
   for(let i=enemies.length-1;i>=0;i--){
     const e=enemies[i];
     if(e.dead){
-      e.deadT+=dt;if(e.deadT>.45)enemies.splice(i,1);continue;
+      e.deadT+=dt;if(e.deadT>.32)enemies.splice(i,1);continue;
     }
     if(e.hitT>0)e.hitT-=dt;
     if(e.inv>0)e.inv-=dt;
-    if(e.hp<=0){
-      e.dead=true;e.deadT=0;
-      G.score+=e.score*(1+Math.min(4,Math.floor(G.combo/8)));
-      G.gold+=e.gold;
-      G.finMeter=clamp(G.finMeter+4,0,100);
-      addFX(e.x+e.w/2,e.y-e.h*.5,'dot','#f5c451',14);
-      floatText(e.x,e.y-e.h,'+'+e.score,'#f5c451');
-      continue;
-    }
+    if(e.hp<1){killEnemy(e);continue;}
     const dx=P.x-e.x,dy=P.y-e.y,ad=Math.abs(dx);
     e.face=dx>0?1:-1;
     if(e.state==='walk'){
@@ -1055,13 +1180,9 @@ function updateTroops(dt){
           arrows.push({x:t.x+t.face*12,y:t.y-t.h*.6,
             vx:t.face*360,vy:0,life:1.8,dmg:dmg,friendly:true});
         }else{
-          target.hp-=dmg;target.hitT=.2;
+          target.hp-=Math.max(1,Math.round(dmg));target.hitT=.2;
           addFX(target.x+10,target.y-24,'dot',COUNTER[t.type]===target.type?'#f5c451':'#8fd8ff',7);
-          if(target.hp<=0&&target.dead===false&&target!==G.boss){
-            target.dead=true;target.deadT=0;
-            G.score+=target.score;G.gold+=target.gold;
-            G.perf.kills++;
-          }
+          if(target.hp<=0)killEnemy(target);
         }
       }
     }
@@ -1082,14 +1203,14 @@ function updateArrows(dt){
           let dmg=a.dmg;
           if(COUNTER['archer']===e.type)dmg*=1.8;
           else if(COUNTER[e.type]==='archer')dmg*=.6;
-          e.hp-=dmg;e.hitT=.2;used=true;
+          e.hp-=Math.max(1,Math.round(dmg));e.hitT=.2;used=true;
           addFX(e.x,e.y-e.h*.5,'dot','#8fd8ff',6);
-          if(e.hp<=0&&!e.dead){e.dead=true;e.deadT=0;G.score+=e.score;G.gold+=e.gold;G.perf.kills++;}
+          if(e.hp<=0)killEnemy(e);
           break;
         }
       }
       if(!used&&G.boss&&hit({x:G.boss.x-G.boss.w/2,y:G.boss.y-G.boss.h,w:G.boss.w,h:G.boss.h},{x:a.x-6,y:a.y-3,w:12,h:6},2)){
-        G.boss.hp-=a.dmg;used=true;
+        G.boss.hp-=Math.max(1,Math.round(a.dmg));used=true;
       }
       if(used)arrows.splice(i,1);
       continue;
@@ -1099,7 +1220,7 @@ function updateArrows(dt){
     }
     for(const t of troops){
       if(hit(box(t),{x:a.x-6,y:a.y-3,w:12,h:6},2)){
-        t.hp-=a.dmg;arrows.splice(i,1);break;
+        t.hp-=Math.max(1,Math.round(a.dmg));arrows.splice(i,1);break;
       }
     }
   }
@@ -1213,10 +1334,41 @@ function bar(x,y,w,h,ratio,color,bg){
   ctx.fillStyle=color;ctx.fillRect(x+1,y+1,(w-2)*clamp(ratio,0,1),h-2);
   ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
 }
+function teamRing(x,y,w,friendly){
+  ctx.save();
+  ctx.globalAlpha=.62;
+  ctx.strokeStyle=friendly?'#5fd0b0':'#e0503c';
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.ellipse(Math.round(x),Math.round(y+1),w*.58,w*.19,0,0,6.283);
+  ctx.stroke();
+  ctx.restore();
+}
+function teamPennant(x,y,h,friendly){
+  const top=y-h-16;
+  ctx.fillStyle='rgba(240,235,220,.75)';
+  ctx.fillRect(Math.round(x)-1,top,2,11);
+  ctx.fillStyle=friendly?'#5fd0b0':'#e0503c';
+  ctx.beginPath();
+  ctx.moveTo(x+1,top);
+  ctx.lineTo(x+13,top+4);
+  ctx.lineTo(x+1,top+8);
+  ctx.closePath();ctx.fill();
+}
 function drawEntity(e,set,flip){
   const pose=e.dead?'dead':(e.hitT>0?'hurt':(e.state==='atk'||e.state==='attack'?'atk':(e.state==='wind'?'idle':(e.state==='walk'?'walk':'idle'))));
   const frame=pose==='walk'?Math.floor(G.time*7)%4:(pose==='atk'?Math.min(2,Math.floor(e.t*9)):Math.floor(G.time*3)%2);
   drawArt(set,pose,frame,e.x-e.w/2,e.y-e.h,e.w,e.h,flip);
+  if(!e.dead){
+    teamRing(e.x,e.y,e.w,false);
+    if(e.type!=='boss')teamPennant(e.x,e.y,e.h,false);
+    if(e.maxHp>1&&e.type!=='boss')bar(e.x-e.w/2,e.y-e.h-9,e.w,4,e.hp/e.maxHp,'#e0503c');
+  }else{
+    ctx.globalAlpha=Math.max(0,1-e.deadT/.32);
+    ctx.fillStyle='#5a3b30';
+    ctx.fillRect(Math.round(e.x-e.w/2),Math.round(e.y-12),e.w,12);
+    ctx.globalAlpha=1;
+  }
 }
 function drawGate(){
   const g=G.gate;if(!g)return;
@@ -1321,8 +1473,11 @@ function overlay(){
     bigText('SANGUO BLADE',222,20,'#e0503c');
     ctx.font='16px sans-serif';ctx.textAlign='center';ctx.fillStyle='#f0e2cc';
     ctx.fillText('三连击 · 召唤兵种 · 划屏狂斩 · 攻城斩将',VW/2,286);
+    ctx.fillStyle='#5fd0b0';ctx.fillText('青色光环/旗帜 = 我军',VW/2-160,300);
+    ctx.fillStyle='#e0503c';ctx.fillText('红色光环/旗帜 = 敌军',VW/2+160,300);
+    ctx.fillStyle='#f0e2cc';
     ctx.fillText('WASD移动 J攻击 K技能 L狂斩 Q/E换武器 Shift闪 I格挡 1-6换兵 P暂停',VW/2,312);
-    ctx.fillText('手机：左侧移动，右侧斩/技/斩/兵/闪/挡；画面快速划动触发狂斩',VW/2,338);
+    ctx.fillText('手机：左侧移动，右侧连斩/技能/狂斩/闪/挡/召兵；狂斩能量满后点按钮或快速划屏',VW/2,338);
     for(let i=0;i<DIFFS.length;i++){
       const x=VW/2-180+i*90;
       ctx.fillStyle=save.diff===i?'#f5c451':'rgba(255,255,255,.08)';
@@ -1351,8 +1506,10 @@ function overlay(){
     ctx.fillText('按 1 升级技能('+(40*P.skillLv)+'金) · 2 升级兵种('+(35*P.troopLv)+'金) · 3 升级护甲('+(30*P.armorLv)+'金)',VW/2,268);
     ctx.fillStyle='#f5c451';
     ctx.fillText('技能 Lv.'+P.skillLv+'   兵种 Lv.'+P.troopLv+'   护甲 Lv.'+P.armorLv,VW/2,300);
+    const left=Math.max(0,8-G.clearT);
+    bigText(Math.ceil(left)+' 秒后自动进入下一关',348,18,'#f0e2cc');
     const blink=Math.floor(performance.now()/500)%2===0;
-    if(blink)bigText('ENTER 进入下一关',392,22,'#5fd0b0');
+    if(blink)bigText('ENTER 立即进入下一关',392,20,'#5fd0b0');
   }
   if(G.state==='over'){
     ctx.fillStyle='rgba(8,5,4,.85)';ctx.fillRect(0,0,VW,VH);
@@ -1369,6 +1526,23 @@ function overlay(){
     if(blink)bigText('ENTER 再战',360,22,'#5fd0b0');
   }
 }
+const touchCache={};
+function setBtn(id,txt,cls,on){
+  const el=$(id);if(!el)return;
+  if(touchCache[id]!==txt){el.textContent=txt;touchCache[id]=txt;}
+  if(cls&&el.classList&&el.classList.contains!==undefined){
+    if(on)el.classList.add(cls);else el.classList.remove(cls);
+  }
+}
+function syncTouchUI(){
+  const finReady=G.finMeter>=100&&G.finCd<=0;
+  setBtn('bFin',finReady?'狂斩!':('狂斩 '+Math.floor(G.finMeter)+'%'),'ready',finReady);
+  const skReady=G.skillCd<=0;
+  setBtn('bSkill',skReady?'技能':('技能 '+Math.ceil(G.skillCd)+'s'),'ready',skReady);
+  const c=TROOPS[G.troopType],trReady=G.troopCd<=0&&G.gold>=c.cost;
+  setBtn('bTroop',trReady?('召兵'+c.cost):('召兵 '+Math.ceil(G.troopCd)+'s'),'ready',trReady);
+  setBtn('bNext','换兵 '+c.name);
+}
 function render(){
   ctx.setTransform(scale,0,0,scale,0,0);
   ctx.clearRect(0,0,VW,VH);
@@ -1381,10 +1555,12 @@ function render(){
   for(const e of enemies)list.push({y:e.y,fn:()=>drawEntity(e,ART[e.art]||ART.shield,e.face<0)});
   for(const t of troops)list.push({y:t.y,fn:()=>{
     drawShadow(t.x,t.y,t.w);
-    drawArt(ART.troop,t.state==='walk'?(Math.floor(G.time*8)%2?'walk':'idle'):'idle',0,t.x-t.w/2,t.y-t.h,t.w,t.h,t.face<0);
-    bar(t.x-14,t.y-t.h-8,28,4,t.hp/t.maxHp,'#5fd0b0');
+    drawArt(ART['troop_'+t.type]||ART.troop,t.state==='walk'?(Math.floor(G.time*8)%2?'walk':'idle'):'idle',0,t.x-t.w/2,t.y-t.h,t.w,t.h,t.face<0);
+    teamRing(t.x,t.y,t.w,true);
+    teamPennant(t.x,t.y,t.h,true);
+    bar(t.x-16,t.y-t.h-9,32,4,t.hp/t.maxHp,'#5fd0b0');
   }});
-  list.push({y:P.y,fn:()=>{drawShadow(P.x,P.y,P.w);drawPlayer();}});
+  list.push({y:P.y,fn:()=>{drawShadow(P.x,P.y,P.w);drawPlayer();teamRing(P.x,P.y,P.w,true);}});
   list.sort((a,b)=>a.y-b.y);
   drawShadow(P.x,P.y,P.w);
   for(const it of list)it.fn();
@@ -1399,6 +1575,7 @@ function render(){
   ctx.restore();
   drawWeather();
   drawHUD();
+  syncTouchUI();
   overlay();
   if(G.flash>0){
     ctx.fillStyle='rgba(255,240,200,'+Math.min(.6,G.flash*2)+')';
@@ -1428,6 +1605,7 @@ function upgrade(k){
   else if(k===1)P.troopLv++;
   else{P.armorLv++;P.maxHp+=10;P.hp=Math.min(P.maxHp,P.hp+10);}
   save.gold=G.gold;persist();
+  G.clearT=0;
   msg('升级成功！',1.4);SFX.skill();
 }
 addEventListener('keydown',e=>{
@@ -1471,7 +1649,11 @@ async function exitFull(){
   setTimeout(resize,260);updateFullBtn();
 }
 $('cFull').onclick=()=>{AU.resume();if(document.fullscreenElement)exitFull();else enterFull();};
-document.addEventListener('fullscreenchange',()=>{updateFullBtn();setTimeout(resize,220);});
+$('cExitFull').onclick=()=>{exitFull();};
+document.addEventListener('fullscreenchange',()=>{
+  document.body.classList.toggle('fullscreen',!!document.fullscreenElement);
+  updateFullBtn();setTimeout(resize,220);
+});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden&&G.state==='playing')G.state='paused';
   if(document.hidden)MUS.stop();
