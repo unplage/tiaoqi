@@ -1,0 +1,20 @@
+{
+  "name": "三国群英斩 · TiaoQi Arcade",
+  "short_name": "群英斩",
+  "description": "原创三国题材横版动作游戏：三连击、自动攻击、技能、划屏狂斩、兵种相克、攻城斩将，离线可玩。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0d0807",
+  "theme_color": "#160d0a",
+  "lang": "zh-CN",
+  "categories": ["games"],
+  "icons": [
+    { "src": "../../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "../../icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
