@@ -20,6 +20,9 @@ const fast = process.env.BLIND_FAST ? JSON.parse(process.env.BLIND_FAST) : {
     simulation: { depth: { legendary: 1, grandmaster: 1, hard: 1 } },
     endgame: { timeBudgetMs: 60000, nodeLimit: 3000000 },
     blind: {
+        // 公平性测试必须禁用自适应时间预算：并行负载下两次决策若落在不同截断点
+        // 会产生假阳性。这里用足够大的固定预算 + 节点/迭代数保证一致性。
+        adaptiveMctsBudget: false,
         worlds: {
             endgame: { easy: 1, medium: 1, hard: 2, grandmaster: 2, legendary: 2 },
             mcts: { easy: 0, medium: 0, hard: 1, grandmaster: 1, legendary: 1 },
@@ -30,7 +33,7 @@ const fast = process.env.BLIND_FAST ? JSON.parse(process.env.BLIND_FAST) : {
         mctsTimeBudgetMs: { easy: 0, medium: 0, hard: 60000, grandmaster: 60000, legendary: 60000 },
         beatProbSamples: { easy: 0, medium: 0, hard: 2, grandmaster: 2, legendary: 2 },
         beatProbCandidates: { easy: 0, medium: 0, hard: 2, grandmaster: 2, legendary: 2 },
-        callTrials: { legendary: 8 }
+        callTrials: { hard: 8, grandmaster: 8, legendary: 8 }
     },
 };
 
@@ -168,4 +171,43 @@ for (const difficulty of DIFFS) {
 }
 console.log(`瘦身状态检查：${slimChecks} 次对比，失败 ${slimFail}`);
 failures += slimFail;
+
+// ===== 追加检查：叫分阶段底牌对 AI 不可见，替换底牌不得改变叫分 =====
+let callFail = 0, callChecks = 0;
+for (const difficulty of DIFFS) {
+    for (let g = 0; g < 3; g++) {
+        const deal = makeDeal(makeRng(9001 + g));
+        const actor = 0;
+        const calling = {
+            phase: 'calling', landlord: -1, currentPlayer: actor,
+            players: deal.hands.map(p => p.map(c => ({ ...c }))),
+            lordCards: [{ id: 'fake_w3', suit: 'X', rank: '3', value: 0 },
+                        { id: 'fake_w4', suit: 'X', rank: '4', value: 1 },
+                        { id: 'fake_w5', suit: 'X', rank: '5', value: 2 }],
+            baseScore: 0, callScores: [0, 0, 0], callOrder: [],
+            lastPlay: null, lastPlayerId: -1, passCount: 0
+        };
+        const strong = JSON.parse(JSON.stringify(calling));
+        strong.lordCards = [{ id: 'fake_2', suit: 'X', rank: '2', value: 12 },
+                            { id: 'fake_smalljoker', suit: 'X', rank: '小王', value: 13 },
+                            { id: 'fake_bigjoker', suit: 'X', rank: '大王', value: 14 }];
+        const modA = loadAI('ai_core.js', SYMBOLS, makeRng(SEED), fast);
+        const modB = loadAI('ai_core.js', SYMBOLS, makeRng(SEED), fast);
+        const memA = new modA.MasterMemory();
+        const memB = new modB.MasterMemory();
+        let a = null, b = null;
+        try { a = new modA.AICore(actor, difficulty, memA).callDecision(calling); }
+        catch (e) { console.error('THROW call A', difficulty, e.message); callFail++; }
+        try { b = new modB.AICore(actor, difficulty, memB).callDecision(strong); }
+        catch (e) { console.error('THROW call B', difficulty, e.message); callFail++; }
+        if (a === null || b === null) continue;
+        callChecks++;
+        if (a !== b) {
+            callFail++;
+            console.error(`CALL LEAK ${difficulty} game${g}: 叫分随底牌改变 weak=${a} strong=${b}`);
+        }
+    }
+}
+console.log(`叫分底牌公平性检查：${callChecks} 次对比，失败 ${callFail}`);
+failures += callFail;
 process.exit(failures > 0 ? 1 : 0);

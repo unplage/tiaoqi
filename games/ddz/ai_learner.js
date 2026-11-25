@@ -86,11 +86,11 @@ const ParamConfig = {
         } else {
             localStorage.removeItem('landlord_ai_params');
         }
-        if (typeof window !== 'undefined' && window.AiWorkerPool && window.AiWorkerPool.ready) {
+        if (typeof AiWorkerPool !== 'undefined' && AiWorkerPool && AiWorkerPool.ready) {
             try {
                 let msg = { cmd: 'init', params: this._overrides ? this._overrides : null };
                 if (typeof CorrectionRules !== 'undefined') { CorrectionRules.init(); msg.correctionRules = CorrectionRules._rules || []; }
-                for (let w of window.AiWorkerPool.workers) {
+                for (let w of AiWorkerPool.workers) {
                     if (w._ready && !w._dead) w.postMessage(msg);
                 }
             } catch (e) {}
@@ -145,7 +145,13 @@ const GameDatabase = {
                     let tx = db.transaction(this.STORE_NAME, 'readwrite');
                     let store = tx.objectStore(this.STORE_NAME);
                     store.add(record);
-                    tx.oncomplete = () => resolve(true);
+                    tx.oncomplete = () => {
+                        resolve(true);
+                        // 滚动裁剪：每局都存会无限增长（每条含 54 张初始手牌+全部动作+reasoning）
+                        this.count().then(n => {
+                            if (n > 200) this.deleteOldest(n - 200).catch(() => {});
+                        }).catch(() => {});
+                    };
                     tx.onerror = () => resolve(false);
                 } catch (e) { resolve(false); }
             });
@@ -421,10 +427,13 @@ const GameRecorder = {
         if (origExecutePlayCards) {
             window._origExecutePlayCards = origExecutePlayCards;
             window.executePlayCards = function(player, cards) {
-                if (GameState.phase === 'playing') {
+                // 先执行，只有校验通过（返回 true）才记入回放；
+                // 旧实现在校验前记录，被拒的非法走法/兜底过牌会污染动作序列与反事实标签。
+                const ok = origExecutePlayCards(player, cards);
+                if (ok !== false && GameState.phase === 'playing') {
                     self.recordAction(player, cards);
                 }
-                return origExecutePlayCards(player, cards);
+                return ok;
             };
         }
 
@@ -525,14 +534,67 @@ const GameRecorder = {
 
         let game = this.currentGame;
         this.currentGame = null;
+        HumanStyleProfile.update(game);
         GameDatabase.save(game).then(() => {
             GameAnalyzer.analyze(game);
-            GodViewLearner.learn(game);
+            // 学习闭环放进 Worker，避免主线程卡顿；Worker 不可用时回退到旧路径
+            let sent = false;
+            try { if (typeof LearnWorker !== 'undefined') sent = LearnWorker.learn(game); } catch (e) {}
+            if (!sent) GodViewLearner.learn(game);
         }).then(() => {
             game.analysed = true;
         });
         ParameterOptimizer._onGameEnd(game);
     }
+};
+
+// ======================== 跨局真人风格画像 ========================
+// 单机模式下"对手"是固定策略 AI，但玩家是真人。这里从已结束的对局中提取
+// 真人的公开行为倾向（过牌率/炸弹率/出牌长度/主动领出率），跨局持久化，
+// 供 AI 在后续对局做温和的风格适应。全部来自公开动作，不涉及任何隐藏信息。
+const HumanStyleProfile = {
+    KEY: 'landlord_human_style',
+    _data: null,
+    init() {
+        if (this._data) return this._data;
+        let d = null;
+        try { d = JSON.parse(localStorage.getItem(this.KEY) || 'null'); } catch (e) {}
+        this._data = d && typeof d === 'object'
+            ? d : { games: 0, passRate: 0.3, bombRate: 0.05, avgPlayLen: 1.5, aggression: 0.5 };
+        return this._data;
+    },
+    // 从一局的动作序列更新画像（指数滑动平均，保留最近倾向）
+    update(game) {
+        if (!game || game.mode !== 'single' || !Array.isArray(game.actions)) return;
+        const myIdx = game.myIndex !== undefined ? game.myIndex : 0;
+        const acts = game.actions.filter(a => a && a.p === myIdx);
+        if (!acts.length) return;
+        const plays = acts.filter(a => !a.pass && a.c && a.c.length);
+        const passes = acts.filter(a => a.pass).length;
+        let bombs = 0, lenSum = 0;
+        for (const a of plays) {
+            lenSum += a.c.length;
+            const cnt = {};
+            for (const c of a.c) cnt[c.value] = (cnt[c.value] || 0) + 1;
+            const kinds = Object.values(cnt);
+            if (kinds.includes(4)) bombs++;
+            if (a.c.length === 2 && a.c[0].value === 13 && a.c[1].value === 14) bombs++;
+        }
+        const passRate = passes / acts.length;
+        const bombRate = bombs / Math.max(1, plays.length);
+        const avgPlayLen = lenSum / Math.max(1, plays.length);
+        // aggression：出牌多、过牌少 → 激进
+        const aggression = Math.max(0, Math.min(1, 1 - passRate));
+        const d = this.init();
+        const alpha = 0.25;  // 新局权重
+        d.games = (d.games || 0) + 1;
+        d.passRate = d.passRate * (1 - alpha) + passRate * alpha;
+        d.bombRate = d.bombRate * (1 - alpha) + bombRate * alpha;
+        d.avgPlayLen = d.avgPlayLen * (1 - alpha) + avgPlayLen * alpha;
+        d.aggression = d.aggression * (1 - alpha) + aggression * alpha;
+        try { localStorage.setItem(this.KEY, JSON.stringify(d)); } catch (e) {}
+    },
+    get() { return this.init(); }
 };
 
 // ======================== 4. PARAMETER OPTIMIZER (DISABLED) ========================
@@ -720,7 +782,8 @@ const GameAnalyzer = {
         // 3. Pass when should beat (opponent about to win)
         if (action.pass) {
             let oppIdx = state.lastPlayerId;
-            if (oppIdx >= 0 && state.players[oppIdx] && state.players[oppIdx].length <= 3 && beatable.length > 0) {
+            let isPartnerLead = role === 'farmer' && oppIdx >= 0 && oppIdx !== state.landlord && oppIdx !== action.p;
+            if (!isPartnerLead && oppIdx >= 0 && state.players[oppIdx] && state.players[oppIdx].length <= 3 && beatable.length > 0) {
                 mistakes.push({
                     severity: 'high',
                     category: 'bad_pass',
@@ -841,10 +904,10 @@ const CorrectionRules = {
         try {
             localStorage.setItem('landlord_correction_rules', JSON.stringify(this._rules));
         } catch (e) {}
-        if (typeof window !== 'undefined' && window.AiWorkerPool && window.AiWorkerPool.ready) {
+        if (typeof AiWorkerPool !== 'undefined' && AiWorkerPool && AiWorkerPool.ready) {
             try {
                 let msg = { cmd: 'init', correctionRules: this._rules };
-                for (let w of window.AiWorkerPool.workers) {
+                for (let w of AiWorkerPool.workers) {
                     if (w._ready && !w._dead) w.postMessage(msg);
                 }
             } catch (e) {}
@@ -856,6 +919,7 @@ const CorrectionRules = {
         let results = [];
         for (let rule of this._rules) {
             if (rule.confidence < this.MIN_CONFIDENCE) continue;
+            if (rule.category === 'bad_pass' && context && context.lastPlayerIsPartner) continue;
             if (this._ruleMatches(rule, context)) {
                 results.push(rule);
             }
@@ -947,7 +1011,7 @@ const CorrectionRules = {
             const highKicker = (
                 (c.actualType === CardType.TRIPLE_WITH_SINGLE || c.actualType === CardType.TRIPLE_WITH_PAIR) &&
                 c.actualFeat && c.actualFeat.kickerValue >= 11 &&
-                (!c.bestFeat || (c.bestFeat.kickerValue || 0) < c.actualFeat.kickerValue)
+                c.optFeat && (c.optFeat.kickerValue || 0) < c.actualFeat.kickerValue
             );
             if (highKicker) specs.push({
                 context: {
@@ -989,13 +1053,20 @@ const CorrectionRules = {
         let rule = this._rules.find(r => JSON.stringify(r.context) === JSON.stringify(spec.context) && JSON.stringify(r.comparators || {}) === JSON.stringify(spec.comparators || {}));
         if (rule) {
             rule.triggerCount++;
-            rule.confidence = Math.min(0.98, rule.confidence + 0.05);
+            // 按对局去重：同一局里重复触发只算一次样本，避免置信度无样本地爬到 0.98
+            const gameKey = spec.gameId || 0;
+            if (rule.lastGameId !== gameKey) {
+                rule.confidence = Math.min(0.95, rule.confidence + 0.04);
+                rule.lastGameId = gameKey;
+            }
             rule.penalty = Math.round((rule.penalty + spec.penalty) / 2);
             rule.ts = Date.now();
             return;
         }
         if (this._rules.length >= this.MAX_RULES) this._rules.shift();
         this._rules.push({
+            gameId: spec.gameId || 0,
+            lastGameId: spec.gameId || 0,
             context: spec.context,
             comparators: spec.comparators || null,
             penalty: spec.penalty,
@@ -1160,7 +1231,9 @@ const GodViewLearner = {
     _WEIGHT_KEYS: [
         'playPower','isBomb','isRocket','remainTotal','remainSingle','remainPair',
         'remainTriple','remainBomb','remainMaxStraight','remainBigCards','hasRocket',
-        'opponentHandCount','partnerHandCount','outsideBombCount','isCritical','needBeat'
+        'opponentHandCount','partnerHandCount','outsideBombCount','isCritical','needBeat',
+        'turnsToFinish','sureTricks','controlCount','oppThreat','isPartnerLead',
+        'turnsDelta','controlRetained','partnerFit','leadOppClose','bombUrgency'
     ],
 
     learn(game) {
@@ -1527,7 +1600,9 @@ const GodViewLearner = {
         playPower: 1000, isBomb: 1, isRocket: 1, remainTotal: 20, remainSingle: 8, remainPair: 8,
         remainTriple: 6, remainBomb: 4, remainMaxStraight: 12, remainBigCards: 8, hasRocket: 1,
         isLandlord: 1, isFarmer: 1, opponentHandCount: 20, partnerHandCount: 20, outsideBombCount: 8,
-        isCritical: 1, needBeat: 1
+        isCritical: 1, needBeat: 1,
+        turnsToFinish: 6, sureTricks: 6, controlCount: 6, oppThreat: 8, isPartnerLead: 1,
+        turnsDelta: 6, controlRetained: 1, partnerFit: 6, leadOppClose: 1, bombUrgency: 1
     },
 
     _effectiveParams() {

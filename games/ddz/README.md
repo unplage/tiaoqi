@@ -27,7 +27,8 @@ python3 -m http.server 8080
 - **像素风格 UI** — Press Start 2P 字体，复古扫描线效果，触屏优化
 - **AI 自学习** — 每局自动记录全部决策数据，赛后确定性复盘，检测过杀/高带牌/错误过牌
 - **纠错规则引擎** — 从历史对局自动提取可推广的规则，置信度管理，实时指导出牌决策
-- **CEM 参数优化** — Cross-Entropy 算法微调 AI 全部 ~40 个参数权重（参数/启发式值/阈值）
+- **自进化闭环** — 后台 Worker 里做「反事实分析 → 权重更新 → 配对自对弈验证」，只有统计显著的提升才会被采纳并推送给所有 AI Worker
+- **结构化信念采样** — 按「手牌形状」而不是逐张随机分配未见牌池，采样出的对手更接近真实牌局
 - **参数导入导出** — JSON 格式导出 AI 参数与规则，跨设备同步至 PWA
 - **对局记录** — IndexedDB 持久化，含完整手牌、每步 AI 推理、复盘分析
 
@@ -37,11 +38,12 @@ python3 -m http.server 8080
 |------|------|
 | `index.html` | 完整应用（HTML + CSS + UI/联机逻辑） |
 | `ai_core.js` | **共享 AI 内核**：牌型/记牌器/评分/DP/残局求解/MCTS，浏览器与 Worker 双端复用 |
-| `ai_worker.js` | Web Worker：`importScripts('ai_core.js')`，仅保留参数/纠错规则注入与消息处理 |
-| `ai_learner.js` | AI 自学习、参数优化、复盘分析、纠错规则引擎、自我对弈验证 |
+| `ai_worker.js` | AI 推理 Worker：`importScripts('ai_core.js')`，仅保留参数/纠错规则注入与消息处理 |
+| `learn_worker.js` | 学习 Worker：反事实分析 → 权重更新 → 配对自对弈验证 → 采纳/拒绝（不阻塞界面） |
+| `ai_learner.js` | 参数存储、复盘分析、纠错规则引擎、学习调度（学习本体已搬到 `learn_worker.js`） |
 | `sw.js` | Service Worker，离线缓存 |
 | `manifest.json` | PWA 清单 |
-| `bench/` | Node 自对弈基准（配对测评 / 求解器探针 / AI 规则探针 `ai_probe` / 联机冒烟，不参与部署） |
+| `bench/` | Node 测试与基准（牌型单测 / 决策冒烟 / 回放一致性 / 记牌器 / 公平性 / Worker 协议 / 联机冒烟 / 学习闭环 / 配对 A/B 强度测评 / 耗时分位数），一键跑：`node bench/run_all.js` |
 | `icons/` | PWA 图标（像素风地主金冠 + 三张牌）+ 纯 Node 生成器 `make_icons.js` |
 
 无构建工具、无包管理器、无模块系统。纯内联 HTML+CSS+JS，零框架。

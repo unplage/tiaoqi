@@ -18,14 +18,23 @@ const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const AI_CORE = fs.readFileSync(path.join(ROOT, 'ai_core.js'), 'utf8');
 const AI_LEARNER = fs.readFileSync(path.join(ROOT, 'ai_learner.js'), 'utf8');
 
-// ---- 提取 index.html 的第一个内联 <script>（主脚本） ----
-function extractInlineScript(html) {
+// ---- 提取 index.html 的主内联脚本 ----
+// 注意：不能简单取「第一个」内联脚本 —— index.html 里还有一个更早的版本号显示脚本。
+// 主脚本的判别特征：包含 GameState 的定义。
+function extractInlineScripts(html) {
     const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
-    const m = re.exec(html);
-    if (!m) throw new Error('未找到内联主脚本');
-    return m[1];
+    const out = [];
+    let m;
+    while ((m = re.exec(html)) !== null) out.push(m[1]);
+    return out;
 }
-const MAIN_SCRIPT = extractInlineScript(HTML);
+function extractMainScript(html) {
+    const scripts = extractInlineScripts(html);
+    const main = scripts.find(s => /\bconst\s+GameState\b/.test(s) || /\blet\s+GameState\b/.test(s) || /\bvar\s+GameState\b/.test(s));
+    if (!main) throw new Error('未找到主内联脚本（含 GameState 定义）');
+    return main;
+}
+const MAIN_SCRIPT = extractMainScript(HTML);
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -482,6 +491,33 @@ async function main() {
     check('房主返回菜单后残留计时器已清', host.run('gameTimeouts.length') === 0,
         'got ' + host.run('gameTimeouts.length'));
     check('客户端返回菜单后 myRole=null', c1.run('GameState.myRole') === null);
+
+    section('8. P0/P1 联机修复回归');
+    // 静态检查（这些行为依赖真实网络/计时器，动态构造代价大）
+    const mainTxt = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    check('在线玩家超时不强制托管（仅掉线才托管）',
+        mainTxt.includes('if (!GameState.disconnected[id]) {') &&
+        mainTxt.includes('takeoverPlay(id);'));
+    check('结算后向所有玩家广播完整剩余手牌',
+        /safeState\.phase === 'gameover'\) return \[\.\.\.p\]/.test(mainTxt));
+    check('客户端也会显示自动过牌按钮', mainTxt.includes('syncAutoPassButton()'));
+    check('算力切换会取消在途 AI 决策并重算',
+        mainTxt.includes('function restartAiThinking') && mainTxt.includes('cancelForPlayer'));
+    check('小屏顶栏按钮有防挤压样式',
+        /@media \(max-width: 420px\)/.test(mainTxt) && mainTxt.includes('#topRightControls'));
+    check('顶栏按钮统一样式并强制单行',
+        mainTxt.includes('.top-chip') && !mainTxt.includes('flex-wrap: wrap'));
+    check('顶栏保留原始难度/速度文案', mainTxt.includes('大师级') && mainTxt.includes('快速'));
+    check('金币显示截断为前 5 位', mainTxt.includes("slice(0, 5)"));
+    check('sync 带 epoch 房间纪元', mainTxt.includes('epoch: GameState.roomEpoch'));
+    check('客户端只接受房主连接 sync', mainTxt.includes("conn !== GameState.connections[0]"));
+    check('sync 带记牌器快照', mainTxt.includes('memorySnapshot:'));
+    check('房主退出广播 room-closed', mainTxt.includes("type: 'room-closed'"));
+    check('PeerJS 配置 iceServers（TURN 可注入）', mainTxt.includes('ddz_turn_config'));
+    check('结算结果房主下发对账', mainTxt.includes('gameResult: GameState.gameResult'));
+    // 动态：epoch 字段存在且 sync 携带
+    check('GameState 有 roomEpoch 初值', typeof host.run('GameState.roomEpoch') === 'string');
+    check('GameState 有 gameResult 字段', host.run("Object.keys(GameState).includes('gameResult')"));
 
     console.log('\n----------------------------------------');
     console.log(`通过 ${passed} 项，失败 ${failed} 项`);

@@ -339,7 +339,7 @@
             } catch (e) {
                 log('⚠️ 无法获取 IndexedDB 列表（可能不支持），尝试常用名称', 'info');
                 // 降级：尝试几个常见名称
-                const common = ['ddz', 'ddzDB', 'pwa-ddz', 'my-pwa-db', 'landlord'];
+                const common = ['ddz', 'ddzDB', 'pwa-ddz', 'my-pwa-db', 'landlord', 'ddz_ai_db'];  // ddz_ai_db = 复盘/学习库
                 for (const name of common) {
                     try {
                         await new Promise((resolve) => {

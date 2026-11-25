@@ -7,7 +7,7 @@ const BASE_PATH = self.location.pathname.replace(/[^/]+$/, '');
 // 构建带项目标识的缓存名称，避免多项目冲突
 // 例如 '/ddz/' -> 'pwa-cache-ddz-v1'
 const PROJECT_PREFIX = `pwa-cache${BASE_PATH.replace(/\//g, '-').replace(/--/g, '-').replace(/(^-|-$)/g, '')}`;
-const CACHE_VERSION = 'v81';
+const CACHE_VERSION = 'v103';
 const CACHE_NAME = `${PROJECT_PREFIX}${CACHE_VERSION}`;
 // 允许离线使用的跨域依赖（CDN）与主机白名单
 const OFFLINE_ASSET_URLS = [
@@ -26,6 +26,7 @@ const PRECACHE_URLS = [
   `${BASE_PATH}ai_core.js`,
   `${BASE_PATH}ai_learner.js`,
   `${BASE_PATH}ai_worker.js`,
+  `${BASE_PATH}learn_worker.js`,
   `${BASE_PATH}manifest.json`,
   `${BASE_PATH}icons/favicon.png`,
   `${BASE_PATH}icons/apple-touch-icon.png`,
