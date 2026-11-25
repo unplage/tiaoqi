@@ -28,15 +28,20 @@ background:rgba(255,255,255,.03);color:var(--txt);cursor:pointer;transition:.18s
 .chip:hover{background:rgba(245,196,81,.14);transform:translateY(-2px)}
 .chip:active{transform:translateY(1px)}
 .chip:disabled{opacity:.35;cursor:not-allowed;transform:none}
-:root{--pad:60px;--dpad:180px;--act:64px}
+:root{--stick:132px;--knob:56px;--act:64px}
 #touch{width:min(100%,1160px);display:none;align-items:center;justify-content:space-between;gap:12px;padding:4px 12px;pointer-events:auto;touch-action:none}
 body.is-touch #touch{display:flex}
-.dpad{position:relative;width:var(--dpad);height:var(--dpad);flex:0 0 auto}
-.dpad .tb{position:absolute;width:var(--pad);height:var(--pad);border-radius:18px;font-size:19px}
-#bUp{left:var(--pad);top:0}
-#bLeft{left:0;top:var(--pad)}
-#bRight{left:calc(var(--pad)*2);top:var(--pad)}
-#bDown{left:var(--pad);top:calc(var(--pad)*2)}
+.stick{position:relative;width:var(--stick);height:var(--stick);flex:0 0 auto;border-radius:50%;
+  background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.22);
+  box-shadow:inset 0 0 24px rgba(0,0,0,.4);touch-action:none;pointer-events:auto}
+.stick::before,.stick::after{content:'';position:absolute;background:rgba(255,255,255,.12)}
+.stick::before{left:50%;top:12%;width:2px;height:76%;transform:translateX(-50%)}
+.stick::after{top:50%;left:12%;height:2px;width:76%;transform:translateY(-50%)}
+.knob{position:absolute;left:50%;top:50%;width:var(--knob);height:var(--knob);border-radius:50%;
+  background:rgba(245,196,81,.32);border:2px solid rgba(245,196,81,.8);
+  transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 12px rgba(245,196,81,.3);
+  transition:background .12s}
+.stick.on .knob{background:rgba(245,196,81,.62)}
 .actions{display:grid;grid-template-columns:repeat(3,var(--act));grid-auto-rows:var(--act);gap:8px;flex:0 0 auto}
 .tb{position:relative;pointer-events:auto;touch-action:none;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
 width:var(--act);height:var(--act);border-radius:16px;font-size:13px;font-weight:800;letter-spacing:.02em;
@@ -61,9 +66,9 @@ body.fullscreen #touch{
   pointer-events:none;background:transparent;padding:0 2vw 1.5vh;
   align-items:flex-end;justify-content:space-between;
 }
-body.fullscreen .dpad,body.fullscreen .actions{opacity:.55;transition:opacity .15s}
-body.fullscreen .dpad:hover,body.fullscreen .actions:hover,
-body.fullscreen .dpad:active,body.fullscreen .actions:active{opacity:1}
+body.fullscreen .stick,body.fullscreen .actions{opacity:.55;transition:opacity .15s}
+body.fullscreen .stick:hover,body.fullscreen .actions:hover,
+body.fullscreen .stick:active,body.fullscreen .actions:active{opacity:1}
 body.fullscreen .tb{pointer-events:auto;box-shadow:0 2px 10px rgba(0,0,0,.5)}
 body.fullscreen .tb.ready{box-shadow:0 0 16px 3px rgba(245,196,81,.65)}
 #cExitFull{display:none;position:absolute;right:10px;top:10px;z-index:9;
@@ -79,7 +84,7 @@ body.is-touch.portrait #rotate{display:flex}
 body.skipRotate #rotate{display:none!important}
 @media(max-width:760px){#bar{font-size:12px}.chip{font-size:11px;padding:6px 9px}}
 @media(orientation:landscape){
-  :root{--pad:42px;--dpad:126px;--act:48px}
+  :root{--stick:108px;--knob:44px;--act:48px}
   #shell{gap:3px;padding:3px}
   #screen{width:min(100vw,calc((100vh - 168px)*16/9));max-height:calc(100vh - 168px);border-radius:8px}
   #bar{font-size:12px;gap:4px 8px}
@@ -88,7 +93,7 @@ body.skipRotate #rotate{display:none!important}
   .actions{gap:6px;grid-template-columns:repeat(5,var(--act))}
   .tb{font-size:11px;border-radius:12px}
   .tb.atk{font-size:13px}
-  .dpad .tb{border-radius:14px;font-size:16px}
+  .stick{border-radius:50%}
 }
 body.is-touch #bar{display:none}
 body.is-touch #shell{gap:0;padding:0;justify-content:center;background:#000}
@@ -114,12 +119,7 @@ body.is-touch .tb{pointer-events:auto;box-shadow:0 2px 10px rgba(0,0,0,.5)}
     </div>
   </div>
   <div id="touch">
-    <div class="dpad">
-      <div class="tb" id="bUp">&#9650;</div>
-      <div class="tb" id="bLeft">&#9664;</div>
-      <div class="tb" id="bRight">&#9654;</div>
-      <div class="tb" id="bDown">&#9660;</div>
-    </div>
+    <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
     <div class="actions">
       <div class="tb atk" id="bAtk">连斩</div>
       <div class="tb skill" id="bSkill">技能</div>
@@ -259,7 +259,8 @@ const MUS={
 
 const KB={left:false,right:false,up:false,down:false,atk:false,block:false};
 const TACT={left:0,right:0,up:0,down:0,atk:0,block:0};
-const act=a=>((KB[a]?1:0)+(TACT[a]||0))>0;
+const STICK={active:false,id:null,x:0,y:0,left:false,right:false,up:false,down:false};
+const act=a=>((KB[a]?1:0)+(TACT[a]||0)+(STICK[a]?1:0))>0;
 const MOVE={arrowleft:'left',a:'left',arrowright:'right',d:'right',arrowup:'up',w:'up',arrowdown:'down',s:'down'};
 let touchMode=false;
 
@@ -319,6 +320,9 @@ addEventListener('keyup',e=>{
 addEventListener('blur',()=>{
   for(const k in KB)KB[k]=false;
   for(const k in TACT)TACT[k]=0;
+  STICK.active=false;STICK.id=null;STICK.x=0;STICK.y=0;STICK.left=STICK.right=STICK.up=STICK.down=false;
+  if(knobEl)knobEl.style.transform='translate(-50%,-50%)';
+  if(stickEl)stickEl.classList.remove('on');
   if(G.state==='playing'){G.state='paused';MUS.stop();}
 });
 
@@ -360,10 +364,6 @@ if(('ontouchstart' in window)||navigator.maxTouchPoints>0||window.matchMedia('(p
   touchMode=true;
   document.body.classList.add('is-touch');
 }
-bindHold($('bLeft'),'left');
-bindHold($('bRight'),'right');
-bindHold($('bUp'),'up');
-bindHold($('bDown'),'down');
 bindHold($('bAtk'),'atk',()=>doAttack());
 bindHold($('bBlock'),'block');
 bindTap($('bSkill'),doSkill);
@@ -373,6 +373,43 @@ bindTap($('bTroop'),doSummon);
 bindTap($('bNext'),cycleTroop);
 bindTap($('bWeapon'),()=>switchWeapon(1));
 bindTap($('bPause'),togglePause);
+
+const stickEl=$('stick'),knobEl=$('knob');
+function stickUpdate(e){
+  if(!STICK.active||e.pointerId!==STICK.id)return;
+  const r=stickEl.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  let dx=e.clientX-cx,dy=e.clientY-cy;
+  const kr=knobEl.getBoundingClientRect();
+  const max=r.width/2-kr.width/2;
+  const len=Math.hypot(dx,dy)||1;
+  const c=Math.min(len,max);
+  dx=dx/len*c;dy=dy/len*c;
+  knobEl.style.transform='translate(calc(-50% + '+dx.toFixed(1)+'px),calc(-50% + '+dy.toFixed(1)+'px))';
+  const nx=dx/max,ny=dy/max;
+  STICK.x=nx;STICK.y=ny;
+  STICK.left=nx<-.22;STICK.right=nx>.22;STICK.up=ny<-.22;STICK.down=ny>.22;
+}
+function stickRelease(e){
+  if(e.pointerId!==STICK.id)return;
+  STICK.active=false;STICK.id=null;STICK.x=0;STICK.y=0;
+  STICK.left=STICK.right=STICK.up=STICK.down=false;
+  knobEl.style.transform='translate(-50%,-50%)';
+  stickEl.classList.remove('on');
+}
+if(stickEl){
+  stickEl.addEventListener('pointerdown',e=>{
+    e.preventDefault();AU.resume();
+    STICK.active=true;STICK.id=e.pointerId;
+    try{stickEl.setPointerCapture(e.pointerId);}catch(err){}
+    stickEl.classList.add('on');
+    stickUpdate(e);
+  },{passive:false});
+  stickEl.addEventListener('pointermove',stickUpdate,{passive:false});
+  stickEl.addEventListener('pointerup',stickRelease,{passive:false});
+  stickEl.addEventListener('pointercancel',stickRelease,{passive:false});
+  stickEl.addEventListener('lostpointercapture',stickRelease,{passive:false});
+}
 $('rotateSkip').onclick=()=>document.body.classList.add('skipRotate');
 const mqPortrait=window.matchMedia('(orientation:portrait)');
 function syncOrient(){
@@ -1392,11 +1429,14 @@ function updatePlayer(dt){
   }
   let mx=0,my=0;
   if(P.dodgeT<=0&&P.finT<=0&&P.state!=='hurt'&&P.state!=='guardbreak'){
-    if(act('left'))mx--;
-    if(act('right'))mx++;
-    if(act('up'))my--;
-    if(act('down'))my++;
-    if(mx&&my){mx*=.7071;my*=.7071;}
+    if(STICK.active){mx=STICK.x;my=STICK.y;}
+    else{
+      if(act('left'))mx--;
+      if(act('right'))mx++;
+      if(act('up'))my--;
+      if(act('down'))my++;
+    }
+    if(mx&&my&&!STICK.active){mx*=.7071;my*=.7071;}
     if(mx)P.face=mx>0?1:-1;
   }
   const canMove=!P.block&&P.state!=='atk'&&P.dodgeT<=0&&P.finT<=0&&P.state!=='hurt'&&P.state!=='guardbreak';

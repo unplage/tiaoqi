@@ -49,27 +49,34 @@ canvas{width:100%;height:100%;display:block}
   opacity:.7}
 .glass{position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(ellipse at 22% 8%,rgba(255,255,255,.12),transparent 50%)}
-#touch{
-  width:min(100%,1160px);display:none;align-items:center;justify-content:space-between;
-  gap:10px;padding:2px 10px;pointer-events:auto;touch-action:none;
-}
+:root{--dpad:168px;--dbtn:56px;--act:68px}
+#touch{width:min(100%,1160px);display:none;align-items:center;justify-content:space-between;gap:12px;padding:4px 12px;pointer-events:auto;touch-action:none}
 body.is-touch #touch{display:flex}
-.tb-group{display:flex;align-items:center;gap:10px}
-.tb{
-  position:relative;pointer-events:auto;touch-action:none;flex:0 0 auto;
-  display:flex;align-items:center;justify-content:center;
-  width:64px;height:64px;border-radius:16px;
-  font-family:'Courier New',monospace;font-weight:bold;font-size:15px;letter-spacing:.05em;
-  color:rgba(255,255,255,.82);
-  background:rgba(255,255,255,.10);
-  border:2px solid rgba(255,255,255,.22);backdrop-filter:blur(3px);
-  -webkit-backdrop-filter:blur(3px);
-}
-.tb:active,.tb.on{background:rgba(255,210,74,.55);color:#241500;border-color:rgba(255,210,74,.8)}
-#btnLeft,#btnRight{border-radius:50%}
-#btnDown{width:58px;height:58px;border-radius:50%;font-size:13px}
-#btnRun {width:60px;height:60px;border-radius:50%;font-size:13px}
-#btnJump{width:72px;height:72px;border-radius:50%;font-size:15px;background:rgba(255,210,74,.14)}
+.dpad{position:relative;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  width:var(--dpad);height:var(--dpad);flex:0 0 auto;pointer-events:none}
+.dpad::before{content:'';position:absolute;left:33.33%;top:0;width:33.33%;height:100%;background:rgba(255,255,255,.07);pointer-events:none}
+.dpad::after{content:'';position:absolute;top:33.33%;left:0;height:33.33%;width:100%;background:rgba(255,255,255,.07);pointer-events:none}
+.tb.dbtn{width:100%;height:100%;min-width:0;min-height:0;border-radius:0;padding:0;
+  border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.08);
+  font-size:19px;pointer-events:auto;z-index:2}
+#btnUp{grid-area:1/2;border-radius:12px 12px 0 0}
+#btnLeft{grid-area:2/1;border-radius:12px 0 0 12px}
+#btnRight{grid-area:2/3;border-radius:0 12px 12px 0}
+#btnDown{grid-area:3/2;border-radius:0 0 12px 12px}
+.tb.ab{border-radius:50%;width:var(--act);height:var(--act);font-size:17px;font-weight:900}
+.tb.ab.a{background:rgba(224,80,60,.24);border-color:rgba(224,80,60,.6)}
+.tb.ab.b{background:rgba(77,224,208,.18);border-color:rgba(77,224,208,.5)}
+.actions{display:grid;grid-template-columns:repeat(2,var(--act));grid-auto-rows:var(--act);gap:8px;flex:0 0 auto}
+.tb{position:relative;pointer-events:auto;touch-action:none;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  width:var(--act);height:var(--act);border-radius:18px;font-size:14px;font-weight:bold;
+  color:rgba(255,255,255,.9);background:rgba(255,255,255,.10);
+  border:2px solid rgba(255,255,255,.22);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  transition:background .12s,transform .08s,box-shadow .2s}
+.tb:active,.tb.on{background:rgba(255,210,74,.55);color:#241500;border-color:#ffe6a0;transform:scale(.94)}
+.tb.jump{background:rgba(77,224,208,.18);border-color:rgba(77,224,208,.5)}
+.tb.run{background:rgba(255,210,74,.16);border-color:rgba(255,210,74,.5)}
+.tb.down{background:rgba(167,139,250,.16);border-color:rgba(167,139,250,.5)}
+.tb.menu{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.28);font-size:12px}
 #bar{
   width:min(100%,1160px);display:flex;flex-wrap:wrap;align-items:center;
   gap:8px 12px;font-size:16px;color:var(--muted);justify-content:center;
@@ -90,24 +97,48 @@ body.is-touch #touch{display:flex}
   #bar .brand{display:none}
   .chip{font-size:11px;padding:7px 9px}
 }
-#rotateTip{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);
-  z-index:5;pointer-events:none;white-space:nowrap;padding:6px 12px;border-radius:99px;
-  background:rgba(10,8,16,.72);border:1px solid rgba(255,210,74,.5);
-  color:#ffd24a;font-size:13px;font-weight:bold;letter-spacing:.04em}
-@media(orientation:portrait){#rotateTip{display:block}}
 @media(orientation:landscape){
-  #shell{gap:4px;padding:4px;justify-content:center}
-  #screen{width:min(100vw,calc((100vh - 132px) * 16 / 9));max-height:calc(100vh - 132px);border-radius:8px}
+  :root{--dpad:126px;--dbtn:42px;--act:54px}
+  #shell{gap:3px;padding:3px;justify-content:center;background:#000}
+  #screen{width:min(100vw,calc((100vh - 132px)*16/9));max-height:calc(100vh - 132px);border-radius:8px}
   #bar{width:100%;font-size:12px;gap:4px 8px;padding:0}
   #bar>span:not(.brand){display:none}
   .chip{font-size:10px;padding:5px 9px}
-  #touch{height:80px;padding:2px 12px}
-  .tb{width:60px;height:60px}
-  #btnDown{width:56px;height:56px}
-  #btnRun{width:56px;height:56px}
-  #btnJump{width:68px;height:68px}
-  #rotateTip{display:none}
+  #touch{height:auto;padding:2px 12px}
+  .actions{gap:6px}
 }
+body.is-touch #bar{display:none}
+body.is-touch #shell{gap:0;padding:0;justify-content:center;background:#000}
+body.is-touch #screen{width:min(100vw,calc(100vh*16/9));max-height:100vh;height:auto;aspect-ratio:16/9;border-radius:0;box-shadow:none}
+body.is-touch #touch{position:fixed;left:0;right:0;bottom:0;z-index:20;height:auto;
+  pointer-events:none;background:transparent;padding:0 2vw 1.2vh;align-items:flex-end;justify-content:space-between}
+body.is-touch .dpad,body.is-touch .actions{opacity:.7}
+body.fullscreen #shell{gap:0;padding:0}
+body.fullscreen #screen{width:min(100vw,calc(100vh*16/9));max-height:100vh;border-radius:0;box-shadow:none}
+body.fullscreen #bar{display:none}
+body.fullscreen #touch{position:fixed;left:0;right:0;bottom:0;z-index:20;height:auto;
+  pointer-events:none;background:transparent;padding:0 2vw 1.2vh;align-items:flex-end;justify-content:space-between}
+body.fullscreen .dpad,body.fullscreen .actions{opacity:.55;transition:opacity .15s}
+body.fullscreen .dpad:hover,body.fullscreen .actions:hover,
+body.fullscreen .dpad:active,body.fullscreen .actions:active{opacity:1}
+body.fullscreen .tb{pointer-events:auto;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+body.fullscreen .tb.ready{box-shadow:0 0 16px 3px rgba(255,210,74,.6)}
+#cExitFull{display:none;position:absolute;right:10px;top:10px;z-index:9;width:38px;height:38px;
+  border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.5);
+  color:#fff;font-size:18px;cursor:pointer;opacity:.6}
+body.fullscreen #cExitFull{display:block}
+#cLandscape{display:none;position:absolute;right:10px;top:10px;z-index:9;
+  padding:6px 12px;border-radius:99px;border:1px solid rgba(255,210,74,.6);
+  background:rgba(0,0,0,.55);color:#ffd24a;font-size:12px;font-weight:bold;cursor:pointer}
+body.is-touch:not(.fullscreen) #cLandscape{display:block}
+body.fullscreen #cLandscape{display:none}
+#rotate{display:none;position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:40;
+  pointer-events:none;white-space:nowrap;padding:6px 12px;border-radius:99px;
+  background:rgba(10,8,16,.78);border:1px solid rgba(255,210,74,.5);color:#ffd24a;
+  font-size:12px;font-weight:bold}
+#rotate button{display:none}
+body.is-touch.portrait #rotate{display:block}
+body.skipRotate #rotate{display:none!important}
 </style>
 </head>
 <body>
@@ -117,18 +148,22 @@ body.is-touch #touch{display:flex}
     <canvas id="game"></canvas>
     <div class="scan"></div>
     <div class="glass"></div>
-    <div id="rotateTip">↻ 请横屏游玩，体验更佳</div>
+    <button id="cLandscape" title="横屏全屏">横屏</button>
+    <button id="cExitFull" title="退出全屏">&#10005;</button>
+    <div id="rotate">↻ 请横屏游玩，体验更佳</div>
   </div>
 
   <div id="touch">
-    <div class="tb-group">
-      <div class="tb" id="btnLeft">&#9664;</div>
-      <div class="tb" id="btnRight">&#9654;</div>
-      <div class="tb" id="btnDown">&#9660;</div>
+    <div class="dpad">
+      <div class="tb dbtn" id="btnUp">&#9650;</div>
+      <div class="tb dbtn" id="btnLeft">&#9664;</div>
+      <div class="tb dbtn" id="btnRight">&#9654;</div>
+      <div class="tb dbtn" id="btnDown">&#9660;</div>
     </div>
-    <div class="tb-group">
-      <div class="tb" id="btnRun">RUN</div>
-      <div class="tb" id="btnJump">JUMP</div>
+    <div class="actions">
+      <div class="tb ab b" id="btnRun">B</div>
+      <div class="tb ab a" id="btnJump">A</div>
+      <div class="tb menu" id="btnPause">暂停</div>
     </div>
   </div>
 
@@ -562,9 +597,26 @@ function bindTouch(el,action){
 }
 bindTouch(document.getElementById('btnLeft'),'left');
 bindTouch(document.getElementById('btnRight'),'right');
+bindTouch(document.getElementById('btnUp'),'jump');
 bindTouch(document.getElementById('btnDown'),'down');
 bindTouch(document.getElementById('btnJump'),'jump');
-bindTouch(document.getElementById('btnRun'),'run');
+const runBtn=document.getElementById('btnRun');
+if(runBtn)runBtn.addEventListener('pointerdown',e=>{
+  e.preventDefault();AudioSys.resume();
+  input.run=!input.run;
+  runBtn.classList.toggle('on',input.run);
+},{passive:false});
+
+document.getElementById('btnPause').addEventListener('pointerdown',e=>{e.preventDefault();togglePause();},{passive:false});
+setTimeout(()=>document.body.classList.add('skipRotate'),5000);
+const mqPortrait=window.matchMedia('(orientation:portrait)');
+function syncOrient(){
+  document.body.classList.toggle('portrait',mqPortrait.matches);
+  if(!mqPortrait.matches)document.body.classList.remove('skipRotate');
+}
+if(mqPortrait.addEventListener)mqPortrait.addEventListener('change',syncOrient);
+else if(mqPortrait.addListener)mqPortrait.addListener(syncOrient);
+syncOrient();
 
 if(('ontouchstart' in window) || navigator.maxTouchPoints>0){
   document.body.classList.add('is-touch');
@@ -1062,6 +1114,7 @@ async function enterLandscape(){
       catch(e){ try{ await screen.orientation.lock('landscape-primary'); }catch(e2){} }
     }
   }catch(e){}
+  document.body.classList.add('fullscreen');
   setTimeout(resize,260);
   updateFullBtn();
   if(!document.fullscreenElement){
@@ -1072,6 +1125,7 @@ async function enterLandscape(){
 }
 async function exitLandscape(){
   try{ if(screen.orientation&&screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
+  document.body.classList.remove('fullscreen');
   try{ if(document.fullscreenElement&&document.exitFullscreen) await document.exitFullscreen(); }catch(e){}
   setTimeout(resize,260);
   updateFullBtn();
@@ -1080,7 +1134,18 @@ function toggleLandscape(){
   if(document.fullscreenElement) exitLandscape(); else enterLandscape();
 }
 document.getElementById('cFull').onclick=()=>{ AudioSys.resume(); toggleLandscape(); };
-document.addEventListener('fullscreenchange',()=>{ updateFullBtn(); setTimeout(resize,220); });
+document.getElementById('cLandscape').onclick=()=>{ AudioSys.resume(); toggleLandscape(); };
+document.getElementById('cExitFull').onclick=()=>{
+  try{ if(screen.orientation&&screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
+  document.body.classList.remove('fullscreen');
+  if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen();
+};
+function syncFullClass(){
+  document.body.classList.toggle('fullscreen',!!(document.fullscreenElement||document.webkitFullscreenElement));
+  updateFullBtn();setTimeout(resize,220);
+}
+document.addEventListener('fullscreenchange',syncFullClass);
+document.addEventListener('webkitfullscreenchange',syncFullClass);
 window.addEventListener('orientationchange',()=>setTimeout(resize,300));
 
 /* =====================================================================
@@ -1260,6 +1325,7 @@ function setCrouch(on){
 }
 function updatePlayer(dt){
   const p=player;
+  const L=input.left, R=input.right, D=input.down, J=input.jump;
   if(p.inv>0) p.inv-=dt;
   if(G.starT>0) G.starT-=dt;
   if(G.warpCd>0) G.warpCd-=dt;
@@ -1273,18 +1339,18 @@ function updatePlayer(dt){
   const maxS=p.inWater?210:(input.run?RUN_MAX:WALK_MAX);
   const acc=p.onGround?ACC_GROUND:ACC_AIR;
 
-  if(input.left&&!input.right){ p.vx-=acc*dt; p.face=-1; }
-  else if(input.right&&!input.left){ p.vx+=acc*dt; p.face=1; }
+  if(L&&!R){ p.vx-=acc*dt; p.face=-1; }
+  else if(R&&!L){ p.vx+=acc*dt; p.face=1; }
   else if(p.inWater){ p.vx-=p.vx*1.8*dt; }
   else{
     if(p.vx>0) p.vx=Math.max(0,p.vx-FRICTION*dt);
     else p.vx=Math.min(0,p.vx+FRICTION*dt);
   }
   p.vx=clamp(p.vx,-maxS,maxS);
-  p.skid=p.onGround&&Math.abs(p.vx)>170&&((p.vx>0&&input.left)||(p.vx<0&&input.right));
+  p.skid=p.onGround&&Math.abs(p.vx)>170&&((p.vx>0&&L)||(p.vx<0&&R));
 
   if(p.inWater){
-    if(input.jump){
+    if(J){
       p.vy=Math.max(-250,p.vy-1150*dt);
       p.swimT+=dt;
       if(p.swimT>0.38){
@@ -1297,7 +1363,7 @@ function updatePlayer(dt){
     p.jumpBuf=0; p.coyote=0;
     if(p.crouch) setCrouch(false);
   }else{
-    if(input.jump) p.jumpBuf=JUMP_BUFFER; else p.jumpBuf=Math.max(0,p.jumpBuf-dt);
+    if(J) p.jumpBuf=JUMP_BUFFER; else p.jumpBuf=Math.max(0,p.jumpBuf-dt);
     if(p.onGround) p.coyote=COYOTE; else p.coyote=Math.max(0,p.coyote-dt);
 
     if(p.jumpBuf>0&&p.coyote>0&&!p.crouch){
@@ -1305,10 +1371,10 @@ function updatePlayer(dt){
       p.jumpBuf=0; p.coyote=0; p.onGround=false;
       if(p.big) SFX.bigJump(); else SFX.jump();
     }
-    if(!input.jump && p.vy<JUMP_CUT) p.vy=JUMP_CUT;
-    const g=(p.vy<0 && input.jump)?GRAV_UP:GRAV_DOWN;
+    if(!J && p.vy<JUMP_CUT) p.vy=JUMP_CUT;
+    const g=(p.vy<0 && J)?GRAV_UP:GRAV_DOWN;
     p.vy=Math.min(MAX_FALL,p.vy+g*dt);
-    setCrouch(input.down&&p.onGround);
+    setCrouch(D&&p.onGround);
   }
 
   moveEntityX(p,dt);
@@ -1316,7 +1382,7 @@ function updatePlayer(dt){
   if(bump){ bumpTile(bump.tx,bump.ty); }
   movePlatformCollision(p,dt,true);
 
-  if(input.down && p.onGround && !p.inWater && G.warpCd<=0){
+  if(D && p.onGround && !p.inWater && G.warpCd<=0){
     const cx=Math.floor((p.x+p.w/2)/TILE), fy=Math.floor((p.y+p.h+2)/TILE);
     const w=level.warps.get(cx+','+fy);
     if(w && (tileAt(cx,fy)==='p'||tileAt(cx,fy)==='q')){
