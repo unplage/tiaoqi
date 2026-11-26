@@ -153,6 +153,10 @@ body.is-touch.portrait #rotate{display:flex}
 body.skipRotate #rotate{display:none!important}
 @media(max-width:860px){#side{width:212px}#sideBody{padding:9px;font-size:11.5px}
 #bottom .btn{padding:7px 9px;font-size:10.5px}}
+#speedWrap{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.04);
+border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;color:var(--mut)}
+#speedRange{width:96px;accent-color:var(--gold)}
+#speedVal{color:var(--gold2);font-weight:800;min-width:30px;text-align:right}
 @media(max-height:430px){#stats .stat{padding:3px 7px}.brand small{display:none}}
 </style>
 </head>
@@ -181,6 +185,7 @@ body.skipRotate #rotate{display:none!important}
     <button class="btn gold" id="bCollect">🧺 一键收成</button>
     <button class="btn" id="bOrders">📨 订单</button>
     <button class="btn" id="bSpeed">⏩ ×1</button>
+    <span id="speedWrap"><input type="range" id="speedRange" min="0" max="5" step="0.1" value="1" aria-label="时间速度"><b id="speedVal">×1</b></span>
     <button class="btn" id="bPause">⏸️ 暂停</button>
     <button class="btn small" id="bZoomOut">－</button>
     <button class="btn small" id="bZoomIn">＋</button>
@@ -213,7 +218,7 @@ body.skipRotate #rotate{display:none!important}
   <h4>建造与升级</h4>
   <p>点「🏗️ 建造」选择建筑，再点空地放置。建筑需要时间落成，升级还能提高效率、服务范围与容量。</p>
   <h4>道路与效率</h4>
-  <p>生产建筑与民宿需要紧邻<b>连通村中心的道路</b>才能满效率运转；没有道路会明显减产。可用「村道」延伸路网。</p>
+  <p>道路距离决定效率：紧邻<b>连通村中心的道路</b>满效率，2～5 格轻微衰减，6～10 格明显衰减但不算无路，超过 10 格才提示「无路」。可用「村道」延伸路网。</p>
   <h4>幸福度与税收</h4>
   <p>卫生所、学校、治安亭、公园与景观会提升附近民宿的幸福度；养殖与加工会带来污染。幸福度越高，人口增长与每日税收越多。</p>
   <h4>订单与成长</h4>
@@ -223,7 +228,7 @@ body.skipRotate #rotate{display:none!important}
   <h4>存档与离线</h4>
   <p>游戏自动保存在本机 IndexedDB，离线期间会继续生产（最多 8 小时）。菜单里可以导出/导入存档。</p>
   <div class="hr"></div>
-  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可获得更大地图视野；「挂机」页可查看每分钟产能并开启自动收成。</p>
+  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可获得更大地图视野；「挂机」页可查看每分钟产能并开启自动收成；「农事」页可开关昼夜色调。</p>
   <button class="btn pri" id="hClose">开始经营</button>
 </div></div>
 <div class="modal" id="modalMenu"><div class="mBox">
@@ -268,6 +273,7 @@ const i2x=i=>offX+(i%CW), i2y=i=>offY+((i/CW)|0);
 function hash(x,y){let h=(x*374761393+y*668265263)>>>0;h=(h^(h>>13))*1274126177>>>0;return ((h^(h>>16))>>>0)/4294967295;}
 function fmt(n){n=Math.floor(n||0);return n>=10000?(n/10000).toFixed(1)+'万':String(n);}
 function fmtDur(s){s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'小时'+(m?m+'分':''):m+'分';}
+function fmtSpeed(s){s=clamp(+s||0,0,5);const v=Math.round(s*10)/10;return '×'+(v===Math.floor(v)?v:v.toFixed(1));}
 function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
 
 /* ============================ 1. 地图与土地 ============================ */
@@ -559,14 +565,14 @@ function fresh(){
   return {
     v:5,coin:1000,mat:20,grain:40,fruit:20,fish:0,meat:0,goods:0,fame:0,pop:6,
     soil:20,water:50,seed:10,cert:0,
-    day:1,solarTermIdx:0,solarTermProgress:0,year:1,weather:0,weatherT:3,clock:8,
+    day:1,solarTermIdx:0,solarTermProgress:0,year:1,weather:0,weatherT:6,clock:8,
     cw:320,ch:256,offX:-135,offY:-120,landType:0,
     tiles:new Array(N).fill(null),terrain:makeTerrain(),fog:new Array(N).fill(0),land:0,
     speed:1,paused:false,sideTab:'info',cat:'farm',tool:null,sel:-1,
     orders:[],nextOrder:12,growClock:0,lastTax:0,
     tech:{seed:0,trade:0,craft:0},qi:0,ach:{},stats:{built:0,harvest:0,earned:0,orders:0,collected:0},
     mute:false,lastSave:Date.now(),totalTime:0,
-    customRes:{},customBuilds:[],customNames:{},customSeeds:[],customResSeq:0,customBuildSeq:0,discoveredLandmarks:[],worldStyle:5,autoCollect:false,lastOffline:null,
+    customRes:{},customBuilds:[],customNames:{},customSeeds:[],customResSeq:0,customBuildSeq:0,discoveredLandmarks:[],worldStyle:5,autoCollect:false,lastOffline:null,nightFx:true,
     camX:(START.x+START.w/2)*TILE,camY:(START.y+START.h/2)*TILE,zoom:1,
     soils:{},
     waterTable:80,surfaceWater:{},waterRights:0,
@@ -599,7 +605,7 @@ function serialize(){
   S.certifications=S.certifications;S.certProgress=S.certProgress;
   S.tourism=S.tourism;S.festivals=S.festivals;S.villageRules=S.villageRules;S.clanBook=S.clanBook;S.oralHistory=S.oralHistory;
   S.customRes=S.customRes;S.customBuilds=S.customBuilds;S.customNames=S.customNames;S.customSeeds=S.customSeeds;
-  S.customResSeq=S.customResSeq;S.customBuildSeq=S.customBuildSeq;S.fog=S.fog;S.discoveredLandmarks=S.discoveredLandmarks;S.worldStyle=S.worldStyle;S.autoCollect=S.autoCollect;S.lastOffline=S.lastOffline;
+  S.customResSeq=S.customResSeq;S.customBuildSeq=S.customBuildSeq;S.fog=S.fog;S.discoveredLandmarks=S.discoveredLandmarks;S.worldStyle=S.worldStyle;S.autoCollect=S.autoCollect;S.lastOffline=S.lastOffline;S.nightFx=S.nightFx;
   S.camX=CAM.tx;S.camY=CAM.ty;S.zoom=CAM.tz;S.v=5;S.lastSave=Date.now();
   return JSON.stringify(S);
 }
@@ -625,6 +631,7 @@ function dbLoad(cb){
 function makeD(){
   return {
     boost:new Float32Array(N),pollution:new Float32Array(N),road:new Uint8Array(N),roadSet:new Uint8Array(N),
+    roadDist:new Uint16Array(N),roadFactor:new Float32Array(N),
     homeH:new Float32Array(N),homeE:new Float32Array(N),homeS:new Float32Array(N),homeP:new Float32Array(N),
     homeHappy:new Float32Array(N),happiness:50,popCap:6,popBase:6,workers:0,upkeep:0,homes:0,extraCap:0,fameRate:0
   };
@@ -638,6 +645,7 @@ function roadTile(i){
 function lvMul(lv){return 1+.22*((lv||1)-1);}
 function recalc(){
   D.boost.fill(0);D.pollution.fill(0);D.road.fill(0);D.homeH.fill(0);D.homeE.fill(0);
+  D.roadDist.fill(65535);D.roadFactor.fill(.5);
   D.homeS.fill(0);D.homeP.fill(0);D.homeHappy.fill(0);D.roadSet.fill(0);
   D.happiness=50;D.popBase=6;D.workers=0;D.upkeep=0;D.homes=0;D.extraCap=0;D.fameRate=0;
   const rs=new Uint8Array(N);
@@ -652,6 +660,14 @@ function recalc(){
       for(let k=0;k<4;k++){const j=nb[k];if(j>=0&&rs[j]&&!seen[j]){seen[j]=1;q.push(j);}}
     }
     D.roadSet=seen;
+  }
+  const dist=D.roadDist,q=[];
+  for(let i=0;i<N;i++)if(D.roadSet[i]){dist[i]=0;q.push(i);}
+  let head=0;
+  while(head<q.length){
+    const i=q[head++],x=i2x(i),y=i2y(i),nd=dist[i]+1;
+    const nb=[x>offX?i-1:-1,x<offX+CW-1?i+1:-1,y>offY?i-CW:-1,y<offY+CH-1?i+CW:-1];
+    for(let k=0;k<4;k++){const j=nb[k];if(j>=0&&dist[j]>nd){dist[j]=nd;q.push(j);}}
   }
   for(let i=0;i<N;i++){
     const t=S.tiles[i];if(!t||!B[t.b])continue;
@@ -686,14 +702,16 @@ function recalc(){
     }
   }
   for(let i=0;i<N;i++){
-    const t=S.tiles[i];if(!t||!B[t.b])continue;
-    const d=B[t.b];
-    if(t.build>0)continue;
-    if(d.road){D.road[i]=D.roadSet[i]?1:0;continue;}
-    if(d.cat==='scene'||(d.time===0&&!d.popCap)){D.road[i]=1;continue;}
-    const x=i2x(i),y=i2y(i);
-    const nb=[x>offX?i-1:-1,x<offX+CW-1?i+1:-1,y>offY?i-CW:-1,y<offY+CH-1?i+CW:-1];
-    D.road[i]=nb.some(j=>j>=0&&D.roadSet[j])?1:0;
+    const t=S.tiles[i],d=t&&B[t.b]?B[t.b]:null;
+    if(d&&d.road){
+      D.road[i]=D.roadSet[i]?1:0;D.roadFactor[i]=D.road[i]?1:.5;
+    }else if(d&&(d.cat==='scene'||(d.time===0&&!d.popCap))){
+      D.road[i]=1;D.roadFactor[i]=1;
+    }else{
+      const dd=dist[i];
+      D.road[i]=dd<=10?1:0;
+      D.roadFactor[i]=dd<=1?1:(dd<=5?.9:(dd<=10?.75:.5));
+    }
   }
   let sum=0,count=0;
   for(let i=0;i<N;i++){
@@ -705,7 +723,7 @@ function recalc(){
     v+=Math.min(8,D.homeS[i]*.7);
     v+=Math.min(16,D.homeP[i]*.9);
     v-=Math.min(25,D.pollution[i]*2.2);
-    if(!D.road[i])v-=10;
+    if(D.roadDist[i]>10)v-=10;
     if(D.workers>S.pop)v-=5;
     v=clamp(v,0,100);
     D.homeHappy[i]=v;sum+=v;count++;
@@ -750,7 +768,7 @@ function rateParts(i){
   return {base:lvMul(t.lv),solar:solarTermMul(d.cat),weather:weatherMul(d.cat),
     terrain:terrainMul(d.cat,S.terrain[i]),soil:soilMul(i),water:waterMul(i),
     boost:1+Math.min(.6,D.boost[i]||0),
-    road:D.road[i]?1:.6,worker:workerMul(),tech:techMul(d.cat)};
+    road:D.roadFactor[i]||.5,dist:D.roadDist[i],worker:workerMul(),tech:techMul(d.cat)};
 }
 function rateOf(i){
   const t=S.tiles[i];if(!t||!B[t.b])return 0;
@@ -1076,12 +1094,8 @@ function update(dtReal){
     dailyTick();
     S.weatherT--;
     if(S.weatherT<=0){
-      S.weatherT=Math.floor(rnd(2,5));
-      // 节气影响天气概率
-      const term=SOLAR_TERMS[S.solarTermIdx];
-      const rainBias=(term.n==='雨水'||term.n==='谷雨'||term.n==='梅雨')?1.5:
-                     (term.n==='大暑'||term.n==='大寒')?0.5:1;
-      S.weather=Math.floor(rnd(0,WEATHER.length)*rainBias)%WEATHER.length;
+      S.weatherT=Math.floor(rnd(5,10));
+      S.weather=pickWeather();
     }
   }
   for(const i of active){
@@ -1369,9 +1383,16 @@ function drawBuilding(x,y,i){
     if(d.time>0&&t.hc>0){
       const pulse=.55+.35*Math.sin(anim*5+i);
       ctx.strokeStyle='rgba(242,193,78,'+pulse+')';ctx.lineWidth=2;rr(x+pad+1,y+pad+1,TILE-pad*2-2,TILE-pad*2-2,8);ctx.stroke();
+      const outKeys=Object.keys(d.out||{});
+      const matureIc=outKeys.length?resIcon(outKeys[0]):d.ic;
+      const float=Math.sin(anim*3+i)*3;
+      ctx.globalAlpha=1;
+      ctx.font='700 19px system-ui,"Segoe UI Emoji",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(10,18,12,.8)';ctx.beginPath();ctx.arc(x+TILE/2,y+pad+10-float,10,0,6.283);ctx.fill();
+      ctx.fillText(matureIc,x+TILE/2,y+pad+10-float);
+      ctx.globalAlpha=1;
       ctx.fillStyle='rgba(10,18,12,.72)';rr(x+TILE-19,y+pad+3,16,11,5);ctx.fill();
-      ctx.font='8px system-ui,sans-serif';ctx.fillStyle='#ffd97a';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('可收',x+TILE-11,y+pad+9);
+      ctx.font='8px system-ui,sans-serif';ctx.fillStyle='#ffd97a';ctx.fillText('可收',x+TILE-11,y+pad+9);
     }
     if(d.time>0){
       const p=clamp((t.prog||0)/d.time,0,1);
@@ -1382,9 +1403,12 @@ function drawBuilding(x,y,i){
         ctx.fillText('缺料',x+TILE/2,y+pad+7);
       }
     }
-    if(d.cat!=='scene'&&!d.road&&D.road[i]===0){
+    if(d.cat!=='scene'&&!d.road&&D.roadDist[i]>10){
       ctx.fillStyle='#e8795b';ctx.font='700 8px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText('无路',x+pad+9,y+TILE-pad-10);
+    }else if(d.cat!=='scene'&&!d.road&&D.roadDist[i]>1){
+      ctx.fillStyle='#f2c14e';ctx.font='700 8px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('距路'+D.roadDist[i],x+pad+9,y+TILE-pad-10);
     }
   }else{
     ctx.strokeStyle='rgba(242,193,78,.55)';ctx.lineWidth=1.5;
@@ -1428,11 +1452,16 @@ function drawGhost(){
   }
 }
 function ambient(){
-  const h=S.clock;let dark=0;
-  if(h<6)dark=1;else if(h<8)dark=1-(h-6)/2;else if(h<18)dark=0;else if(h<20)dark=(h-18)/2;else dark=1;
-  if(dark>0){ctx.fillStyle='rgba(8,16,40,'+(dark*.38)+')';ctx.fillRect(0,0,VW,VH);}
-  const sunset=clamp(1-Math.abs(h-18.5)/2,0,1);
-  if(sunset>0){ctx.fillStyle='rgba(255,130,60,'+(sunset*.10)+')';ctx.fillRect(0,0,VW,VH);}
+  if(!S.nightFx)return;
+  const h=S.clock;
+  let tint=null;
+  if(h<6||h>=20)tint='rgba(38,64,126,.07)';
+  else if(h<9)tint='rgba(255,190,120,.045)';
+  else if(h>=17)tint='rgba(255,140,80,.05)';
+  if(tint){ctx.fillStyle=tint;ctx.fillRect(0,0,VW,VH);}
+  const vg=ctx.createRadialGradient(VW/2,VH/2,VH*.35,VW/2,VH/2,VH*.9);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.10)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,VW,VH);
 }
 function drawLights(){
   const h=S.clock;
@@ -1443,11 +1472,22 @@ function drawLights(){
     const sx=(i2x(i)*TILE+TILE/2-CAM.x)*CAM.z+VW/2;
     const sy=(i2y(i)*TILE+TILE*.62-CAM.y)*CAM.z+VH/2;
     if(sx<-20||sx>VW+20||sy<-20||sy>VH+20)continue;
-    const a=.22+.08*Math.sin(anim*2+i);
+    const a=.12+.05*Math.sin(anim*2+i);
     const g=ctx.createRadialGradient(sx,sy,0,sx,sy,10*CAM.z);
     g.addColorStop(0,'rgba(255,214,120,'+a+')');g.addColorStop(1,'rgba(255,214,120,0)');
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx,sy,10*CAM.z,0,6.283);ctx.fill();
   }
+}
+function pickWeather(){
+  const idx=S.solarTermIdx;
+  let w=[50,20,10,8]; // 晴/雨/旱/涝
+  if(idx>=2&&idx<=5){w=[38,34,8,12];} // 春雨多
+  else if(idx>=9&&idx<=11){w=[32,26,18,16];} // 盛夏旱涝
+  else if(idx>=18){w=[55,12,18,5];} // 冬季晴旱
+  const total=w.reduce((a,b)=>a+b,0);
+  let r=Math.random()*total;
+  for(let i=0;i<w.length;i++){r-=w[i];if(r<=0)return i;}
+  return 0;
 }
 function weatherFx(){
   const rainy=WEATHER[S.weather].n==='雨';
@@ -1563,12 +1603,15 @@ function syncHUD(){
   if(statEls.pop)statEls.pop.textContent=S.pop+'/'+D.popCap;
   if(statEls.happy){statEls.happy.textContent=Math.round(D.happiness);statEls.happy.parentNode.className='stat '+(D.happiness>=60?'happy':'sad');}
   if(statEls.fame)statEls.fame.textContent=fmt(S.fame);
-  if(statEls.time)statEls.time.textContent=SOLAR_TERMS[S.solarTermIdx].n+' '+Math.round(S.solarTermProgress*15+1)+'日';
-  if(statEls.weather)statEls.weather.textContent=WEATHER[S.weather].n+' ×'+S.speed+(festName()?' · '+festName():'');
+  const daytime=S.clock>=6&&S.clock<18;
+  if(statEls.time)statEls.time.textContent=(daytime?'☀️':'🌙')+' '+SOLAR_TERMS[S.solarTermIdx].n+' '+Math.round(S.solarTermProgress*15+1)+'日';
+  if(statEls.weather)statEls.weather.textContent=WEATHER[S.weather].n+'('+S.weatherT+'日) '+fmtSpeed(S.speed)+(festName()?' · '+festName():'');
   const cs=$('customStats');
   if(cs){let txt='';for(const k in S.customRes){txt+=resIcon(k)+' '+fmt(S[k]||0)+' ';}cs.textContent=txt;}
   renderGoal();
-  const bSpeed=$('bSpeed');if(bSpeed)bSpeed.textContent='⏩ ×'+S.speed;
+  const bSpeed=$('bSpeed');if(bSpeed)bSpeed.textContent='⏩ '+fmtSpeed(S.speed);
+  const sr=$('speedRange');if(sr)sr.value=S.speed;
+  const sv=$('speedVal');if(sv)sv.textContent=fmtSpeed(S.speed);
   const bPause=$('bPause');if(bPause)bPause.textContent=S.paused?'▶️ 继续':'⏸️ 暂停';
 }
 function renderGoal(){
@@ -1671,9 +1714,12 @@ function renderInfo(){
         h+='<div class="card"><div class="mut">';
         h+='节气×'+info.solar.toFixed(2)+' · 天气×'+info.weather.toFixed(2)+' · 地形×'+info.terrain.toFixed(2)+'<br>';
         h+='土壤×'+info.soil.toFixed(2)+' · 水分×'+info.water.toFixed(2)+' · 道路×'+info.road.toFixed(2)+'<br>';
+        h+='道路×'+info.road.toFixed(2)+'（距路网 '+(info.dist>=65535?'无':info.dist+' 格')+'）<br>';
         h+='增产×'+info.boost.toFixed(2)+' · 劳力×'+info.worker.toFixed(2)+' · 科技×'+info.tech.toFixed(2);
         h+='</div></div>';
-        if(info.road<1)h+='<div class="tag bad">未接入道路，效率降低</div>';
+        if(info.dist>10)h+='<div class="tag bad">远离路网（超过 10 格），效率明显降低</div>';
+        else if(info.dist>5)h+='<div class="tag">距路网较远，效率有所降低</div>';
+        else if(info.dist>1)h+='<div class="tag ok">靠近路网，效率轻微降低</div>';
         if(info.soil<0.6)h+='<div class="tag bad">土壤贫瘠，改良可增产</div>';
         if(info.water<0.8)h+='<div class="tag bad">缺水，修水利可增产</div>';
         if(d.in&&!canAfford(d.in))h+='<div class="tag bad">原料不足</div>';
@@ -1802,6 +1848,10 @@ function renderFarm(){
   h+='<div class="row"><span>水权储备</span><b>'+Math.round(S.waterRights)+'</b></div>';
   h+='<p class="mut">建蓄水池/提水泵站调节水分，土壤贫瘠时选中空地施有机肥或种绿肥。轮作可避免连作障碍。</p>';
   h+='<div class="btnRow">'+btn('💧 购买水权(50🪙)','buyWater',null,'half')+btn('🧪 购买土壤改良剂(30🪙)','buySoil',null,'half')+'</div>';
+  h+='<div class="hr"></div><h4>🌤️ 天气与昼夜</h4>';
+  h+='<div class="row"><span>当前天气</span><b>'+WEATHER[S.weather].n+' · 剩余 '+S.weatherT+' 日</b></div>';
+  h+='<p class="mut">天气会持续 5～9 个游戏日，季节不同晴雨概率不同。</p>';
+  h+=btn(S.nightFx?'关闭昼夜色调':'开启昼夜色调','toggleNight',null,S.nightFx?'':'pri');
   h+='<div class="hr"></div><h4>🔭 开放世界探索</h4>';
   h+='<p class="mut">村庄拥有 320×256 的广阔土地，并可通过拓荒继续向四周扩展。未探索区域被迷雾覆盖，移动镜头或探索可揭开迷雾。</p>';
   h+=btn('🔭 探索周边(20🪙)','explore',null,'pri');
@@ -2027,7 +2077,17 @@ $('drawerClose').onclick=closeDrawer;
 $('toolCancel').onclick=()=>{clearTool();renderDrawerItems();};
 $('bCollect').onclick=collectAll;
 $('bOrders').onclick=()=>setTab('orders');
-$('bSpeed').onclick=()=>{S.speed=S.speed===1?2:(S.speed===2?4:1);toast('时间速度 ×'+S.speed,'info');syncHUD();};
+const SPEED_PRESETS=[0.1,0.5,1,2,4,5];
+$('bSpeed').onclick=()=>{
+  let k=SPEED_PRESETS.findIndex(v=>Math.abs(v-S.speed)<0.05);
+  if(k<0)k=2;
+  S.speed=SPEED_PRESETS[(k+1)%SPEED_PRESETS.length];
+  toast('时间速度 '+fmtSpeed(S.speed),'info');syncHUD();
+};
+$('speedRange').addEventListener('input',e=>{
+  S.speed=clamp(Math.round((+e.target.value)*10)/10,0,5);
+  syncHUD();
+});
 $('bPause').onclick=()=>setPaused(!S.paused);
 $('bZoomIn').onclick=()=>zoomAt(VW/2,VH/2,CAM.tz*1.2);
 $('bZoomOut').onclick=()=>zoomAt(VW/2,VH/2,CAM.tz*.83);
@@ -2135,6 +2195,7 @@ $('sideBody').addEventListener('click',e=>{
   else if(act==='explore')exploreArea();
   else if(act==='goto')gotoLandmark(b.dataset.i);
   else if(act==='toggleAuto'){S.autoCollect=!S.autoCollect;toast(S.autoCollect?'⏳ 已开启自动收成':'已关闭自动收成','ok');}
+  else if(act==='toggleNight'){S.nightFx=!S.nightFx;toast(S.nightFx?'已开启昼夜色调':'已关闭昼夜色调','ok');}
   else if(act==='settleNow'){offlineGain(1);toast('已结算离线收益','ok');}
   else if(act==='breed')breed(b.dataset.i);
   else if(act==='saveName')saveName();
@@ -2315,7 +2376,7 @@ function applySave(d){
   S.clock=clamp(num(src.clock,8),0,DAY_LEN);
   S.land=clamp(Math.floor(num(src.land,0)),0,999);
   S.landType=clamp(Math.floor(num(src.landType,0)),0,LAND_TYPES.length-1);
-  S.speed=[1,2,4].indexOf(num(src.speed,1))>=0?num(src.speed,1):1;
+  S.speed=clamp(Math.round(num(src.speed,1)*10)/10,0,5);
   S.paused=false;S.sel=-1;S.tool=null;S.sideTab='info';
   S.tech=Object.assign({seed:0,trade:0,craft:0},src.tech||{});
   S.stats=Object.assign({built:0,harvest:0,earned:0,orders:0,collected:0},src.stats||{});
@@ -2347,6 +2408,7 @@ function applySave(d){
   S.customBuildSeq=Math.max(0,Math.floor(num(src.customBuildSeq,0)));
   S.discoveredLandmarks=Array.isArray(src.discoveredLandmarks)?src.discoveredLandmarks.slice():[];
   S.autoCollect=!!src.autoCollect;
+  S.nightFx=src.nightFx!==false;
   S.lastOffline=src.lastOffline||null;
   applyCustomDefs();
   for(const k in S.customRes){if(!isFinite(+(S[k]||0)))S[k]=0;}
@@ -2409,7 +2471,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},b2i,i2x,i2y,getSoil,recalc,collectAll,place,applySave,offlineGain};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},b2i,i2x,i2y,getSoil,rateParts,recalc,collectAll,place,applySave,offlineGain};
 boot();
 })();
 </script>
