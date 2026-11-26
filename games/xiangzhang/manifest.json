@@ -1,0 +1,20 @@
+{
+  "name": "我是乡长 · TiaoQi Arcade",
+  "short_name": "我是乡长",
+  "description": "乡村经营养成：规划农田、果园、鱼塘、养殖与农产品加工链，完成订单、发展声望，离线也能经营。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0d1710",
+  "theme_color": "#122116",
+  "lang": "zh-CN",
+  "categories": ["games"],
+  "icons": [
+    { "src": "../../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../../icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "../../icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

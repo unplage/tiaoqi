@@ -7,7 +7,7 @@ const BASE_PATH = self.location.pathname.replace(/[^/]+$/, '');
 // 构建带项目标识的缓存名称，避免多项目冲突
 // 例如 '/pwa1/' -> 前缀 'pwa-cache-pwa1-'
 const CACHE_PREFIX = `pwa-cache${BASE_PATH.replace(/\//g, '-')}`;
-const CACHE_NAME = `${CACHE_PREFIX}v42`;
+const CACHE_NAME = `${CACHE_PREFIX}v46`;
 
 // 预缓存资源列表（全部使用相对于当前 sw.js 的路径）
 const PRECACHE_URLS = [
@@ -28,6 +28,8 @@ const PRECACHE_URLS = [
   `${BASE_PATH}games/mario/manifest.json`,
   `${BASE_PATH}games/sanguo/index.html`,
   `${BASE_PATH}games/sanguo/manifest.json`,
+  `${BASE_PATH}games/xiangzhang/index.html`,
+  `${BASE_PATH}games/xiangzhang/manifest.json`,
   `${BASE_PATH}games/longhu/index.html`,
   `${BASE_PATH}games/longhu/manifest.json`,
   `${BASE_PATH}games/mahjong/index.html`,
