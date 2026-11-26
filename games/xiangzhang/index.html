@@ -30,6 +30,11 @@ border:1px solid var(--line);border-radius:99px;padding:4px 9px;white-space:nowr
 .stat b{color:var(--txt);font-size:12px;font-weight:800}
 .stat.gold b{color:var(--gold)}.stat.green b{color:var(--green)}.stat.blue b{color:var(--blue)}
 .stat.happy b{color:var(--green)}.stat.sad b{color:var(--red)}
+
+#sideToggle{flex:0 0 auto;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.05);
+color:var(--mut);font-size:11px;font-weight:700;padding:6px 9px;white-space:nowrap}
+#sideToggle:hover{color:var(--gold2);border-color:var(--gold)}
+body.side-hidden #side{display:none}
 #main{flex:1;min-height:0;display:flex;gap:7px}
 #boardWrap{position:relative;flex:1;min-width:0;border:1px solid var(--line);border-radius:14px;
 overflow:hidden;background:#08110b;box-shadow:inset 0 0 60px rgba(0,0,0,.45)}
@@ -46,6 +51,9 @@ background:rgba(242,193,78,.16);border:1px solid var(--gold);border-radius:99px;
 font-size:11px;color:var(--gold2);backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(0,0,0,.3)}
 #toolChip.show{display:flex}
 #toolChip button{border:0;background:rgba(0,0,0,.3);color:var(--txt);border-radius:99px;width:22px;height:22px;font-size:12px}
+#mini{position:absolute;right:10px;bottom:34px;width:128px;height:96px;border-radius:8px;
+border:1px solid rgba(242,193,78,.35);background:rgba(5,12,8,.8);box-shadow:0 4px 14px rgba(0,0,0,.4)}
+@media(max-width:860px){#mini{width:96px;height:72px}}
 #side{width:258px;flex:0 0 auto;display:flex;flex-direction:column;gap:6px;min-height:0}
 #sideTabs{display:flex;gap:4px;flex:0 0 auto}
 .sTab{flex:1;font-size:11px;padding:7px 2px;border-radius:9px;border:1px solid var(--line);
@@ -153,6 +161,7 @@ body.skipRotate #rotate{display:none!important}
   <div id="top">
     <div class="brand">🌾 我是乡长<small>XIANGZHANG</small></div>
     <div id="stats"></div>
+    <button id="sideToggle" title="收起/展开右侧栏">◀ 收起侧栏</button>
   </div>
   <div id="main">
     <div id="boardWrap">
@@ -160,6 +169,7 @@ body.skipRotate #rotate{display:none!important}
       <div id="goal">🎯 正在准备村庄…</div>
       <div id="hint"></div>
       <div id="toolChip"><span id="toolTxt"></span><button id="toolCancel" title="取消">✕</button></div>
+      <canvas id="mini" width="128" height="96" aria-label="小地图"></canvas>
     </div>
     <div id="side">
       <div id="sideTabs"></div>
@@ -190,6 +200,14 @@ body.skipRotate #rotate{display:none!important}
 <div class="modal" id="modalHelp"><div class="mBox">
   <h2>🌾 我是乡长 · 玩法说明</h2>
   <p>把荒村经营成繁荣乡村：规划产业、打通道路、完善服务、提升幸福度，让村民安居乐业。</p>
+  <h4>二十四节气与农事</h4>
+  <p>村庄按二十四节气流转，谷雨播种、芒种夏收、霜降归仓、冬至积肥。顺应节气农事可获得最高产量，冬季节气作物减产明显。</p>
+  <h4>土壤与水利</h4>
+  <p>每块空地都有独立肥力、pH、有机质与氮磷钾。连作会障碍，轮作/绿肥/有机肥可恢复。修蓄水池/提水泵站调节水分，旱涝保收。</p>
+  <h4>神州大地与探索</h4>
+  <p>地图是一幅写意中国地貌：西部青藏高原与雪山湖泊、黄河“几”字弯、长江与珠江、秦岭南北分界、四川盆地、云贵高原、东北黑土地、东南丘陵与东部海岸岛屿。可自由拖动镜头探索，在「农事」页的地理志中记录发现的地标，并可一键前往黄河、长江等地标。右下角小地图显示已探索区域与当前视野。</p>
+  <h4>种业与旅游</h4>
+  <p>建种质资源库/育种试验站选育良种，获得产量/品质溢价。建精品民宿/研学基地/采摘园发展乡村旅游，游客带来金币与口碑。</p>
   <h4>资源与生产</h4>
   <p>农田、果园、鱼塘、养殖场产出原料，加工坊把原料变成高价加工品。原料与建材都有仓储上限，记得建仓库。</p>
   <h4>建造与升级</h4>
@@ -205,7 +223,7 @@ body.skipRotate #rotate{display:none!important}
   <h4>存档与离线</h4>
   <p>游戏自动保存在本机 IndexedDB，离线期间会继续生产（最多 8 小时）。菜单里可以导出/导入存档。</p>
   <div class="hr"></div>
-  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏。</p>
+  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可获得更大地图视野；「挂机」页可查看每分钟产能并开启自动收成。</p>
   <button class="btn pri" id="hClose">开始经营</button>
 </div></div>
 <div class="modal" id="modalMenu"><div class="mBox">
@@ -240,7 +258,7 @@ body.skipRotate #rotate{display:none!important}
 'use strict';
 /* ============================ 0. 基础 ============================ */
 const VW=960,VH=600,TILE=48,EXPAND=4;
-let CW=30,CH=22,N=CW*CH,offX=0,offY=0;
+let CW=320,CH=256,N=CW*CH,offX=-135,offY=-120;
 const DAY_LEN=24,HOLD_MAX=3,GROW_EVERY=16;
 const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -250,22 +268,93 @@ const i2x=i=>offX+(i%CW), i2y=i=>offY+((i/CW)|0);
 function hash(x,y){let h=(x*374761393+y*668265263)>>>0;h=(h^(h>>13))*1274126177>>>0;return ((h^(h>>16))>>>0)/4294967295;}
 function fmt(n){n=Math.floor(n||0);return n>=10000?(n/10000).toFixed(1)+'万':String(n);}
 function fmtDur(s){s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'小时'+(m?m+'分':''):m+'分';}
-function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
 
 /* ============================ 1. 地图与土地 ============================ */
 const TER={0:'草地',1:'沃土',2:'水域',3:'道路',4:'山石',5:'林地'};
+function distSeg(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1;
+  const t=clamp(((px-x1)*dx+(py-y1)*dy)/(dx*dx+dy*dy||1),0,1);
+  return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
+function nearPath(x,y,pts,w){
+  for(let k=1;k<pts.length;k++)if(distSeg(x,y,pts[k-1][0],pts[k-1][1],pts[k][0],pts[k][1])<=w)return true;
+  return false;
+}
+// 写意中国水系（坐标为本作世界坐标）
+const YELLOW_RIVER=[[-125,-25],[-105,-45],[-75,-65],[-45,-50],[-25,-35],[5,-30],[35,-28],[65,-25],[95,-22],[120,-20],[140,-18]];
+const YANGTZE_RIVER=[[-115,80],[-85,90],[-55,85],[-25,80],[5,78],[35,75],[65,70],[95,65],[120,60],[140,58]];
+const PEARL_RIVER=[[-10,118],[20,120],[50,122],[80,125],[110,128]];
+const LANDMARKS=[
+  {id:'tibet',n:'青藏高原',ic:'🏔️',x:-100,y:20,d:'世界屋脊，雪山与高原湖泊交错。'},
+  {id:'yellow',n:'黄河',ic:'🌊',x:-60,y:-58,d:'九曲黄河，滋养北方平原。'},
+  {id:'yangtze',n:'长江',ic:'🌊',x:35,y:75,d:'滚滚长江，连通东西水路。'},
+  {id:'qinling',n:'秦岭',ic:'⛰️',x:10,y:35,d:'南北气候分界线。'},
+  {id:'sichuan',n:'四川盆地',ic:'🌾',x:-20,y:85,d:'天府之国，沃土与竹林。'},
+  {id:'yungui',n:'云贵高原',ic:'🌿',x:-15,y:92,d:'喀斯特山地与梯田。'},
+  {id:'northeast',n:'东北平原',ic:'🌽',x:90,y:-70,d:'黑土地，粮食重地。'},
+  {id:'coast',n:'东海海岸',ic:'🏖️',x:150,y:5,d:'蜿蜒海岸与优良港口。'},
+  {id:'taiwan',n:'宝岛台湾',ic:'🏝️',x:155,y:100,d:'东南海上的翠绿岛屿。'},
+  {id:'hainan',n:'海南岛',ic:'🌴',x:85,y:125,d:'南海之滨的热带岛屿。'}
+];
+function terrainAt(x,y){
+  const h=hash(x,y),h2=hash(Math.floor(x/14),Math.floor(y/14));
+  const coast=130+Math.sin(y*.06)*8+Math.sin(y*.02)*4;
+  // 岛屿（先于海域判定）
+  if(Math.hypot((x-155)/5,(y-100)/10)<1)return (h>0.65?5:0);
+  if(Math.hypot((x-85)/6,(y-125)/4)<1)return (h>0.6?5:1);
+  if(Math.hypot((x-85)/9,(y-125)/6)<1.25)return 2;
+  if(Math.hypot((x-155)/8,(y-100)/13)<1.3)return 2;
+  // 东部海域与海湾
+  if(x>coast)return 2;
+  if(x>115&&y>-20&&y<2&&Math.sin(y*.25)>0)return 2;
+  // 青藏高原
+  if(x<-70&&y>-50&&y<70){
+    if(Math.hypot((x+100)/12,(y-20)/10)<1)return 2;
+    return h2>0.3?4:0;
+  }
+  if(x<-100&&y<-20&&y>-70)return h2>0.45?4:0;
+  // 秦岭
+  if(x>-40&&x<70&&Math.abs(y-(35+Math.sin(x*.05)*2))<3)return 4;
+  // 四川盆地
+  if(Math.hypot((x+20)/22,(y-85)/14)<1)return h2>0.25?1:0;
+  // 云贵高原
+  if(x>-40&&x<10&&y>75&&y<110)return h2>0.55?4:5;
+  // 东北平原
+  if(x>60&&x<120&&y>-90&&y<-45)return h2>0.72?5:(h2>0.25?1:0);
+  // 内蒙古高原
+  if(x>-30&&x<70&&y>-95&&y<-55)return h2>0.75?5:0;
+  // 东南丘陵
+  if(x>60&&x<120&&y>60&&y<100)return h2>0.45?5:0;
+  // 华南
+  if(x>10&&x<105&&y>100&&y<125)return h2>0.6?5:0;
+  // 主要河流
+  if(nearPath(x,y,YELLOW_RIVER,2.6)||nearPath(x,y,YANGTZE_RIVER,2.8)||nearPath(x,y,PEARL_RIVER,2))return 2;
+  // 河流两岸沃土
+  if(nearPath(x,y,YELLOW_RIVER,6)||nearPath(x,y,YANGTZE_RIVER,6)||nearPath(x,y,PEARL_RIVER,4))return 1;
+  // 东部沿海平原
+  if(x>105&&y>-25&&y<45)return h2>0.3?1:0;
+  if(h>0.94)return 5;
+  if(h<0.05)return 4;
+  return 0;
+}
 function makeTerrain(){
   const t=new Array(N).fill(0);
-  for(let y=offY;y<offY+CH;y++){
-    const rx=offX+8+Math.round(Math.sin(y*.55)*1.6);
-    for(let dx=-1;dx<=1;dx++){const x=rx+dx;if(x>=offX&&x<offX+CW)t[b2i(x,y)]=2;}
+  for(let y=offY;y<offY+CH;y++)for(let x=offX;x<offX+CW;x++)t[b2i(x,y)]=terrainAt(x,y);
+  // 保留原村庄核心区布局（绝对坐标 8..20, 6..15）：先恢复为草地
+  for(let y=6;y<=15;y++)for(let x=8;x<=20;x++){
+    if(x>=offX&&x<offX+CW&&y>=offY&&y<offY+CH)t[b2i(x,y)]=0;
   }
-  for(let x=offX;x<offX+CW;x++)t[b2i(x,offY+10)]=3;
-  for(let y=offY;y<offY+CH;y++)t[b2i(offX+16,y)]=3;
-  for(let y=offY+2;y<=offY+5;y++)for(let x=offX+2;x<=offX+5;x++)t[b2i(x,y)]=4;
-  for(let y=offY+1;y<=offY+6;y++)for(let x=offX+24;x<=offX+28;x++)if((x+y)%3!==0)t[b2i(x,y)]=5;
-  for(let y=offY+15;y<=offY+18;y++)for(let x=offX+21;x<=offX+26;x++)if((x*2+y)%4!==0)t[b2i(x,y)]=2;
-  for(let y=offY+12;y<=offY+15;y++)for(let x=offX+2;x<=offX+5;x++)t[b2i(x,y)]=1;
+  for(let y=offY;y<offY+CH;y++){
+    const rx=8+Math.round(Math.sin(y*.55)*1.6);
+    for(let dx=-1;dx<=1;dx++){const x=rx+dx;if(x>=offX&&x<offX+CW&&y>=6&&y<=15)t[b2i(x,y)]=2;}
+  }
+  for(let x=offX;x<offX+CW;x++){t[b2i(x,10)]=3;}
+  for(let y=offY;y<offY+CH;y++)t[b2i(16,y)]=3;
+  for(let y=2;y<=5;y++)for(let x=2;x<=5;x++)if(x>=offX&&x<offX+CW&&y>=offY&&y<offY+CH)t[b2i(x,y)]=4;
+  for(let y=1;y<=6;y++)for(let x=24;x<=28;x++)if((x+y)%3!==0&&x>=offX&&x<offX+CW&&y>=offY&&y<offY+CH)t[b2i(x,y)]=5;
+  for(let y=15;y<=18;y++)for(let x=21;x<=26;x++)if((x*2+y)%4!==0&&x>=offX&&x<offX+CW&&y>=offY&&y<offY+CH)t[b2i(x,y)]=2;
+  for(let y=12;y<=15;y++)for(let x=2;x<=5;x++)if(x>=offX&&x<offX+CW&&y>=offY&&y<offY+CH)t[b2i(x,y)]=1;
   return t;
 }
 const START={x:8,y:6,w:13,h:10};
@@ -287,16 +376,97 @@ const CONVERT_TYPES=[
 function isUnlockedXY(x,y){return x>=offX&&y>=offY&&x<offX+CW&&y<offY+CH;}
 function isUnlocked(i){return i>=0&&i<N;}
 function buildable(ter){return ter===0||ter===1||ter===5;}
+function getSoil(i){
+  let s=S.soils&&S.soils[i];
+  if(!s){s={fertility:50,pH:6.5,organic:2.0,NPK:{N:50,P:30,K:30},compaction:20,salinity:0,cropHistory:[]};}
+  return s;
+}
+function getSoilEdit(i){
+  if(!S.soils)S.soils={};
+  if(!S.soils[i])S.soils[i]=getSoil(i);
+  return S.soils[i];
+}
+let active=[];
+function rebuildActive(){active=[];for(let i=0;i<N;i++)if(S.tiles[i])active.push(i);}
+
+function reveal(x,y,r){
+  if(!S.fog)S.fog=new Array(N).fill(0);
+  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(dx*dx+dy*dy>r*r)continue;
+    const nx=x+dx,ny=y+dy;
+    if(nx<offX||ny<offY||nx>=offX+CW||ny>=offY+CH)continue;
+    S.fog[b2i(nx,ny)]=1;
+  }
+  if(!S.discoveredLandmarks)S.discoveredLandmarks=[];
+  for(const lm of LANDMARKS){
+    if(S.discoveredLandmarks.indexOf(lm.id)>=0)continue;
+    if(Math.hypot(lm.x-x,lm.y-y)<=r+2){
+      S.discoveredLandmarks.push(lm.id);
+      toast('🗺️ 发现地标：'+lm.ic+' '+lm.n+' · '+lm.d,'ok');
+    }
+  }
+}
+function revealCamera(){reveal(Math.floor(CAM.x/TILE),Math.floor(CAM.y/TILE),5);}
+function gotoLandmark(id){
+  const lm=LANDMARKS.find(o=>o.id===id);if(!lm)return;
+  CAM.tx=lm.x*TILE;CAM.ty=lm.y*TILE;
+  clampCam();
+  reveal(lm.x,lm.y,8);
+  toast('🧭 已前往：'+lm.ic+' '+lm.n,'ok');
+  renderSide();syncHUD();
+}
+function exploreArea(){
+  const cost=20;if(!spend(cost,0))return;
+  reveal(Math.floor(CAM.x/TILE),Math.floor(CAM.y/TILE),10);
+  toast('🔭 已探索周边区域','ok');sfx('build');dbSave();renderSide();syncHUD();
+}
+
 /* ============================ 2. 资源与建筑 ============================ */
-const RES={coin:'金币',mat:'建材',grain:'粮食',fruit:'果蔬',fish:'水产',meat:'肉蛋',goods:'加工品',fame:'声望'};
-const RESIC={coin:'🪙',mat:'🧱',grain:'🌾',fruit:'🍎',fish:'🐟',meat:'🥚',goods:'📦',fame:'⭐'};
-const SEASONS=[{n:'春季',c:'#8fd48d'},{n:'夏季',c:'#f2c14e'},{n:'秋季',c:'#e08a52'},{n:'冬季',c:'#b9d6e8'}];
+const RES={coin:'金币',mat:'建材',grain:'粮食',fruit:'果蔬',fish:'水产',meat:'肉蛋',goods:'加工品',fame:'声望',soil:'土壤改良剂',water:'水权',seed:'种子',cert:'认证材料'};
+const RESIC={coin:'🪙',mat:'🧱',grain:'🌾',fruit:'🍎',fish:'🐟',meat:'🥚',goods:'📦',fame:'⭐',soil:'🧪',water:'💧',seed:'🌱',cert:'📜'};
+function resName(k){return (S&&S.customRes&&S.customRes[k])?S.customRes[k].n:(RES[k]||k);}
+function resIcon(k){return (S&&S.customRes&&S.customRes[k])?S.customRes[k].ic:(RESIC[k]||'📦');}
+function isResKey(k){return !!(RES[k]||(S&&S.customRes&&S.customRes[k]));}
+function allResKeys(){const keys=Object.keys(RES);if(S&&S.customRes)for(const k in S.customRes)if(keys.indexOf(k)<0)keys.push(k);return keys;}
+function applyCustomDefs(){
+  if(S.customRes)for(const k in S.customRes){RES[k]=S.customRes[k].n;RESIC[k]=S.customRes[k].ic;}
+  if(S.customBuilds)for(const b of S.customBuilds){if(b&&b.id&&b.def)bd(b.id,b.def);}
+  if(S.customNames)for(const id in S.customNames){const nm=S.customNames[id],d=B[id];if(d){if(nm.n)d.n=nm.n;if(nm.ic)d.ic=nm.ic;}}
+}
+
+const SOLAR_TERMS=[
+  {n:'立春',c:'#7ec97d',farm:'备耕整地',desc:'春始，宜整地施基肥',farmMul:{farm:1.1,orchard:1.0,pond:1.0,live:1.0}},
+  {n:'雨水',c:'#82c97e',farm:'雨水充足',desc:'雨水增多，宜早春播种',farmMul:{farm:1.15,orchard:1.05,pond:1.1,live:1.0}},
+  {n:'惊蛰',c:'#8ac97f',farm:'春耕起耕',desc:'春雷响，万物醒，宜春耕',farmMul:{farm:1.2,orchard:1.1,pond:1.0,live:1.05}},
+  {n:'春分',c:'#92c981',farm:'昼夜均分',desc:'昼夜平分，宜春播/管护',farmMul:{farm:1.25,orchard:1.15,pond:1.05,live:1.05}},
+  {n:'清明',c:'#9ac983',farm:'清明插秧',desc:'清明时节，宜插秧/管护',farmMul:{farm:1.3,orchard:1.1,pond:1.2,live:1.1}},
+  {n:'谷雨',c:'#a2c985',farm:'谷雨播种',desc:'谷雨时节，宜晚稻播种/茶树采摘',farmMul:{farm:1.35,orchard:1.2,pond:1.15,live:1.1}},
+  {n:'立夏',c:'#aac987',farm:'立夏管护',desc:'夏始，宜田间管理/病虫防治',farmMul:{farm:1.2,orchard:1.15,pond:1.1,live:1.05}},
+  {n:'小满',c:'#b2c989',farm:'小满灌浆',desc:'麦粒渐满，宜灌浆/防病',farmMul:{farm:1.25,orchard:1.1,pond:1.0,live:1.0}},
+  {n:'芒种',c:'#b8c98b',farm:'芒种收割',desc:'芒种至，夏收夏种两忙',farmMul:{farm:1.1,orchard:1.0,pond:1.0,live:1.0}},
+  {n:'夏至',c:'#c0c98d',farm:'夏至排涝',desc:'昼最长，重排涝/抗旱',farmMul:{farm:0.9,orchard:0.95,pond:1.1,live:0.95}},
+  {n:'小暑',c:'#c8c98f',farm:'小暑抗旱',desc:'热浪始，重抗旱/病虫防治',farmMul:{farm:0.8,orchard:0.9,pond:1.05,live:0.9}},
+  {n:'大暑',c:'#d0c991',farm:'大暑防涝',desc:'最热期，重防涝/高温热害',farmMul:{farm:0.7,orchard:0.8,pond:1.1,live:0.85}},
+  {n:'立秋',c:'#d8c993',farm:'立秋备秋',desc:'秋始，宜秋播/秋管准备',farmMul:{farm:1.15,orchard:1.1,pond:1.0,live:1.05}},
+  {n:'处暑',c:'#e0c995',farm:'处暑秋管',desc:'暑气尽，宜秋管/晚稻灌浆',farmMul:{farm:1.2,orchard:1.15,pond:1.05,live:1.0}},
+  {n:'白露',c:'#e8c997',farm:'白露早收',desc:'露水白，早稻收割/秋播',farmMul:{farm:1.1,orchard:1.05,pond:1.0,live:1.0}},
+  {n:'秋分',c:'#f0c999',farm:'秋分收割',desc:'昼夜均分，秋收秋种两忙',farmMul:{farm:1.0,orchard:1.0,pond:0.95,live:1.0}},
+  {n:'寒露',c:'#f8c99b',farm:'寒露晚收',desc:'露寒将凝，晚稻收割/晚播',farmMul:{farm:0.9,orchard:0.95,pond:0.9,live:0.95}},
+  {n:'霜降',c:'#ffc99d',farm:'霜降归仓',desc:'霜降至，万物归仓/积肥',farmMul:{farm:0.8,orchard:0.9,pond:0.8,live:0.9}},
+  {n:'立冬',c:'#ffd19f',farm:'立冬积肥',desc:'冬始，宜积肥/水利修缮',farmMul:{farm:0.6,orchard:0.7,pond:0.6,live:0.8}},
+  {n:'小雪',c:'#ffd9a1',farm:'小雪蓄水',desc:'雪始落，宜蓄水/修缮水利',farmMul:{farm:0.5,orchard:0.6,pond:0.5,live:0.7}},
+  {n:'大雪',c:'#ffe1a3',farm:'大雪封冻',desc:'大雪封冻，宜防冻/积肥',farmMul:{farm:0.4,orchard:0.5,pond:0.4,live:0.6}},
+  {n:'冬至',c:'#ffe9a5',farm:'冬至数九',desc:'昼最短，数九寒天/积肥备春',farmMul:{farm:0.3,orchard:0.4,pond:0.3,live:0.5}},
+  {n:'小寒',c:'#fff1a7',farm:'小寒防冻',desc:'寒气渐盛，重防冻/越冬管护',farmMul:{farm:0.2,orchard:0.3,pond:0.2,live:0.4}},
+  {n:'大寒',c:'#fff9a9',farm:'大寒迎春',desc:'岁寒尽，备春耕/谋来年',farmMul:{farm:0.2,orchard:0.3,pond:0.2,live:0.4}}
+];
 const WEATHER=[{n:'晴',p:1},{n:'雨',p:1.35},{n:'旱',p:.6},{n:'涝',p:.85}];
-const CATS=[['farm','农田'],['orchard','果园'],['pond','水产'],['live','养殖'],['proc','加工'],['service','服务'],['scene','景观'],['road','道路']];
+const CATS=[['farm','农田'],['orchard','果园'],['pond','水产'],['live','养殖'],['proc','加工'],['service','服务'],['scene','景观'],['road','道路'],['water','水利'],['seed','种业'],['cert','认证'],['tour','旅游']];
 const CATCOL={
   farm:['#5d9c4a','#2f5f2a'],orchard:['#54a05f','#2b5c38'],pond:['#3a86b8','#1d4f74'],
   live:['#b8824b','#6b4423'],proc:['#8a6fb5','#4d3a70'],service:['#c9a04a','#7a5c22'],
-  scene:['#5aa88f','#2f6b5c'],road:['#8d8470','#4a453b']
+  scene:['#5aa88f','#2f6b5c'],road:['#8d8470','#4a453b'],
+  water:['#4a9fd8','#25668f'],seed:['#7ec47a','#3f7a3d'],cert:['#d4b84a','#8a7220'],tour:['#e08a9c','#8a4055']
 };
 const B={};
 function bd(id,o){
@@ -360,29 +530,57 @@ bd('lotus',{n:'荷塘',ic:'🪷',cat:'scene',cost:220,mat:8,build:5,time:0,fameT
 bd('bridge',{n:'石桥',ic:'🌉',cat:'scene',cost:180,mat:6,build:3,time:0,fameTick:.04,need:1});
 /* 道路 */
 bd('road',{n:'村道',ic:'🛤️',cat:'road',cost:40,mat:2,build:1,time:0,road:true,desc:'延伸路网，让建筑接入村中心道路。'});
+/* 水利 */
+bd('reservoir',{n:'蓄水池',ic:'🏞️',cat:'water',cost:500,mat:20,build:10,time:0,waterCap:500,radius:5,need:2,desc:'蓄水调蓄，旱涝保收，提升周围水位。'});
+bd('pumpStation',{n:'提水泵站',ic:'🚰',cat:'water',cost:800,mat:30,build:12,time:0,waterLift:200,radius:6,need:3,desc:'低水位提水灌溉，解决高地用水难题。'});
+bd('drainPump',{n:'排涝泵站',ic:'💧',cat:'water',cost:600,mat:25,build:10,time:0,drainRate:150,radius:5,need:2,desc:'涝灾快速排水，保护农田减损。'});
+bd('dripIrrigation',{n:'滴灌系统',ic:'💦',cat:'water',cost:400,mat:15,build:6,time:0,waterEff:0.3,radius:4,need:2,desc:'精准滴灌，节水增效，减少盐碱化。'});
+/* 种业 */
+bd('seedBank',{n:'种质资源库',ic:'🌱',cat:'seed',cost:1200,mat:50,build:20,time:0,seedCap:100,need:3,desc:'保存本地优良种质，支撑育种创新。'});
+bd('breedingStation',{n:'育种试验站',ic:'🧪',cat:'seed',cost:2000,mat:80,build:30,time:0,breedPower:1,need:4,desc:'杂交/诱变育种，选育高产抗逆新品种。'});
+bd('seedProcessing',{n:'种子加工厂',ic:'🏭',cat:'seed',cost:800,mat:30,build:10,time:18,in:{seed:5},out:{seed:8},pop:2,upkeep:2,need:2,desc:'种子干燥/包衣/包装，提高发芽率与商品性。'});
+/* 认证 */
+bd('certCenter',{n:'有机认证中心',ic:'📜',cat:'cert',cost:1500,mat:40,build:15,time:0,certPower:1,need:3,desc:'提供有机/绿色/地标认证服务，提升产品溢价。'});
+bd('tracePlatform',{n:'全程溯源平台',ic:'🔗',cat:'cert',cost:1200,mat:30,build:12,time:0,tracePower:1,need:3,desc:'区块链溯源，建立消费者信任，助力品牌溢价。'});
+/* 旅游 */
+bd('homestay',{n:'精品民宿',ic:'🏡',cat:'tour',cost:800,mat:30,build:15,time:0,tourismCap:10,popCap:2,need:3,desc:'高品质民宿，提供住宿/餐饮/体验，吸引高端游客。'});
+bd('studyBase',{n:'研学基地',ic:'🏫',cat:'tour',cost:1200,mat:40,build:20,time:0,tourismCap:30,popCap:5,need:4,desc:'农事/非遗/自然研学基地，接待中小学生团队。'});
+bd('pickBase',{n:'采摘园',ic:'🍓',cat:'tour',cost:500,mat:15,build:8,time:0,tourismCap:20,need:2,desc:'水果/蔬菜采摘体验，亲子游首选。'});
+bd('camping',{n:'星空露营地',ic:'⛺',cat:'tour',cost:600,mat:20,build:10,time:0,tourismCap:15,need:2,desc:'星空观测/露营/篝火，夜间经济新增长点。'});
 
 const LV=[0,120,320,700,1300,2200,3500,5200,7500];
 function levelOf(fame){let l=1;for(let i=1;i<LV.length;i++)if(fame>=LV[i])l=i+1;return l;}
 const HAPPY_TXT=v=>v>=80?'非常宜居':v>=60?'宜居':v>=40?'一般':v>=25?'有些不满':'人心浮动';
 const HAPPY_COL=v=>v>=60?'var(--green)':v>=40?'var(--gold)':v>=25?'var(--red)':'#ff6b6b';
-const TIPS=['先建一块稻田，再等它成熟后点「一键收成」。','道路决定效率，尽量让生产建筑紧邻连通的道路。','加工坊能把原料变成更值钱的加工品，别只卖原料。','民宿提供人口上限，卫生所与公园能让村民更幸福。','订单奖励很丰厚，订单栏会随客商到访更新。','仓库能提高仓储上限，产业多了记得补仓库。','幸福度越高，人口增长与每日税收越多。','购买新的土地可以解锁林地、水塘与更多建造空间。'];
-function festName(){if(S.day===6)return '丰收节';if(S.day===12)return '庙会';return '';}
+const TIPS=['先建一块稻田，再等它成熟后点「一键收成」。','顺应节气：谷雨播种、芒种收割、冬至积肥，冬季节气会明显减产。','土壤肥力会随耕作下降，选中空地施有机肥或种绿肥恢复地力。','连作会减产，轮作不同作物或改种绿肥可避免连作障碍。','修蓄水池/提水泵站调节水分，旱涝保收。','加工坊能把原料变成更值钱的加工品，别只卖原料。','建种质资源库和育种试验站，选育良种获得品牌溢价。','建精品民宿/采摘园发展乡村旅游，游客会带来额外收益。'];
+function festName(){const p=S.solarTermProgress;if(p>0.3&&p<0.4)return '丰收节';if(p>0.8&&p<0.9)return '庙会';return '';}
 /* ============================ 3. 状态与存档 ============================ */
 function fresh(){
   return {
-    v:2,coin:1000,mat:20,grain:40,fruit:20,fish:0,meat:0,goods:0,fame:0,pop:6,
-    day:1,season:0,weather:0,weatherT:3,clock:8,
-    cw:30,ch:22,offX:0,offY:0,landType:0,
-    tiles:new Array(N).fill(null),terrain:makeTerrain(),land:0,
+    v:5,coin:1000,mat:20,grain:40,fruit:20,fish:0,meat:0,goods:0,fame:0,pop:6,
+    soil:20,water:50,seed:10,cert:0,
+    day:1,solarTermIdx:0,solarTermProgress:0,year:1,weather:0,weatherT:3,clock:8,
+    cw:320,ch:256,offX:-135,offY:-120,landType:0,
+    tiles:new Array(N).fill(null),terrain:makeTerrain(),fog:new Array(N).fill(0),land:0,
     speed:1,paused:false,sideTab:'info',cat:'farm',tool:null,sel:-1,
     orders:[],nextOrder:12,growClock:0,lastTax:0,
     tech:{seed:0,trade:0,craft:0},qi:0,ach:{},stats:{built:0,harvest:0,earned:0,orders:0,collected:0},
     mute:false,lastSave:Date.now(),totalTime:0,
+    customRes:{},customBuilds:[],customNames:{},customSeeds:[],customResSeq:0,customBuildSeq:0,discoveredLandmarks:[],worldStyle:5,autoCollect:false,lastOffline:null,
+    camX:(START.x+START.w/2)*TILE,camY:(START.y+START.h/2)*TILE,zoom:1,
+    soils:{},
+    waterTable:80,surfaceWater:{},waterRights:0,
+    seedBank:{},seedVarieties:{},breedingQueue:[],
+    certifications:{},certProgress:{},
+    tourism:{visitors:0,reputation:0,facilities:[]},
+    festivals:{},villageRules:{},clanBook:{},oralHistory:[],
+    waterRights:0,waterTable:80,
+    lastSave:Date.now(),totalTime:0,
     camX:(START.x+START.w/2)*TILE,camY:(START.y+START.h/2)*TILE,zoom:1
   };
 }
 let S=fresh(),db=null;
-const CAM={x:S.camX,y:S.camY,z:1,tx:S.camX,ty:S.camY,tz:1};
+const CAM={x:S.camX,y:S.camY,z:S.zoom||1,tx:S.camX,ty:S.camY,tz:S.zoom||1};
 function openDB(){
   return new Promise(res=>{
     try{
@@ -395,7 +593,14 @@ function openDB(){
 }
 function serialize(){
   S.cw=CW;S.ch=CH;S.offX=offX;S.offY=offY;
-  S.camX=CAM.tx;S.camY=CAM.ty;S.zoom=CAM.tz;S.v=2;S.lastSave=Date.now();
+  S.solarTermIdx=S.solarTermIdx;S.solarTermProgress=S.solarTermProgress;S.year=S.year;
+  S.soils=S.soils;S.waterTable=S.waterTable;S.surfaceWater=S.surfaceWater;S.waterRights=S.waterRights;
+  S.seedBank=S.seedBank;S.seedVarieties=S.seedVarieties;S.breedingQueue=S.breedingQueue;
+  S.certifications=S.certifications;S.certProgress=S.certProgress;
+  S.tourism=S.tourism;S.festivals=S.festivals;S.villageRules=S.villageRules;S.clanBook=S.clanBook;S.oralHistory=S.oralHistory;
+  S.customRes=S.customRes;S.customBuilds=S.customBuilds;S.customNames=S.customNames;S.customSeeds=S.customSeeds;
+  S.customResSeq=S.customResSeq;S.customBuildSeq=S.customBuildSeq;S.fog=S.fog;S.discoveredLandmarks=S.discoveredLandmarks;S.worldStyle=S.worldStyle;S.autoCollect=S.autoCollect;S.lastOffline=S.lastOffline;
+  S.camX=CAM.tx;S.camY=CAM.ty;S.zoom=CAM.tz;S.v=5;S.lastSave=Date.now();
   return JSON.stringify(S);
 }
 function dbSave(){
@@ -508,22 +713,31 @@ function recalc(){
   D.happiness=count?Math.round(sum/count):50;
   D.popCap=D.popBase;
   if(S.pop>D.popCap)S.pop=D.popCap;
+  rebuildActive();
 }
 function capOf(){return 400+D.extraCap;}
 function workerMul(){if(D.workers<=S.pop)return 1;return clamp(S.pop/Math.max(1,D.workers),.35,1);}
-function seasonMul(cat){
-  const s=S.season;
-  if(cat==='farm')return [1.25,1.1,1.2,.45][s];
-  if(cat==='orchard')return [1,1.1,1.35,.5][s];
-  if(cat==='pond')return [1,1.25,1,.8][s];
-  if(cat==='live')return [1.1,1,.95,.85][s];
-  return 1;
+function solarTermMul(cat){
+  const st=SOLAR_TERMS[S.solarTermIdx];
+  const mul=st.farmMul?st.farmMul[cat]:1;
+  return mul||1;
 }
 function weatherMul(cat){if(cat!=='farm'&&cat!=='orchard'&&cat!=='pond'&&cat!=='live')return 1;return WEATHER[S.weather].p;}
 function terrainMul(cat,ter){
   if(ter===1)return (cat==='farm'||cat==='orchard')?1.2:1.1;
   if(ter===5)return (cat==='farm'||cat==='orchard')?1.12:1;
   return 1;
+}
+function soilMul(i){
+  const s=getSoil(i);
+  const npk=(s.NPK.N+s.NPK.P+s.NPK.K)/3;
+  return clamp(1 + (s.fertility-50)/250 + (s.organic-2)*0.06 + (npk-36.7)/300
+    - Math.abs(s.pH-6.5)*0.06 - s.compaction/500 - s.salinity/300, .4, 1.6);
+}
+function waterMul(i){
+  const sw=(S.surfaceWater&&S.surfaceWater[i])||(S.terrain[i]===2?30:0);
+  const wt=S.waterTable/100;
+  return clamp(1+sw*0.02+wt*0.25,.6,1.6);
 }
 function techMul(cat){
   if(cat==='proc')return 1+(S.tech.craft?.2:0);
@@ -533,8 +747,9 @@ function techMul(cat){
 function rateParts(i){
   const t=S.tiles[i];if(!t||!B[t.b])return null;
   const d=B[t.b];if(!(d.time>0))return null;
-  return {base:lvMul(t.lv),season:seasonMul(d.cat),weather:weatherMul(d.cat),
-    terrain:terrainMul(d.cat,S.terrain[i]),boost:1+Math.min(.6,D.boost[i]||0),
+  return {base:lvMul(t.lv),solar:solarTermMul(d.cat),weather:weatherMul(d.cat),
+    terrain:terrainMul(d.cat,S.terrain[i]),soil:soilMul(i),water:waterMul(i),
+    boost:1+Math.min(.6,D.boost[i]||0),
     road:D.road[i]?1:.6,worker:workerMul(),tech:techMul(d.cat)};
 }
 function rateOf(i){
@@ -542,7 +757,7 @@ function rateOf(i){
   const d=B[t.b];if(!(d.time>0)||t.build>0||(t.hc||0)>=HOLD_MAX)return 0;
   if(d.in&&!canAfford(d.in))return 0;
   const p=rateParts(i);if(!p)return 0;
-  return p.base*p.season*p.weather*p.terrain*p.boost*p.road*p.worker*p.tech;
+  return p.base*p.solar*p.weather*p.terrain*p.soil*p.water*p.boost*p.road*p.worker*p.tech;
 }
 function canAfford(inp){if(!inp)return true;for(const k in inp)if((S[k]||0)<inp[k])return false;return true;}
 function consume(inp){if(!inp)return;for(const k in inp)S[k]=Math.max(0,(S[k]||0)-inp[k]);}
@@ -562,6 +777,7 @@ function producedRes(){
   return set;
 }
 function hasProduced(res){
+  if(res&&res.indexOf('x_')===0&&S[res]>0)return true;
   const p=producedRes();
   if(res==='grain'||res==='fruit')return true;
   if(res==='fish')return p.fish||S.fish>0;
@@ -664,7 +880,7 @@ function place(i,id){
   if(!buildable(S.terrain[i])){toast(TER[S.terrain[i]]+'上无法建造','warn');return;}
   if(!spend(d.cost,d.mat))return;
   const t={b:id,lv:1,prog:0,build:Math.max(0,d.build||0),pendLv:0,h:{},hc:0};
-  S.tiles[i]=t;S.stats.built++;S.sel=i;S.tool=id;
+  S.tiles[i]=t;rebuildActive();S.stats.built++;S.sel=i;S.tool=id;
   addFX(i2x(i)*TILE+TILE/2,i2y(i)*TILE+TILE/2,'#f2c14e','建造中');
   toast('开始建造 '+d.n+(d.build?'（'+d.build+'s）':''),'ok');sfx('build');
   if(t.build<=0){recalc();checkQuests();checkAch();}
@@ -696,7 +912,7 @@ function collectTile(i,silent){
   const t=S.tiles[i];if(!t||!B[t.b])return 0;
   if(t.build>0||!(t.hc>0))return 0;
   let txt=[];
-  for(const k in t.h){addRes(k,t.h[k]);txt.push(RESIC[k]+'+'+Math.floor(t.h[k]));}
+  for(const k in t.h){addRes(k,t.h[k]);txt.push(resIcon(k)+'+'+Math.floor(t.h[k]));}
   S.stats.collected+=t.hc;
   t.h={};t.hc=0;
   if(!silent&&txt.length)addFX(i2x(i)*TILE+TILE/2,i2y(i)*TILE+TILE/2,'#f2c14e',txt.join(' '));
@@ -704,9 +920,9 @@ function collectTile(i,silent){
 }
 function collectAll(){
   let n=0,txt=[];
-  const before={coin:S.coin,mat:S.mat,grain:S.grain,fruit:S.fruit,fish:S.fish,meat:S.meat,goods:S.goods,fame:S.fame};
+  const before={};for(const k of allResKeys())before[k]=S[k]||0;
   for(let i=0;i<N;i++)if(collectTile(i,true))n++;
-  for(const k in before){const d=(S[k]||0)-before[k];if(d>0)txt.push(RESIC[k]+'+'+Math.floor(d));}
+  for(const k in before){const d=(S[k]||0)-before[k];if(d>0)txt.push(resIcon(k)+'+'+Math.floor(d));}
   if(!n){toast('暂时没有可收成的产物，等建筑成熟或补齐原料','warn');return;}
   toast('🧺 收成 '+n+' 处 · '+txt.join(' '),'ok');sfx('coin');
   dbSave();renderSide();syncHUD();checkQuests();checkAch();
@@ -784,7 +1000,7 @@ function buyTech(id){
   recalc();dbSave();renderSide();checkAch();
 }
 function genOrder(){
-  const pool=['grain','fruit','fish','meat','goods'].filter(hasProduced);
+  const pool=allResKeys().filter(k=>hasProduced(k));
   if(!pool.length)pool.push('grain');
   const res=pool[Math.floor(Math.random()*pool.length)];
   const lv=levelOf(S.fame);
@@ -794,13 +1010,13 @@ function genOrder(){
   const fame=Math.round(4+lv*1.5);
   S.orders.push({res:res,amt:amt,left:100+lv*15,coin:coin,fame:fame});
   if(S.orders.length>4)S.orders.shift();
-  toast('📨 新订单：'+RESIC[res]+' '+RES[res]+' ×'+amt,'info');
+  toast('📨 新订单：'+resIcon(res)+' '+resName(res)+' ×'+amt,'info');
   if(S.orders.length===1)sfx('order');
   if(S.sideTab==='orders')renderSide();
 }
 function deliver(idx){
   const o=S.orders[idx];if(!o)return;
-  if((S[o.res]||0)<o.amt){toast('库存不足：还需要 '+RES[o.res]+' ×'+(o.amt-(S[o.res]||0)),'warn');sfx('error');return;}
+  if((S[o.res]||0)<o.amt){toast('库存不足：还需要 '+resName(o.res)+' ×'+(o.amt-(S[o.res]||0)),'warn');sfx('error');return;}
   S[o.res]-=o.amt;S.coin+=o.coin;S.fame+=o.fame;S.stats.orders++;
   S.orders.splice(idx,1);
   toast('✅ 订单完成 +'+o.coin+'🪙 +'+o.fame+'⭐','ok');sfx('coin');
@@ -823,7 +1039,7 @@ function updateToolChip(){
   chip.classList.add('show');
 }
 /* ============================ 7. 模拟 ============================ */
-let dirty=false;
+let dirty=false,autoT=0;
 function growTick(){
   if(S.pop<D.popCap&&S.grain>=8&&D.happiness>=35){
     S.grain-=8;S.pop++;toast('🏡 新村民加入了村庄（'+S.pop+'/'+D.popCap+'）','ok');
@@ -845,14 +1061,30 @@ function update(dtReal){
   const dt=dtReal*S.speed;
   S.totalTime+=dt;S.clock+=dt;
   if(D.fameRate)S.fame+=D.fameRate*dt;
+  const TERM_LEN=DAY_LEN*15; // 每节气约 15 个游戏日
   while(S.clock>=DAY_LEN){
-    S.clock-=DAY_LEN;S.day++;
-    if(S.day>12){S.day=1;S.season=(S.season+1)%4;}
+    S.clock-=DAY_LEN;
+    S.solarTermProgress+=DAY_LEN/TERM_LEN;
+    if(S.solarTermProgress>=1){
+      S.solarTermProgress=0;
+      S.solarTermIdx=(S.solarTermIdx+1)%24;
+      if(S.solarTermIdx===0){S.year++;toast('🎉 新年快乐！进入第 '+S.year+' 年','ok');}
+      const term=SOLAR_TERMS[S.solarTermIdx];
+      toast('🌱 '+term.n+'：'+term.farm+' — '+term.desc,'info');
+    }
+    // 每天触发一次 dailyTick（税收/人口增长等）
     dailyTick();
     S.weatherT--;
-    if(S.weatherT<=0){S.weatherT=Math.floor(rnd(2,5));S.weather=Math.floor(rnd(0,WEATHER.length));}
+    if(S.weatherT<=0){
+      S.weatherT=Math.floor(rnd(2,5));
+      // 节气影响天气概率
+      const term=SOLAR_TERMS[S.solarTermIdx];
+      const rainBias=(term.n==='雨水'||term.n==='谷雨'||term.n==='梅雨')?1.5:
+                     (term.n==='大暑'||term.n==='大寒')?0.5:1;
+      S.weather=Math.floor(rnd(0,WEATHER.length)*rainBias)%WEATHER.length;
+    }
   }
-  for(let i=0;i<N;i++){
+  for(const i of active){
     const t=S.tiles[i];if(!t||!B[t.b])continue;
     const d=B[t.b];
     if(t.build>0){
@@ -882,6 +1114,61 @@ function update(dtReal){
   }
   S.growClock+=dt;
   while(S.growClock>=GROW_EVERY){S.growClock-=GROW_EVERY;growTick();}
+  autoT+=dt;if(autoT>=5){autoT=0;if(S.autoCollect)autoCollectTick();}
+  // 土壤/水系动态更新
+  for(const k in S.soils){
+    const i=+k,s=S.soils[i];
+    const t=S.tiles[i];
+    // 作物对土壤的影响
+    if(t && t.build<=0 && B[t.b]){
+      const d=B[t.b];
+      if(d.time>0 && t.build<=0){
+        // 作物生长消耗养分
+        s.fertility=clamp(s.fertility - dt*0.05, 5, 100);
+        s.organic=clamp(s.organic - dt*0.02, 0.5, 5);
+        s.NPK.N=clamp(s.NPK.N - dt*0.3, 0, 200);
+        s.NPK.P=clamp(s.NPK.P - dt*0.2, 0, 150);
+        s.NPK.K=clamp(s.NPK.K - dt*0.25, 0, 150);
+        s.compaction=clamp(s.compaction + dt*0.03, 0, 100);
+        // 记录作物历史
+        if(t.hc>0 && s.cropHistory[s.cropHistory.length-1]!==t.b){
+          s.cropHistory.push(t.b);
+          if(s.cropHistory.length>5)s.cropHistory.shift();
+        }
+      }
+    }
+    // 自然恢复（休耕/绿肥/有机肥）
+    if(!t || t.build>0 || !B[t.b] || !B[t.b].time){
+      s.fertility=clamp(s.fertility + dt*0.1, 0, 100);
+      s.organic=clamp(s.organic + dt*0.02, 0, 5);
+      s.compaction=clamp(s.compaction - dt*0.02, 0, 100);
+    }
+    // 土壤酸碱度缓慢趋向中性
+    s.pH=clamp(s.pH + (6.5-s.pH)*dt*0.01, 4, 9);
+    // 盐分随灌溉/降雨变化
+    if(S.weather===1){s.salinity=clamp(s.salinity - dt*0.05, 0, 100);} // 雨天淋溶
+    else if(S.weather===3){s.salinity=clamp(s.salinity + dt*0.02, 0, 100);} // 涝积盐
+  }
+  // 地下水位/地表水位动态
+  const rainMul = S.weather===1 ? 1.5 : (S.weather===3 ? 2.0 : S.weather===2 ? 0.3 : 1.0);
+  S.waterTable = clamp(S.waterTable + dt*(rainMul*2 - 1.5), 10, 200);
+  for(const k in S.surfaceWater){
+    S.surfaceWater[k]=clamp(S.surfaceWater[k]-dt*1.5,0,200);
+  }
+  // 灌溉设施效果
+  for(const i of active){
+    const t=S.tiles[i];
+    if(t && t.build<=0 && B[t.b] && (B[t.b].id==='well' || B[t.b].id==='canal')){
+      const r=B[t.b].radius||3;
+      const x=i2x(i), y=i2y(i);
+      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        const nx=x+dx, ny=y+dy;
+        if(nx<offX||nx>=offX+CW||ny<offY||ny>=offY+CH)continue;
+        const ni=b2i(nx,ny);
+        S.surfaceWater[ni]=clamp(S.surfaceWater[ni]+dt*3, 0, 200);
+      }
+    }
+  }
   S.nextOrder-=dt;
   if(S.nextOrder<=0){S.nextOrder=rnd(45,75);genOrder();}
   for(let i=S.orders.length-1;i>=0;i--){
@@ -892,16 +1179,16 @@ function update(dtReal){
 }
 
 /* ============================ 8. 离线收益 ============================ */
-function offlineGain(){
+function offlineGain(minSec){
   const el=clamp((Date.now()-(S.lastSave||Date.now()))/1000,0,28800);
-  if(el<120)return;
+  if(el<(minSec||120))return;
   for(let i=0;i<N;i++)collectTile(i,true);
   const before={coin:S.coin,mat:S.mat,grain:S.grain,fruit:S.fruit,fish:S.fish,meat:S.meat,goods:S.goods,fame:S.fame};
   const step=30,steps=Math.min(960,Math.floor(el/step));
   let done=0;
   for(let s=0;s<steps;s++){
     if(s>0&&s%60===0)recalc();
-    for(let i=0;i<N;i++){
+    for(const i of active){
       const t=S.tiles[i];if(!t||!B[t.b])continue;
       const d=B[t.b];
       if(t.build>0){
@@ -927,9 +1214,10 @@ function offlineGain(){
   const parts=[];
   for(const k in before){
     const n=Math.floor((S[k]||0)-before[k]);
-    if(n>0)parts.push(RESIC[k]+'+'+n);
+    if(n>0)parts.push(resIcon(k)+'+'+n);
   }
   if(parts.length)toast('🌙 离线 '+fmtDur(el)+' · '+parts.join(' '),'ok');
+  S.lastOffline={elapsed:el,gains:parts.join(' ')||'无'};
   if(done)toast('🏗️ 离线期间建成 '+done+' 座建筑','ok');
   S.lastSave=Date.now();
 }
@@ -958,7 +1246,7 @@ function addFX(x,y,color,txt,size){
   if(fx.length>60)fx.shift();
 }
 function zoomAt(px,py,z){
-  const old=CAM.tz,nz=clamp(z,.55,2.2);
+  const old=CAM.tz,nz=clamp(z,.35,2.2);
   const wx=CAM.tx+(px-VW/2)/old,wy=CAM.ty+(py-VH/2)/old;
   CAM.tz=nz;CAM.tx=wx-(px-VW/2)/nz;CAM.ty=wy-(py-VH/2)/nz;clampCam();
 }
@@ -1169,13 +1457,13 @@ function weatherFx(){
       const x=(k*137+anim*260)%VW, y=(k*89+anim*540)%(VH+60)-30;
       ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-4,y+11);ctx.stroke();
     }
-  }else if(S.season===3){
+  }else if(S.solarTermIdx>=18){
     ctx.fillStyle='rgba(255,255,255,.55)';
     for(let k=0;k<55;k++){
       const x=(k*173+Math.sin(anim*.8+k)*18)%VW, y=(k*97+anim*70)%VH;
       ctx.beginPath();ctx.arc(x,y,1.6,0,6.283);ctx.fill();
     }
-  }else if(S.season===2){
+  }else if(S.solarTermIdx>=12&&S.solarTermIdx<18){
     ctx.fillStyle='rgba(224,138,82,.35)';
     for(let k=0;k<26;k++){
       const x=(k*211+anim*38)%VW, y=(k*131+anim*46+Math.sin(anim+k)*10)%VH;
@@ -1199,6 +1487,12 @@ function draw(){
   const y1=Math.min(offY+CH-1,Math.ceil((CAM.y+VH/2/CAM.z)/TILE)+1);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)drawTerrain(x*TILE,y*TILE,b2i(x,y));
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)drawBuilding(x*TILE,y*TILE,b2i(x,y));
+  if(S.fog){
+    ctx.fillStyle='rgba(5,10,7,.94)';
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+      if(!S.fog[b2i(x,y)])ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    }
+  }
   if(S.sel>=0)drawRange(S.sel);
   if(hover>=0&&!S.tool){
     ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1.5;
@@ -1216,6 +1510,30 @@ function draw(){
   ambient();
   drawLights();
   weatherFx();
+  drawMini();
+}
+let lastMiniAt=0;
+function drawMini(){
+  const now=performance.now();if(now-lastMiniAt<250)return;lastMiniAt=now;
+  const mc=$('mini');if(!mc)return;
+  const m=mc.getContext('2d');if(!m)return;
+  const W=mc.width,H=mc.height;
+  m.setTransform(1,0,0,1,0,0);m.clearRect(0,0,W,H);
+  m.fillStyle='rgba(5,12,8,.85)';m.fillRect(0,0,W,H);
+  const sx=W/CW,sy=H/CH;
+  for(let y=offY;y<offY+CH;y++)for(let x=offX;x<offX+CW;x++){
+    const i=b2i(x,y),ter=S.terrain[i];
+    if(!S.fog||!S.fog[i]){
+      if(ter===2){m.fillStyle='rgba(80,170,220,.28)';m.fillRect((x-offX)*sx,(y-offY)*sy,Math.max(1,sx),Math.max(1,sy));}
+      continue;
+    }
+    m.fillStyle=ter===2?'#2f6f96':ter===3?'#9a9078':ter===4?'#6b6b63':ter===5?'#2f6b3a':ter===1?'#7ab55c':'#4a7a3f';
+    m.fillRect((x-offX)*sx,(y-offY)*sy,Math.max(1,sx),Math.max(1,sy));
+  }
+  // 镜头视野框
+  const vx=(CAM.x/TILE-offX)*sx,vy=(CAM.y/TILE-offY)*sy;
+  const vw=VW/TILE/CAM.z*sx,vh=VH/TILE/CAM.z*sy;
+  m.strokeStyle='#f2c14e';m.lineWidth=1;m.strokeRect(vx-vw/2,vy-vh/2,vw,vh);
 }
 /* ============================ 10. 界面 ============================ */
 const STATS=[
@@ -1232,6 +1550,7 @@ function buildStats(){
   });
   const t=document.createElement('span');t.className='stat';t.innerHTML='📅 <b>-</b>';wrap.appendChild(t);statEls.time=t.querySelector('b');
   const w=document.createElement('span');w.className='stat blue';w.innerHTML='🌤️ <b>-</b>';wrap.appendChild(w);statEls.weather=w.querySelector('b');
+  const cs=document.createElement('span');cs.className='stat';cs.id='customStats';wrap.appendChild(cs);
 }
 function syncHUD(){
   if(statEls.coin)statEls.coin.textContent=fmt(S.coin);
@@ -1244,8 +1563,10 @@ function syncHUD(){
   if(statEls.pop)statEls.pop.textContent=S.pop+'/'+D.popCap;
   if(statEls.happy){statEls.happy.textContent=Math.round(D.happiness);statEls.happy.parentNode.className='stat '+(D.happiness>=60?'happy':'sad');}
   if(statEls.fame)statEls.fame.textContent=fmt(S.fame);
-  if(statEls.time)statEls.time.textContent=SEASONS[S.season].n+' '+S.day+'日';
+  if(statEls.time)statEls.time.textContent=SOLAR_TERMS[S.solarTermIdx].n+' '+Math.round(S.solarTermProgress*15+1)+'日';
   if(statEls.weather)statEls.weather.textContent=WEATHER[S.weather].n+' ×'+S.speed+(festName()?' · '+festName():'');
+  const cs=$('customStats');
+  if(cs){let txt='';for(const k in S.customRes){txt+=resIcon(k)+' '+fmt(S[k]||0)+' ';}cs.textContent=txt;}
   renderGoal();
   const bSpeed=$('bSpeed');if(bSpeed)bSpeed.textContent='⏩ ×'+S.speed;
   const bPause=$('bPause');if(bPause)bPause.textContent=S.paused?'▶️ 继续':'⏸️ 暂停';
@@ -1256,7 +1577,7 @@ function renderGoal(){
   else el.textContent='🎉 主线目标全部完成，继续打造你的美丽乡村';
   const hint=$('hint');if(hint)hint.textContent=TIPS[Math.min(S.qi,TIPS.length-1)];
 }
-const TABS=[['info','详情'],['orders','订单'],['quests','任务'],['tech','科技'],['land','拓荒']];
+const TABS=[['info','详情'],['orders','订单'],['quests','任务'],['tech','科技'],['land','拓荒'],['farm','农事'],['seed','种业'],['tour','旅游'],['custom','自定义'],['idle','挂机']];
 function renderTabs(){
   const wrap=$('sideTabs');if(!wrap)return;
   wrap.innerHTML='';
@@ -1269,9 +1590,9 @@ function renderTabs(){
 function btn(label,act,data,cls){
   return '<button class="btn '+(cls||'')+'" data-act="'+act+'"'+(data!=null?' data-i="'+data+'"':'')+'>'+label+'</button>';
 }
-function inputText(inp){if(!inp)return '无';return Object.keys(inp).map(k=>RESIC[k]+inp[k]).join(' ');}
-function outText(out){if(!out)return '—';return Object.keys(out).map(k=>RESIC[k]+out[k]).join(' ');}
-function holdText(h){if(!h||!Object.keys(h).length)return '空';return Object.keys(h).filter(k=>h[k]>0).map(k=>RESIC[k]+Math.floor(h[k])).join(' ');}
+function inputText(inp){if(!inp)return '无';return Object.keys(inp).map(k=>resIcon(k)+inp[k]).join(' ');}
+function outText(out){if(!out)return '—';return Object.keys(out).map(k=>resIcon(k)+out[k]).join(' ');}
+function holdText(h){if(!h||!Object.keys(h).length)return '空';return Object.keys(h).filter(k=>h[k]>0).map(k=>resIcon(k)+Math.floor(h[k])).join(' ');}
 function statusOf(i){
   const t=S.tiles[i];if(!t||!B[t.b])return '空闲';
   const d=B[t.b];
@@ -1296,7 +1617,12 @@ function renderSide(){
   else if(S.sideTab==='orders')h=renderOrders();
   else if(S.sideTab==='quests')h=renderQuests();
   else if(S.sideTab==='tech')h=renderTech();
-  else h=renderLand();
+  else if(S.sideTab==='land')h=renderLand();
+  else if(S.sideTab==='farm')h=renderFarm();
+  else if(S.sideTab==='seed')h=renderSeed();
+  else if(S.sideTab==='tour')h=renderTour();
+  else if(S.sideTab==='custom')h=renderCustom();
+  else h=renderIdle();
   el.innerHTML=h;el.scrollTop=st;
 }
 function renderInfo(){
@@ -1306,6 +1632,13 @@ function renderInfo(){
     if(!t){
       const ter=S.terrain[S.sel];
       let h='<h3>'+TER[ter]+'地块 <span class="tag">'+i2x(S.sel)+','+i2y(S.sel)+'</span></h3><p class="mut">空闲地块，可建造，也可改造地形。</p>';
+      const so=getSoil(S.sel);
+      h+='<div class="row"><span>土壤肥力</span><b style="color:'+(so.fertility>=60?'var(--green)':so.fertility>=30?'var(--gold)':'var(--red)')+'">'+Math.round(so.fertility)+'</b></div>';
+      h+='<div class="row"><span>pH / 有机质</span><b>'+so.pH.toFixed(1)+' · '+so.organic.toFixed(1)+'%</b></div>';
+      h+='<div class="row"><span>氮磷钾</span><b>'+Math.round(so.NPK.N)+'/'+Math.round(so.NPK.P)+'/'+Math.round(so.NPK.K)+'</b></div>';
+      h+='<div class="row"><span>地表水 / 板结</span><b>'+Math.round(S.surfaceWater[S.sel]||0)+' · '+Math.round(so.compaction)+'</b></div>';
+      if(so.cropHistory.length>=2 && so.cropHistory[so.cropHistory.length-1]===so.cropHistory[so.cropHistory.length-2])h+='<div class="tag bad">连作障碍：建议轮作或种植绿肥</div>';
+      h+='<div class="btnRow">'+btn('🧪 施有机肥','fertilize',null,'small')+btn('🌿 种绿肥','greenManure',null,'small')+'</div>';
       if(buildable(ter)){
         h+='<div class="row"><span>地形加成</span><b>'+(ter===1?'+20% 农林':ter===5?'+12% 农林':'无')+'</b></div>';
         h+='<p class="mut">从下方「🏗️ 建造」选择建筑，再点击这里放置。</p>';
@@ -1333,13 +1666,16 @@ function renderInfo(){
       h+='<div class="row"><span>投入</span><b>'+inputText(d.in)+'</b></div>';
       h+='<div class="row"><span>单次产出</span><b>'+outText(d.out)+'</b></div>';
       if(info){
-        const eff=info.base*info.season*info.weather*info.terrain*info.boost*info.road*info.worker*info.tech;
+        const eff=info.base*info.solar*info.weather*info.terrain*info.soil*info.water*info.boost*info.road*info.worker*info.tech;
         h+='<div class="row"><span>综合效率</span><b>×'+eff.toFixed(2)+'</b></div>';
         h+='<div class="card"><div class="mut">';
-        h+='季节×'+info.season.toFixed(2)+' · 天气×'+info.weather.toFixed(2)+' · 地形×'+info.terrain.toFixed(2)+'<br>';
-        h+='增产×'+info.boost.toFixed(2)+' · 道路×'+info.road.toFixed(2)+' · 劳力×'+info.worker.toFixed(2)+' · 科技×'+info.tech.toFixed(2);
+        h+='节气×'+info.solar.toFixed(2)+' · 天气×'+info.weather.toFixed(2)+' · 地形×'+info.terrain.toFixed(2)+'<br>';
+        h+='土壤×'+info.soil.toFixed(2)+' · 水分×'+info.water.toFixed(2)+' · 道路×'+info.road.toFixed(2)+'<br>';
+        h+='增产×'+info.boost.toFixed(2)+' · 劳力×'+info.worker.toFixed(2)+' · 科技×'+info.tech.toFixed(2);
         h+='</div></div>';
         if(info.road<1)h+='<div class="tag bad">未接入道路，效率降低</div>';
+        if(info.soil<0.6)h+='<div class="tag bad">土壤贫瘠，改良可增产</div>';
+        if(info.water<0.8)h+='<div class="tag bad">缺水，修水利可增产</div>';
         if(d.in&&!canAfford(d.in))h+='<div class="tag bad">原料不足</div>';
         if(D.boost[S.sel]>0)h+='<div class="tag ok">增产 +'+Math.round(Math.min(.6,D.boost[S.sel])*100)+'%</div>';
       }
@@ -1386,7 +1722,7 @@ function renderOrders(){
   if(!S.orders.length)h+='<p class="mut">暂无订单，客商正在路上。保持生产，订单会自动刷新。</p>';
   S.orders.forEach((o,i)=>{
     const have=S[o.res]||0,ok=have>=o.amt;
-    h+='<div class="card'+(ok?' hi':'')+'"><div class="row"><span>'+RESIC[o.res]+' '+RES[o.res]+' ×'+o.amt+'</span><b style="color:'+(ok?'var(--green)':'var(--red)')+'">库存 '+have+'</b></div>';
+    h+='<div class="card'+(ok?' hi':'')+'"><div class="row"><span>'+resIcon(o.res)+' '+resName(o.res)+' ×'+o.amt+'</span><b style="color:'+(ok?'var(--green)':'var(--red)')+'">库存 '+have+'</b></div>';
     h+='<div class="row"><span class="mut">剩余 '+Math.ceil(o.left)+'s</span><b>+'+o.coin+'🪙 +'+o.fame+'⭐</b></div>';
     h+=btn(ok?'✅ 交付订单':'库存不足','deliver',i,ok?'pri':'');
     h+='</div>';
@@ -1439,6 +1775,144 @@ function renderLand(){
   h+='<div class="btnRow">'+btn('⬆️ 向北','expand',0,'pri half')+btn('⬇️ 向南','expand',1,'pri half')+'</div>';
   h+='<div class="btnRow">'+btn('⬅️ 向西','expand',2,'half')+btn('➡️ 向东','expand',3,'half')+'</div>';
   h+='<p class="mut">新土地若不适合建造，可到「详情」选中空地后改造为草地、沃土或水域等形态。</p>';
+  return h;
+}
+function renderFarm(){
+  const st=SOLAR_TERMS[S.solarTermIdx];
+  let h='<h3>🌾 农事历</h3>';
+  h+='<div class="card hi"><div class="row"><span>当前节气</span><b style="color:'+st.c+'">'+st.n+'</b></div>';
+  h+='<div class="mut">'+st.desc+'</div><div class="bar"><i style="width:'+Math.round(S.solarTermProgress*100)+'%"></i></div>';
+  h+='<div class="mut">宜：'+st.farm+' · 第 '+S.year+' 年</div></div>';
+  h+='<h4>📅 二十四节气</h4><div class="mut">谷雨前后播种、芒种夏收夏种、霜降归仓、冬至积肥。顺应节气可获得最高产量。</div>';
+  let termList='';
+  for(let i=0;i<24;i++){
+    const t=SOLAR_TERMS[i];
+    termList+='<span class="tag'+(i===S.solarTermIdx?' gold':'')+'" style="margin:2px">'+t.n+'</span>';
+  }
+  h+='<div style="margin-top:6px">'+termList+'</div>';
+  h+='<div class="hr"></div><h4>🗺️ 地理志</h4>';
+  const found=S.discoveredLandmarks||[];
+  h+='<div class="mut">已发现 '+found.length+' / '+LANDMARKS.length+' 处地标。向四周探索，看看这片写意神州大地。</div>';
+  for(const lm of LANDMARKS){
+    if(found.indexOf(lm.id)>=0)h+='<div class="card hi"><div class="row"><span>'+lm.ic+' '+lm.n+'</span><b>已发现</b></div><div class="mut">'+lm.d+'</div>'+btn('🧭 前往','goto',lm.id,'small')+'</div>';
+    else h+='<div class="card"><div class="row"><span>❔ 未知地标</span><b>???</b></div><div class="mut">继续探索大地图。</div>'+btn('🧭 前往','goto',lm.id,'small')+'</div>';
+  }
+  h+='<div class="hr"></div><h4>🌱 土壤与水系</h4>';
+  h+='<div class="row"><span>地下水位</span><b>'+Math.round(S.waterTable)+'</b></div>';
+  h+='<div class="row"><span>水权储备</span><b>'+Math.round(S.waterRights)+'</b></div>';
+  h+='<p class="mut">建蓄水池/提水泵站调节水分，土壤贫瘠时选中空地施有机肥或种绿肥。轮作可避免连作障碍。</p>';
+  h+='<div class="btnRow">'+btn('💧 购买水权(50🪙)','buyWater',null,'half')+btn('🧪 购买土壤改良剂(30🪙)','buySoil',null,'half')+'</div>';
+  h+='<div class="hr"></div><h4>🔭 开放世界探索</h4>';
+  h+='<p class="mut">村庄拥有 320×256 的广阔土地，并可通过拓荒继续向四周扩展。未探索区域被迷雾覆盖，移动镜头或探索可揭开迷雾。</p>';
+  h+=btn('🔭 探索周边(20🪙)','explore',null,'pri');
+  return h;
+}
+function renderSeed(){
+  let h='<h3>🌱 种业与良种</h3>';
+  h+='<div class="row"><span>种子储备</span><b>'+Math.round(S.seed||0)+' 🌱</b></div>';
+  h+='<div class="row"><span>种质资源</span><b>'+Object.keys(S.seedBank||{}).length+' 份</b></div>';
+  const vars=Object.keys(S.seedVarieties||{});
+  if(vars.length){
+    h+='<h4>已选育品种</h4>';
+    for(const id of vars){
+      const v=S.seedVarieties[id];
+      h+='<div class="card"><div class="row"><span>'+v.name+'</span><b>'+v.trait+'</b></div>';
+      h+='<div class="mut">纯度 '+v.purity+'% · 世代 '+v.generation+'</div></div>';
+    }
+  }else h+='<p class="mut">尚未选育新品种。建种质资源库收集地方品种，建育种试验站开展杂交育种。</p>';
+  h+='<div class="hr"></div><h4>🧪 良种选育</h4>';
+  h+='<p class="mut">选育可提升产量、抗病与品质，优良品种可获得品牌溢价。每次育种消耗种子与金币。</p>';
+  const breeds=[
+    {id:'highYield',n:'高产稻',trait:'产量+20%',cost:300,seed:10},
+    {id:'drought',n:'耐旱麦',trait:'抗旱+30%',cost:350,seed:12},
+    {id:'quality',n:'优质果蔬',trait:'品质溢价+25%',cost:400,seed:15}
+  ];
+  for(const c of (S.customSeeds||[]))breeds.push({id:c.id,n:c.name,trait:c.trait,cost:300,seed:8});
+  for(const b of breeds){
+    const done=S.seedVarieties[b.id];
+    h+='<div class="card"><div class="row"><span>'+b.n+'</span><b>'+b.trait+'</b></div>';
+    h+='<div class="mut">'+b.cost+'🪙 + '+b.seed+'🌱</div>';
+    h+=btn(done?'已选育':'选育 '+b.n,'breed',b.id,done?'':'pri small')+'</div>';
+  }
+  return h;
+}
+function renderTour(){
+  const t=S.tourism||{visitors:0,reputation:0,facilities:[]};
+  let h='<h3>🏞️ 乡村旅游</h3>';
+  h+='<div class="row"><span>游客口碑</span><b>'+Math.round(t.reputation||0)+' ⭐</b></div>';
+  h+='<div class="row"><span>累计游客</span><b>'+Math.round(t.visitors||0)+' 人</b></div>';
+  h+='<p class="mut">建精品民宿/研学基地/采摘园/星空露营地吸引游客。游客带来金币与声望，口碑越高收益越好。</p>';
+  h+='<div class="hr"></div><h4>🎊 乡村节庆</h4>';
+  h+='<p class="mut">每个节气的第 6 天举办丰收节、第 12 天举办庙会，节庆期间订单金币 +50%、税收 +20%。</p>';
+  const fest=festName();
+  if(fest)h+='<div class="tag gold">🎊 当前节庆：'+fest+'</div>';
+  h+='<div class="hr"></div><h4>🏛️ 文化传承</h4>';
+  h+='<p class="mut">古树名木、非遗工坊、族谱修缮与村规民约能提升村民凝聚力与游客体验。更多文化系统将在后续版本开放。</p>';
+  return h;
+}
+function renderCustom(){
+  let h='<h3>🧩 自定义拓展</h3>';
+  h+='<p class="mut">为村庄加入你自己的作物、水果与建筑。自定义内容会随存档保存，离线可用。</p>';
+  // 自定义命名
+  h+='<div class="hr"></div><h4>✏️ 建筑/作物改名</h4>';
+  h+='<div class="mut">选择建筑后填写新名称与图标。</div>';
+  h+='<select id="cnTarget" style="width:100%;margin:4px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  for(const id in B){h+='<option value="'+id+'">'+B[id].ic+' '+B[id].n+'</option>';}
+  h+='</select>';
+  h+='<input id="cnName" placeholder="新名称，如：荔枝园" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="cnIcon" placeholder="图标 emoji，如：🍒" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+=btn('保存改名','saveName',null,'pri');
+  // 自定义资源
+  h+='<div class="hr"></div><h4>🌱 新增自定义产物</h4>';
+  h+='<div class="mut">例如「荔枝」「蓝莓」，可作为独立资源收成、交付订单并显示在上栏。</div>';
+  h+='<input id="crName" placeholder="产物名称，如：荔枝" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="crIcon" placeholder="图标 emoji，如：🍒" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+=btn('新增产物','addRes',null,'pri');
+  const keys=Object.keys(S.customRes||{});
+  if(keys.length){h+='<div class="mut" style="margin-top:4px">已新增：'+keys.map(k=>resIcon(k)+' '+resName(k)).join('、')+'</div>';}
+  // 自定义作物建筑
+  h+='<div class="hr"></div><h4>🍇 新增自定义作物/水果</h4>';
+  h+='<div class="mut">创建一个可种植的建筑，产出你命名的作物。</div>';
+  h+='<input id="cuName" placeholder="建筑名称，如：荔枝园" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="cuIcon" placeholder="图标 emoji，如：🌳" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<select id="cuRes" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  for(const k of allResKeys()){if(['coin','mat','fame','soil','water','seed','cert'].indexOf(k)>=0)continue;h+='<option value="'+k+'">'+resIcon(k)+' '+resName(k)+'</option>';}
+  h+='</select>';
+  h+='<input id="cuAmt" type="number" min="1" value="12" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+=btn('创建作物建筑','addCrop',null,'pri');
+  h+='<div class="mut" style="margin-top:4px">默认造价 200🪙、建造 6 秒、生产 20 秒，人口 2。</div>';
+  // 自定义品种
+  h+='<div class="hr"></div><h4>🧬 新增自定义良种</h4>';
+  h+='<input id="csName" placeholder="品种名称，如：蜜香荔枝" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="csTrait" placeholder="特性，如：甜度+30%" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+=btn('保存品种','addSeed',null,'pri');
+  if((S.customSeeds||[]).length){h+='<div class="mut" style="margin-top:4px">已保存：'+S.customSeeds.map(v=>v.name).join('、')+'</div>';}
+  return h;
+}
+function renderIdle(){
+  const rates={};
+  for(const i of active){
+    const t=S.tiles[i];if(!t||t.build>0||!B[t.b])continue;
+    const d=B[t.b];if(!(d.time>0)||!d.out)continue;
+    const r=rateOf(i);if(r<=0)continue;
+    for(const k in d.out)rates[k]=(rates[k]||0)+r*d.out[k]*60;
+  }
+  let h='<h3>⏳ 挂机与离线收益</h3>';
+  h+='<div class="row"><span>自动收成</span><b style="color:'+(S.autoCollect?'var(--green)':'var(--mut)')+'">'+(S.autoCollect?'已开启':'已关闭')+'</b></div>';
+  h+='<p class="mut">开启后每 5 秒自动收取所有建筑成品，长时间挂机不再被暂存上限卡住。</p>';
+  h+=btn(S.autoCollect?'关闭自动收成':'开启自动收成','toggleAuto',null,S.autoCollect?'':'pri');
+  h+='<div class="hr"></div><h4>📈 当前产能 / 分钟</h4>';
+  const keys=Object.keys(rates);
+  if(!keys.length)h+='<p class="mut">暂无生产建筑。建造农田、果园等设施后这里会显示每分钟预计产出。</p>';
+  for(const k of keys)h+='<div class="row"><span>'+resIcon(k)+' '+resName(k)+'</span><b>+'+(rates[k]>=10?Math.round(rates[k]):rates[k].toFixed(1))+'</b></div>';
+  h+='<div class="hr"></div><h4>🌙 最近一次离线结算</h4>';
+  if(S.lastOffline){
+    h+='<div class="row"><span>离线时长</span><b>'+fmtDur(S.lastOffline.elapsed)+'</b></div>';
+    h+='<div class="card"><div class="mut">'+S.lastOffline.gains+'</div></div>';
+  }else h+='<p class="mut">还没有离线收益记录。离开游戏最多累计 8 小时，回来自动结算。</p>';
+  const pending=Math.max(0,Math.floor((Date.now()-(S.lastSave||Date.now()))/1000));
+  h+='<div class="row"><span>距上次保存</span><b>'+fmtDur(pending)+'</b></div>';
+  h+=btn('🔄 立即结算','settleNow',null,'small');
   return h;
 }
 function renderDrawerTabs(){
@@ -1543,6 +2017,11 @@ window.addEventListener('keydown',e=>{
   else if(e.key==='ArrowUp')CAM.ty-=40/CAM.z;
   else if(e.key==='ArrowDown')CAM.ty+=40/CAM.z;
 });
+$('sideToggle').onclick=()=>{
+  const hidden=document.body.classList.toggle('side-hidden');
+  $('sideToggle').textContent=hidden?'▶ 展开侧栏':'◀ 收起侧栏';
+  setTimeout(resize,30);
+};
 $('bBuild').onclick=()=>{const d=$('drawer');if(d.classList.contains('open'))closeDrawer();else openDrawer();};
 $('drawerClose').onclick=closeDrawer;
 $('toolCancel').onclick=()=>{clearTool();renderDrawerItems();};
@@ -1558,6 +2037,86 @@ $('bFull').onclick=()=>toggleFull();
 $('rFull').onclick=e=>{e.stopPropagation();toggleFull();};
 $('rSkip').onclick=e=>{e.stopPropagation();document.body.classList.add('skipRotate');};
 $('rotate').onclick=()=>toggleFull();
+function fertilize(){
+  const i=S.sel;if(i<0||i>=N){toast('请先选中一块空地','warn');return;}
+  if(!spend(30,0))return;
+  const s=getSoilEdit(i);
+  s.fertility=clamp(s.fertility+25,0,100);s.organic=clamp(s.organic+1.2,0,5);
+  s.NPK.N=clamp(s.NPK.N+30,0,200);s.NPK.P=clamp(s.NPK.P+20,0,150);s.NPK.K=clamp(s.NPK.K+20,0,150);
+  toast('🧪 已施有机肥，土壤肥力提升','ok');sfx('build');dbSave();renderSide();syncHUD();
+}
+function greenManure(){
+  const i=S.sel;if(i<0||i>=N){toast('请先选中一块空地','warn');return;}
+  if(!spend(15,0))return;
+  const s=getSoilEdit(i);
+  s.fertility=clamp(s.fertility+15,0,100);s.organic=clamp(s.organic+1.5,0,5);s.compaction=clamp(s.compaction-15,0,100);
+  s.cropHistory.push('绿肥');if(s.cropHistory.length>5)s.cropHistory.shift();
+  toast('🌿 已种植绿肥，土壤逐步恢复','ok');sfx('build');dbSave();renderSide();syncHUD();
+}
+function autoCollectTick(){
+  let n=0;
+  for(const i of active)if(collectTile(i,true))n++;
+  if(n){dbSave();renderSide();syncHUD();}
+}
+function buyWater(){
+  if(!spend(50,0))return;
+  S.waterRights+=50;toast('💧 已购买 50 单位水权','ok');sfx('coin');dbSave();renderSide();syncHUD();
+}
+function buySoil(){
+  if(!spend(30,0))return;
+  S.soil=(S.soil||0)+3;toast('🧪 已购买 3 份土壤改良剂','ok');sfx('coin');dbSave();renderSide();syncHUD();
+}
+function breed(id){
+  const defs={highYield:{name:'高产稻',trait:'产量+20%',cost:300,seed:10},
+    drought:{name:'耐旱麦',trait:'抗旱+30%',cost:350,seed:12},
+    quality:{name:'优质果蔬',trait:'品质溢价+25%',cost:400,seed:15}};
+  for(const c of (S.customSeeds||[]))defs[c.id]={name:c.name,trait:c.trait,cost:300,seed:8};
+  const d=defs[id];if(!d)return;
+  if(S.seedVarieties[id]){toast('该品种已选育','info');return;}
+  if((S.seed||0)<d.seed){toast('种子不足，需要 '+d.seed+' 🌱','warn');return;}
+  if(!spend(d.cost,0))return;
+  S.seed-=d.seed;
+  S.seedVarieties[id]={name:d.name,trait:d.trait,purity:95,generation:1};
+  toast('🌱 育种成功：'+d.name+' · '+d.trait,'ok');sfx('level');dbSave();renderSide();syncHUD();
+}
+function saveName(){
+  const id=$('cnTarget').value,nm=$('cnName').value.trim(),ic=$('cnIcon').value.trim();
+  if(!B[id])return;
+  if(!nm&&!ic){toast('请填写新名称或图标','warn');return;}
+  S.customNames[id]=S.customNames[id]||{};
+  if(nm){S.customNames[id].n=nm;B[id].n=nm;}
+  if(ic){S.customNames[id].ic=ic;B[id].ic=ic;}
+  toast('✏️ 已保存到「'+B[id].n+'」','ok');sfx('build');dbSave();renderSide();syncHUD();
+}
+function addCustomRes(){
+  const nm=$('crName').value.trim(),ic=$('crIcon').value.trim()||'🍒';
+  if(!nm){toast('请填写产物名称','warn');return;}
+  const key='x_r'+(++S.customResSeq);
+  S.customRes[key]={n:nm,ic:ic};S[key]=0;
+  RES[key]=nm;RESIC[key]=ic;
+  toast('🌱 已新增产物：'+ic+' '+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
+}
+function addCrop(){
+  const nm=$('cuName').value.trim(),ic=$('cuIcon').value.trim()||'🌳';
+  const res=$('cuRes').value,amt=Math.max(1,Math.floor(+$('cuAmt').value||12));
+  if(!nm){toast('请填写建筑名称','warn');return;}
+  if(!isResKey(res)){toast('请选择产出资源','warn');return;}
+  const id='u_b'+(++S.customBuildSeq);
+  const def={n:nm,ic:ic,cat:(res.indexOf('x_')===0||res==='fruit')?'orchard':'farm',
+    cost:200,mat:8,build:6,time:20,out:{},pop:2,upkeep:2,need:1,desc:'自定义作物：产出'+resIcon(res)+' '+resName(res)+'。'};
+  def.out[res]=amt;
+  bd(id,def);
+  S.customBuilds.push({id:id,def:def});
+  toast('🍇 已创建作物建筑：'+ic+' '+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
+}
+function addSeed(){
+  const nm=$('csName').value.trim(),tr=$('csTrait').value.trim()||'产量+15%';
+  if(!nm){toast('请填写品种名称','warn');return;}
+  const id='u_s'+(S.customSeeds.length+1);
+  S.customSeeds.push({id:id,name:nm,trait:tr});
+  S.seedVarieties[id]={name:nm,trait:tr,purity:95,generation:1};
+  toast('🧬 已保存良种：'+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
+}
 $('sideBody').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const act=b.dataset.act,i=+b.dataset.i;
@@ -1569,6 +2128,19 @@ $('sideBody').addEventListener('click',e=>{
   else if(act==='landtype'){S.landType=clamp(i,0,LAND_TYPES.length-1);renderSide();}
   else if(act==='expand')expand(i);
   else if(act==='convert')convertTerrain(i);
+  else if(act==='fertilize')fertilize();
+  else if(act==='greenManure')greenManure();
+  else if(act==='buyWater')buyWater();
+  else if(act==='buySoil')buySoil();
+  else if(act==='explore')exploreArea();
+  else if(act==='goto')gotoLandmark(b.dataset.i);
+  else if(act==='toggleAuto'){S.autoCollect=!S.autoCollect;toast(S.autoCollect?'⏳ 已开启自动收成':'已关闭自动收成','ok');}
+  else if(act==='settleNow'){offlineGain(1);toast('已结算离线收益','ok');}
+  else if(act==='breed')breed(b.dataset.i);
+  else if(act==='saveName')saveName();
+  else if(act==='addRes')addCustomRes();
+  else if(act==='addCrop')addCrop();
+  else if(act==='addSeed')addSeed();
   else if(act==='deliver')deliver(i);
   else if(act==='tech')buyTech(b.dataset.i);
   renderSide();syncHUD();
@@ -1668,15 +2240,39 @@ syncOrient();
 function applySave(d){
   if(!d||typeof d!=='object')return false;
   const num=(v,def)=>isFinite(+v)?+v:def;
-  CW=clamp(Math.floor(num(d.cw,30)),10,300);
-  CH=clamp(Math.floor(num(d.ch,22)),10,300);
-  offX=clamp(Math.floor(num(d.offX,0)),-300,300);
-  offY=clamp(Math.floor(num(d.offY,0)),-300,300);
+  let src=d;
+  if(!isFinite(+src.cw)||(+src.cw)<320){
+    const oldCW=isFinite(+src.cw)?Math.floor(+src.cw):30;
+    const oldCH=isFinite(+src.ch)?Math.floor(+src.ch):22;
+    const oldOffX=isFinite(+src.offX)?Math.floor(+src.offX):0;
+    const oldOffY=isFinite(+src.offY)?Math.floor(+src.offY):0;
+    CW=320;CH=256;offX=-135;offY=-120;N=CW*CH;rebuildD();
+    const nt=new Array(N).fill(null),nter=makeTerrain(),nfog=new Array(N).fill(0);
+    const ot=Array.isArray(src.tiles)?src.tiles:[],ote=Array.isArray(src.terrain)?src.terrain:[];
+    for(let y=0;y<oldCH;y++)for(let x=0;x<oldCW;x++){
+      const ni=b2i(oldOffX+x,oldOffY+y);if(ni<0||ni>=N)continue;
+      const oi=y*oldCW+x;
+      nt[ni]=ot[oi]||null;
+      if(ote[oi]!=null)nter[ni]=ote[oi];
+      nfog[ni]=1;
+    }
+    src=Object.assign({},d,{tiles:nt,terrain:nter,fog:nfog,cw:CW,ch:CH,offX:offX,offY:offY});
+    toast('🌍 存档已迁移到开放世界大地图','ok');
+  }
+  CW=clamp(Math.floor(num(src.cw,320)),10,1000);
+  CH=clamp(Math.floor(num(src.ch,256)),10,1000);
+  offX=clamp(Math.floor(num(src.offX,-135)),-1000,1000);
+  offY=clamp(Math.floor(num(src.offY,-120)),-1000,1000);
   N=CW*CH;rebuildD();
+  const legacyWorld=(!isFinite(+src.v)||(+src.v)<5)||(+src.worldStyle||0)<5;
+  if(legacyWorld){
+    src=Object.assign({},src,{terrain:makeTerrain(),fog:new Array(N).fill(0)});
+    toast('🗺️ 已更新为神州地貌地图','ok');
+  }
   const f=fresh();
   S=Object.assign(f,d);
   S.cw=CW;S.ch=CH;S.offX=offX;S.offY=offY;
-  S.tiles=Array.isArray(d.tiles)?d.tiles.slice(0,N):f.tiles.slice();
+  S.tiles=Array.isArray(src.tiles)?src.tiles.slice(0,N):f.tiles.slice();
   while(S.tiles.length<N)S.tiles.push(null);
   for(let i=0;i<N;i++){
     const t=S.tiles[i];
@@ -1690,42 +2286,75 @@ function applySave(d){
     t.h=(t.h&&typeof t.h==='object')?t.h:{};
     for(const k in t.h){
       t.h[k]=Math.max(0,num(t.h[k],0));
-      if(!t.h[k]||!RES[k])delete t.h[k];
+      if(!t.h[k]||!isResKey(k))delete t.h[k];
     }
     t.hc=clamp(Math.floor(num(t.hc,0)),0,HOLD_MAX);
     if(!Object.keys(t.h).length)t.hc=0;
   }
-  S.terrain=Array.isArray(d.terrain)?d.terrain.slice(0,N):f.terrain.slice();
+  S.terrain=Array.isArray(src.terrain)?src.terrain.slice(0,N):f.terrain.slice();
   while(S.terrain.length<N)S.terrain.push(0);
   for(let i=0;i<N;i++)S.terrain[i]=clamp(Math.floor(num(S.terrain[i],0)),0,5);
-  S.coin=Math.max(0,num(d.coin,1000));
-  S.mat=Math.max(0,num(d.mat,20));
-  S.grain=Math.max(0,num(d.grain,40));
-  S.fruit=Math.max(0,num(d.fruit,20));
-  S.fish=Math.max(0,num(d.fish,0));
-  S.meat=Math.max(0,num(d.meat,0));
-  S.goods=Math.max(0,num(d.goods,0));
-  S.fame=Math.max(0,num(d.fame,0));
-  S.pop=clamp(Math.floor(num(d.pop,6)),0,999);
-  S.day=clamp(Math.floor(num(d.day,1)),1,12);
-  S.season=clamp(Math.floor(num(d.season,0)),0,3);
-  S.weather=clamp(Math.floor(num(d.weather,0)),0,3);
-  S.weatherT=Math.max(1,Math.floor(num(d.weatherT,3)));
-  S.clock=clamp(num(d.clock,8),0,DAY_LEN);
-  S.land=clamp(Math.floor(num(d.land,0)),0,999);
-  S.landType=clamp(Math.floor(num(d.landType,0)),0,LAND_TYPES.length-1);
-  S.speed=[1,2,4].indexOf(num(d.speed,1))>=0?num(d.speed,1):1;
+  S.fog=Array.isArray(src.fog)?src.fog.slice(0,N):f.fog.slice();
+  while(S.fog.length<N)S.fog.push(0);
+  for(let i=0;i<N;i++)S.fog[i]=clamp(Math.floor(num(S.fog[i],0)),0,1);
+  S.coin=Math.max(0,num(src.coin,1000));
+  S.mat=Math.max(0,num(src.mat,20));
+  S.grain=Math.max(0,num(src.grain,40));
+  S.fruit=Math.max(0,num(src.fruit,20));
+  S.fish=Math.max(0,num(src.fish,0));
+  S.meat=Math.max(0,num(src.meat,0));
+  S.goods=Math.max(0,num(src.goods,0));
+  S.fame=Math.max(0,num(src.fame,0));
+  S.pop=clamp(Math.floor(num(src.pop,6)),0,999);
+  S.solarTermIdx=clamp(Math.floor(num(src.solarTermIdx,0)),0,23);
+  S.solarTermProgress=clamp(num(src.solarTermProgress,0),0,1);
+  S.year=Math.max(1,Math.floor(num(src.year,1)));
+  S.day=clamp(Math.floor(num(src.day,1)),1,15); // 兼容旧存档
+  S.weather=clamp(Math.floor(num(src.weather,0)),0,3);
+  S.weatherT=Math.max(1,Math.floor(num(src.weatherT,3)));
+  S.clock=clamp(num(src.clock,8),0,DAY_LEN);
+  S.land=clamp(Math.floor(num(src.land,0)),0,999);
+  S.landType=clamp(Math.floor(num(src.landType,0)),0,LAND_TYPES.length-1);
+  S.speed=[1,2,4].indexOf(num(src.speed,1))>=0?num(src.speed,1):1;
   S.paused=false;S.sel=-1;S.tool=null;S.sideTab='info';
-  S.tech=Object.assign({seed:0,trade:0,craft:0},d.tech||{});
-  S.stats=Object.assign({built:0,harvest:0,earned:0,orders:0,collected:0},d.stats||{});
-  S.ach=(d.ach&&typeof d.ach==='object')?d.ach:{};
-  S.qi=clamp(Math.floor(num(d.qi,0)),0,QUESTS.length);
-  S.orders=Array.isArray(d.orders)?d.orders.filter(o=>o&&RES[o.res]&&num(o.amt,0)>0&&num(o.left,0)>0).slice(0,5):[];
-  S.mute=!!d.mute;
-  S.lastSave=num(d.lastSave,Date.now());
-  CAM.tz=CAM.z=clamp(num(d.zoom,1),.55,2.2);
-  CAM.tx=num(d.camX,(START.x+START.w/2)*TILE);
-  CAM.ty=num(d.camY,(START.y+START.h/2)*TILE);
+  S.tech=Object.assign({seed:0,trade:0,craft:0},src.tech||{});
+  S.stats=Object.assign({built:0,harvest:0,earned:0,orders:0,collected:0},src.stats||{});
+  S.ach=(src.ach&&typeof src.ach==='object')?src.ach:{};
+  S.qi=clamp(Math.floor(num(src.qi,0)),0,QUESTS.length);
+  S.orders=Array.isArray(src.orders)?src.orders.filter(o=>o&&isResKey(o.res)&&num(o.amt,0)>0&&num(o.left,0)>0).slice(0,5):[];
+  S.mute=!!src.mute;
+  S.lastSave=num(src.lastSave,Date.now());
+  // 新系统字段
+  S.soils=(src.soils&&typeof src.soils==='object')?src.soils:{};
+  S.waterTable=num(src.waterTable,80);
+  S.surfaceWater=(src.surfaceWater&&typeof src.surfaceWater==='object')?src.surfaceWater:{};
+  S.waterRights=num(src.waterRights,0);
+  S.seedBank=src.seedBank||{};
+  S.seedVarieties=src.seedVarieties||{};
+  S.breedingQueue=Array.isArray(src.breedingQueue)?src.breedingQueue.slice():[];
+  S.certifications=src.certifications||{};
+  S.certProgress=src.certProgress||{};
+  S.tourism=src.tourism||{visitors:0,reputation:0,facilities:[]};
+  S.festivals=src.festivals||{};
+  S.villageRules=src.villageRules||{};
+  S.clanBook=src.clanBook||{};
+  S.oralHistory=Array.isArray(src.oralHistory)?src.oralHistory.slice():[];
+  S.customRes=src.customRes||{};
+  S.customBuilds=Array.isArray(src.customBuilds)?src.customBuilds:[];
+  S.customNames=src.customNames||{};
+  S.customSeeds=Array.isArray(src.customSeeds)?src.customSeeds:[];
+  S.customResSeq=Math.max(0,Math.floor(num(src.customResSeq,0)));
+  S.customBuildSeq=Math.max(0,Math.floor(num(src.customBuildSeq,0)));
+  S.discoveredLandmarks=Array.isArray(src.discoveredLandmarks)?src.discoveredLandmarks.slice():[];
+  S.autoCollect=!!src.autoCollect;
+  S.lastOffline=src.lastOffline||null;
+  applyCustomDefs();
+  for(const k in S.customRes){if(!isFinite(+(S[k]||0)))S[k]=0;}
+  S.waterRights=num(src.waterRights,0);
+  S.waterTable=num(src.waterTable,80);
+  CAM.tz=CAM.z=clamp(num(src.zoom,1),.35,2.2);
+  CAM.tx=num(src.camX,(START.x+START.w/2)*TILE);
+  CAM.ty=num(src.camY,(START.y+START.h/2)*TILE);
   clampCam();CAM.x=CAM.tx;CAM.y=CAM.ty;
   recalc();
   offlineGain();
@@ -1739,13 +2368,13 @@ function frame(now){
   let dt=(now-last)/1000;last=now;
   if(!isFinite(dt)||dt<0)dt=0;if(dt>.25)dt=.25;
   anim+=dt;
-  stepCam(dt);
+  stepCam(dt);revealCamera();
   update(dt);
   for(let i=fx.length-1;i>=0;i--){fx[i].life-=dt;if(fx[i].life<=0)fx.splice(i,1);}
   draw();
   uiT+=dt;saveT+=dt;chkT+=dt;
   if(uiT>.22){uiT=0;syncHUD();}
-  if(chkT>.7){chkT=0;checkQuests();checkAch();if(S.sideTab==='orders'||(S.sideTab==='info'&&S.sel>=0))renderSide();}
+  if(chkT>.7){chkT=0;checkQuests();checkAch();if(S.sideTab==='orders'||S.sideTab==='idle'||(S.sideTab==='info'&&S.sel>=0))renderSide();}
   if(saveT>12){saveT=0;dbSave();}
   requestAnimationFrame(frame);
 }
@@ -1758,6 +2387,8 @@ function boot(){
       const had=applySave(d);
       if(!had){S=fresh();recalc();}
       S.paused=false;
+      if(!Array.isArray(S.fog))S.fog=new Array(N).fill(0);
+      reveal(14,11,12);
       CAM.x=CAM.tx;CAM.y=CAM.ty;CAM.z=CAM.tz;
       syncHUD();renderTabs();renderSide();updateToolChip();
       $('mMute').textContent=S.mute?'🔇 音效关':'🔊 音效开';
@@ -1768,10 +2399,17 @@ function boot(){
   requestAnimationFrame(frame);
 }
 window.addEventListener('resize',resize);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)dbSave();});
+let hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){hiddenAt=Date.now();dbSave();}
+  else if(hiddenAt){
+    const away=(Date.now()-hiddenAt)/1000;hiddenAt=0;
+    if(away>=3){offlineGain(3);renderSide();syncHUD();}
+  }
+});
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},b2i,i2x,i2y,recalc,collectAll,place,applySave};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},b2i,i2x,i2y,getSoil,recalc,collectAll,place,applySave,offlineGain};
 boot();
 })();
 </script>
