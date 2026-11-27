@@ -2255,7 +2255,7 @@ function drawBuilding(x,y,i){
   if(!building){
     ctx.fillStyle='rgba(255,255,255,.10)';rr(x+pad+2,y+pad+3,TILE-pad*2-4,10,6);ctx.fill();
     ctx.font='22px system-ui,"Segoe UI Emoji",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.globalAlpha=.95;ctx.fillText(d.ic,x+TILE/2,y+TILE/2-2);ctx.globalAlpha=1;
+    ctx.fillText(d.ic,x+TILE/2,y+TILE/2-2);
     const lv=t.lv||1;
     if(lv>1){
       ctx.fillStyle='#f2c14e';
@@ -2431,18 +2431,18 @@ function draw(){
   const y1=Math.min(offY+CH-1,Math.ceil((CAM.y+VH/2/CAM.z)/TILE)+1);
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)drawTerrain(x*TILE,y*TILE,b2i(x,y));
   if(S.overlay)drawOverlay(x0,x1,y0,y1);
+  if(S.fog){
+    ctx.fillStyle='rgba(5,10,7,.94)';
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+      if(!S.fog[b2i(x,y)])ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    }
+  }
   const drawnAnchors=new Set();
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
     const ci=b2i(x,y);if(!S.tiles[ci])continue;
     const a=tileAnchor(ci);if(a<0||drawnAnchors.has(a))continue;
     drawnAnchors.add(a);
     drawBuilding(i2x(a)*TILE,i2y(a)*TILE,a);
-  }
-  if(S.fog){
-    ctx.fillStyle='rgba(5,10,7,.94)';
-    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
-      if(!S.fog[b2i(x,y)])ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
-    }
   }
   drawLandmarks(x0,x1,y0,y1);
   if(S.sel>=0)drawRange(S.sel);
