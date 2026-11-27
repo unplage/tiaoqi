@@ -81,6 +81,10 @@ setImmediate(()=>{
   check(D.roadDist[far]===1,'同类连片建筑未共享临路距离');
   check(D.roadFactor[far]===1,'同类连片建筑未获得满效率');
   check(Math.abs(D.roadFactor[other]-.9)<1e-6,'不同类建筑不应共享临路距离');
+  S.sel=near;
+  const detail=xz.renderInfo();
+  check(detail.indexOf('施有机肥')>=0,'已建农田详情缺少施肥按钮');
+  check(detail.indexOf('种绿肥')>=0,'已建农田详情缺少种绿肥按钮');
   const canvas=sandbox.document.getElementById('game');
   const origRect=canvas.getBoundingClientRect;
   canvas.getBoundingClientRect=()=>({width:844,height:390,left:0,top:0});

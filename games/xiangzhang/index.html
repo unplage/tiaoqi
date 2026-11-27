@@ -84,7 +84,10 @@ background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--mut);m
 #sideBody .tag.ok{color:var(--green);border-color:rgba(120,214,138,.4);background:rgba(120,214,138,.1)}
 #sideBody .tag.bad{color:var(--red);border-color:rgba(232,121,91,.4);background:rgba(232,121,91,.1)}
 #sideBody .tag.gold{color:var(--gold);border-color:rgba(242,193,78,.4);background:rgba(242,193,78,.1)}
-#bottom{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+#bottom{flex:0 0 auto;display:flex;flex-wrap:nowrap;gap:5px;align-items:center;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+#bottom::-webkit-scrollbar{display:none}
+#bottom>*{flex:0 0 auto}
 .btn{font-family:inherit;cursor:pointer;font-size:11.5px;font-weight:800;padding:8px 12px;border-radius:99px;
 border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--txt);white-space:nowrap;
 box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .06s,background .15s,border-color .15s}
@@ -238,7 +241,7 @@ border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;
   <h4>存档与离线</h4>
   <p>游戏自动保存在本机 IndexedDB，离线期间会完整推进生产、建造、节气天气、税收、旅游、认证与土壤水系（最多 8 小时）。菜单里可以导出/导入存档。</p>
   <div class="hr"></div>
-  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可让地图铺满上下栏之间的区域（上下栏仍保留）；「挂机」页可查看每分钟产能并开启自动收成；「农事」页可开关昼夜色调。</p>
+  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；底栏按钮较多，可左右滑动查看；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可让地图铺满上下栏之间的区域（上下栏仍保留）；「挂机」页可查看每分钟产能并开启自动收成；「农事」页可开关昼夜色调；菜单里可分别开启/关闭音效与背景音乐，音乐由程序实时生成，无需联网。</p>
   <button class="btn pri" id="hClose">开始经营</button>
 </div></div>
 <div class="modal" id="modalMenu"><div class="mBox">
@@ -247,6 +250,7 @@ border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;
     <button class="btn" id="mSave">💾 立即保存</button>
     <button class="btn" id="mFull">⛶ 全屏横屏</button>
     <button class="btn" id="mMute">🔊 音效开</button>
+    <button class="btn" id="mMusic">🎵 音乐关</button>
     <button class="btn" id="mHelp">📖 玩法说明</button>
     <button class="btn" id="mExport">📤 导出存档</button>
     <button class="btn" id="mImport">📥 导入存档</button>
@@ -659,7 +663,7 @@ function exploreArea(){
   const cx=Math.floor(CAM.x/TILE),cy=Math.floor(CAM.y/TILE);
   reveal(cx,cy,12);
   S.fame+=1;
-  toast('🔭 已探索周边区域，声望 +1','ok');sfx('build');dbSave();renderSide();syncHUD();
+  toast('🔭 已探索周边区域，声望 +1','ok');sfx('explore');dbSave();renderSide();syncHUD();
 }
 
 /* ============================ 2. 资源与建筑 ============================ */
@@ -841,7 +845,7 @@ const LV=[0,120,320,700,1300,2200,3500,5200,7500];
 function levelOf(fame){let l=1;for(let i=1;i<LV.length;i++)if(fame>=LV[i])l=i+1;return l;}
 const HAPPY_TXT=v=>v>=80?'非常宜居':v>=60?'宜居':v>=40?'一般':v>=25?'有些不满':'人心浮动';
 const HAPPY_COL=v=>v>=60?'var(--green)':v>=40?'var(--gold)':v>=25?'var(--red)':'#ff6b6b';
-const TIPS=['先建一块稻田，再等它成熟后点「一键收成」。','顺应节气：谷雨播种、芒种收割、冬至积肥，冬季节气会明显减产。','土壤肥力会随耕作下降，选中空地施有机肥或种绿肥恢复地力。','连作会减产，轮作不同作物或改种绿肥可避免连作障碍。','修蓄水池/提水泵站调节水分，旱涝保收。','加工坊能把原料变成更值钱的加工品，别只卖原料。','建种质资源库和育种试验站，选育良种获得品牌溢价。','建精品民宿/采摘园发展乡村旅游，游客会带来额外收益。'];
+const TIPS=['先建一块稻田，再等它成熟后点「一键收成」。','顺应节气：谷雨播种、芒种收割、冬至积肥，冬季节气会明显减产。','土壤肥力会随耕作下降，选中空地或农田后施有机肥、种绿肥都能恢复地力。','连作会减产，轮作不同作物或改种绿肥可避免连作障碍。','修蓄水池/提水泵站调节水分，旱涝保收。','加工坊能把原料变成更值钱的加工品，别只卖原料。','建种质资源库和育种试验站，选育良种获得品牌溢价。','建精品民宿/采摘园发展乡村旅游，游客会带来额外收益。'];
 function festName(){const p=S.solarTermProgress;if(p>0.3&&p<0.4)return '丰收节';if(p>0.8&&p<0.9)return '庙会';return '';}
 function festKey(){return S.year+'-'+S.solarTermIdx+'-'+festName();}
 /* ============================ 3. 状态与存档 ============================ */
@@ -857,7 +861,7 @@ function fresh(scenario){
     tech:{seed:0,trade:0,craft:0},qi:0,ach:{},stats:{built:0,harvest:0,earned:0,orders:0,collected:0,tourists:0,festivals:0},
     mute:false,lastSave:Date.now(),totalTime:0,
     customRes:{},customBuilds:[],customNames:{},customSeeds:[],customResSeq:0,customBuildSeq:0,customSeedSeq:0,discoveredLandmarks:[],worldStyle:5,autoCollect:false,lastOffline:null,nightFx:true,
-    overlay:0,paint:false,
+    overlay:0,paint:false,music:false,
     camX:(START.x+START.w/2)*TILE,camY:(START.y+START.h/2)*TILE,zoom:1,
     soils:{},
     waterTable:80,surfaceWater:{},waterRights:20,
@@ -1332,7 +1336,7 @@ function applyCert(id){
   S.cert-=c.cert;
   S.certifications[id]=true;
   S.fame+=20;
-  toast('📜 获得'+c.n+' · '+c.bonus,'ok');sfx('level');
+  toast('📜 获得'+c.n+' · '+c.bonus,'ok');sfx('cert');
   dbSave();renderSide();syncHUD();checkAch();
 }
 function makeDailyTasks(){
@@ -1386,23 +1390,74 @@ function toast(t,kind){
   while(wrap.children.length>4)wrap.removeChild(wrap.firstChild);
   setTimeout(()=>{if(el.parentNode)el.remove();},2600);
 }
+const SFX={
+  coin:{type:'sine',gain:.045,notes:[[660,0,.09],[880,.09,.12]]},
+  build:{type:'triangle',gain:.05,notes:[[330,0,.1],[440,.1,.14]]},
+  order:{type:'sine',gain:.04,notes:[[520,0,.1],[760,.1,.14]]},
+  level:{type:'sine',gain:.05,notes:[[520,0,.09],[660,.09,.09],[880,.18,.16]]},
+  error:{type:'sawtooth',gain:.035,notes:[[180,0,.12,140]]},
+  harvest:{type:'sine',gain:.05,notes:[[660,0,.07],[880,.07,.07],[1100,.14,.12]]},
+  plant:{type:'triangle',gain:.035,notes:[[420,0,.1],[560,.08,.12]]},
+  water:{type:'sine',gain:.03,notes:[[800,0,.18,320],[600,.05,.18,260]]},
+  explore:{type:'triangle',gain:.035,notes:[[500,0,.1],[700,.1,.1],[900,.2,.14]]},
+  expand:{type:'sine',gain:.05,notes:[[180,0,.3,520]]},
+  demolish:{type:'sawtooth',gain:.035,notes:[[220,0,.16,90]]},
+  cert:{type:'sine',gain:.045,notes:[[740,0,.1],[988,.1,.12],[1318,.2,.18]]},
+  festival:{type:'triangle',gain:.045,notes:[[523,0,.12],[659,.11,.12],[784,.22,.12],[1046,.33,.2]]}
+};
+function ensureAudio(){
+  if(!window.AC){
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!C)return null;
+    try{window.AC=new C();}catch(e){return null;}
+  }
+  const ac=window.AC;
+  if(ac.state==='suspended'){try{ac.resume().catch(()=>{});}catch(e){}}
+  return ac;
+}
+function tone(ac,freq,dur,type,gain,delay,end){
+  const t=ac.currentTime+(delay||0);
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+  if(end)o.frequency.exponentialRampToValueAtTime(Math.max(20,end),t+dur);
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(Math.max(.0002,gain||.04),t+.012);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g);g.connect(ac.destination);
+  o.start(t);o.stop(t+dur+.02);
+}
 function sfx(kind){
   if(S.mute)return;
+  const ac=ensureAudio();if(!ac)return;
   try{
-    if(!window.AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;window.AC=new C();}
-    const ac=window.AC;if(ac.state==='suspended')ac.resume();
-    const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);
-    const now=ac.currentTime;
-    const map={coin:[660,880],build:[330,440],order:[520,760],level:[520,660,880],error:[180,140]};
-    const seq=map[kind]||[440];
-    o.type=kind==='error'?'sawtooth':'sine';
-    g.gain.setValueAtTime(.0001,now);
-    g.gain.exponentialRampToValueAtTime(.045,now+.012);
-    g.gain.exponentialRampToValueAtTime(.0001,now+.12*seq.length);
-    seq.forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.1));
-    o.start(now);o.stop(now+.13*seq.length);
+    const def=SFX[kind]||SFX.coin;
+    for(const n of def.notes)tone(ac,n[0],n[2],def.type,def.gain,n[1],n[3]);
   }catch(e){}
 }
+const MUSIC_SCALES=[
+  [261.63,293.66,329.63,392,440],
+  [293.66,329.63,392,440,523.25],
+  [220,293.66,329.63,392,440],
+  [246.94,293.66,369.99,392,493.88],
+  [261.63,311.13,349.23,392,466.16]
+];
+let musicTimer=null,musicStep=0;
+function musicTick(){
+  try{
+  const ac=ensureAudio();if(!ac||ac.state==='suspended')return;
+  const scale=MUSIC_SCALES[S.solarTermIdx%MUSIC_SCALES.length];
+  const idx=musicStep%8;
+  const note=scale[(idx*2+(musicStep>>3))%scale.length];
+  tone(ac,note/2,.9,'sine',.012,0);
+  if(idx%2===0)tone(ac,note,.7,'triangle',.009,.08);
+  if(idx===4)tone(ac,scale[(idx+2)%scale.length]*2,.6,'sine',.006,.16);
+  musicStep++;
+  }catch(e){}
+}
+function startMusic(){if(musicTimer)return;musicTick();musicTimer=setInterval(musicTick,650);}
+function stopMusic(){if(musicTimer){clearInterval(musicTimer);musicTimer=null;}}
+function syncMusic(){if(S.music&&!document.hidden)startMusic();else stopMusic();}
+function unlockAudio(){ensureAudio();if(S.music)syncMusic();}
 function spend(coin,mat,stone){
   stone=Math.max(0,Math.floor(stone||0));
   if(S.coin<coin){toast('金币不足，还差 '+(coin-S.coin)+'🪙','warn');sfx('error');return false;}
@@ -1457,7 +1512,7 @@ function demolish(i){
   const cells=rectCells(t.ax,t.ay,Math.max(1,Math.floor(t.w||1)),Math.max(1,Math.floor(t.ftH||1)))||[a];
   for(const c of cells)S.tiles[c]=null;
   S.sel=-1;
-  toast('已拆除 '+d.n+'，返还 '+back+'🪙 '+matBack+'🧱 '+stoneBack+'🪨','info');sfx('build');
+  toast('已拆除 '+d.n+'，返还 '+back+'🪙 '+matBack+'🧱 '+stoneBack+'🪨','info');sfx('demolish');
   recalc();dbSave();renderSide();syncHUD();
 }
 function cancelBuild(i){
@@ -1500,7 +1555,7 @@ function collectAll(){
   for(let i=0;i<N;i++)if(collectTile(i,true))n++;
   for(const k in before){const d=(S[k]||0)-before[k];if(d>0)txt.push(resIcon(k)+'+'+Math.floor(d));}
   if(!n){toast('暂时没有可收成的产物，等建筑成熟或补齐原料','warn');return;}
-  toast('🧺 收成 '+n+' 处 · '+txt.join(' '),'ok');sfx('coin');
+  toast('🧺 收成 '+n+' 处 · '+txt.join(' '),'ok');sfx('harvest');
   dbSave();renderSide();syncHUD();checkQuests();checkAch();
 }
 function expandCost(k){
@@ -1555,7 +1610,7 @@ function expand(dir){
   S.cw=CW;S.ch=CH;S.offX=offX;S.offY=offY;S.land++;
   markMiniDirty();
   clampCam();recalc();dbSave();renderSide();syncHUD();checkAch();checkQuests();
-  toast('🌍 已向'+['北','南','西','东'][dir]+'拓荒 '+EXPAND+' 格（'+t.n+'）· 地图 '+CW+'×'+CH,'ok');sfx('level');
+  toast('🌍 已向'+['北','南','西','东'][dir]+'拓荒 '+EXPAND+' 格（'+t.n+'）· 地图 '+CW+'×'+CH,'ok');sfx('expand');
 }
 function convertTerrain(ter){
   const c=CONVERT_TYPES.find(o=>o.ter===ter);
@@ -1757,7 +1812,7 @@ function holdFestival(){
   S.tourism.visitors=(S.tourism.visitors||0)+30;
   S.oralHistory.push('举办'+f+'，四方宾客齐聚'+S.villageName);
   if(S.oralHistory.length>30)S.oralHistory.shift();
-  toast('🎊 '+f+'举办成功！声望与口碑提升','ok');sfx('level');
+  toast('🎊 '+f+'举办成功！声望与口碑提升','ok');sfx('festival');
   dbSave();renderSide();syncHUD();checkAch();
 }
 function tourismTick(silent){
@@ -2637,6 +2692,7 @@ function renderInfo(){
         else if(info.dist>5)h+='<div class="tag">距路网较远，效率有所降低</div>';
         else if(info.dist>1)h+='<div class="tag ok">靠近路网，效率轻微降低</div>';
         if(info.soil<0.6)h+='<div class="tag bad">土壤贫瘠，改良可增产</div>';
+        if(d.cat==='farm'||d.cat==='orchard')h+='<div class="btnRow">'+btn('🧪 施有机肥('+Math.floor(S.soil||0)+'份)','fertilize',null,'small')+btn('🌿 种绿肥(15🪙)','greenManure',null,'small')+'</div>';
         if(info.water<0.8)h+='<div class="tag bad">缺水，修水利可增产</div>';
         if(d.in&&!canAfford(d.in))h+='<div class="tag bad">原料不足</div>';
         if(D.boost[S.sel]>0)h+='<div class="tag ok">增产 +'+Math.round(Math.min(.6,D.boost[S.sel])*100)+'%</div>';
@@ -2830,7 +2886,7 @@ function renderFarm(){
   h+='<div class="hr"></div><h4>🌱 土壤与水系</h4>';
   h+='<div class="row"><span>地下水位</span><b>'+Math.round(S.waterTable)+'</b></div>';
   h+='<div class="row"><span>水权储备</span><b>'+Math.round(S.waterRights)+'</b></div>';
-  h+='<p class="mut">建蓄水池/提水泵站调节水分，土壤贫瘠时选中空地施有机肥或种绿肥。轮作可避免连作障碍。</p>';
+  h+='<p class="mut">建蓄水池/提水泵站调节水分，土壤贫瘠时选中空地或农田，在「详情」里施有机肥或种绿肥。轮作可避免连作障碍。</p>';
   h+='<div class="btnRow">'+btn('💧 购买水权(50🪙)','buyWater',null,'half')+btn('🧪 购买土壤改良剂(30🪙)','buySoil',null,'half')+'</div>';
   h+='<div class="btnRow">'+btn('💧 灌溉选中地块(5💧水权)','irrigate',null,'pri')+'</div>';
   h+='<div class="hr"></div><h4>🌤️ 天气与昼夜</h4>';
@@ -3119,6 +3175,8 @@ canvas.addEventListener('pointercancel',pointerEnd,{passive:false});
 canvas.addEventListener('pointerleave',()=>{hover=-1;});
 canvas.addEventListener('wheel',e=>{e.preventDefault();const p=local(e);zoomAt(p.x,p.y,CAM.tz*(e.deltaY>0?.9:1.1));},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('pointerdown',unlockAudio,{passive:true});
+window.addEventListener('keydown',unlockAudio);
 window.addEventListener('keydown',e=>{
   if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
   if(e.key==='+'||e.key==='=')zoomAt(VW/2,VH/2,CAM.tz*1.15);
@@ -3170,7 +3228,7 @@ function fertilize(){
   const s=getSoilEdit(i);
   s.fertility=clamp(s.fertility+25,0,100);s.organic=clamp(s.organic+1.2,0,5);
   s.NPK.N=clamp(s.NPK.N+30,0,200);s.NPK.P=clamp(s.NPK.P+20,0,150);s.NPK.K=clamp(s.NPK.K+20,0,150);
-  toast('🧪 已施有机肥，土壤肥力提升','ok');sfx('build');dbSave();renderSide();syncHUD();
+  toast('🧪 已施有机肥，土壤肥力提升','ok');sfx('plant');dbSave();renderSide();syncHUD();
 }
 function greenManure(){
   const i=S.sel;if(i<0||i>=N){toast('请先选中一块空地','warn');return;}
@@ -3178,7 +3236,7 @@ function greenManure(){
   const s=getSoilEdit(i);
   s.fertility=clamp(s.fertility+15,0,100);s.organic=clamp(s.organic+1.5,0,5);s.compaction=clamp(s.compaction-15,0,100);
   s.cropHistory.push('绿肥');if(s.cropHistory.length>5)s.cropHistory.shift();
-  toast('🌿 已种植绿肥，土壤逐步恢复','ok');sfx('build');dbSave();renderSide();syncHUD();
+  toast('🌿 已种植绿肥，土壤逐步恢复','ok');sfx('plant');dbSave();renderSide();syncHUD();
 }
 function irrigate(i){
   const idx=i==null?S.sel:+i;
@@ -3187,7 +3245,7 @@ function irrigate(i){
   if((S.waterRights||0)<5){toast('水权不足，先在「农事」购买水权','warn');sfx('error');return;}
   S.waterRights-=5;
   S.surfaceWater[idx]=clamp((S.surfaceWater[idx]||0)+60,0,200);
-  toast('💧 已灌溉，地表水 +60','ok');sfx('build');
+  toast('💧 已灌溉，地表水 +60','ok');sfx('water');
   dbSave();renderSide();syncHUD();
 }
 function rushHarvest(i){
@@ -3205,7 +3263,7 @@ function rushHarvest(i){
   for(const k in d.out)t.h[k]=(t.h[k]||0)+d.out[k];
   t.prog=Math.max(0,(t.prog||0)-d.time);
   S.stats.harvest++;recordCrop(idx,t.b);
-  toast('🧺 抢收完成 · '+outText(d.out)+'（花费 '+cost+'🪙）','ok');sfx('coin');
+  toast('🧺 抢收完成 · '+outText(d.out)+'（花费 '+cost+'🪙）','ok');sfx('harvest');
   dbSave();renderSide();syncHUD();
 }
 function togglePause(i){
@@ -3237,11 +3295,11 @@ function autoCollectTick(){
 }
 function buyWater(){
   if(!spend(50,0))return;
-  S.waterRights+=50;toast('💧 已购买 50 单位水权','ok');sfx('coin');dbSave();renderSide();syncHUD();
+  S.waterRights+=50;toast('💧 已购买 50 单位水权','ok');sfx('water');dbSave();renderSide();syncHUD();
 }
 function buySoil(){
   if(!spend(30,0))return;
-  S.soil=(S.soil||0)+3;toast('🧪 已购买 3 份土壤改良剂','ok');sfx('coin');dbSave();renderSide();syncHUD();
+  S.soil=(S.soil||0)+3;toast('🧪 已购买 3 份土壤改良剂','ok');sfx('plant');dbSave();renderSide();syncHUD();
 }
 function breed(id){
   const defs={highYield:{name:'高产稻',trait:'产量+20%',cost:300,seed:10},
@@ -3412,6 +3470,7 @@ $('mClose').onclick=()=>closeModals();
 $('mHelp').onclick=()=>openModal('modalHelp');
 $('mSave').onclick=()=>{dbSave();toast('💾 已保存到本机','ok');};
 $('mMute').onclick=()=>{S.mute=!S.mute;$('mMute').textContent=S.mute?'🔇 音效关':'🔊 音效开';toast(S.mute?'已关闭音效':'已开启音效','info');dbSave();};
+$('mMusic').onclick=()=>{S.music=!S.music;$('mMusic').textContent=S.music?'🎵 音乐开':'🎵 音乐关';toast(S.music?'已开启背景音乐':'已关闭背景音乐','info');syncMusic();dbSave();};
 $('mFull').onclick=()=>{toggleFull();closeModals();};
 $('mHome').onclick=()=>{dbSave();location.href='../../';};
 $('mExport').onclick=()=>{
@@ -3641,6 +3700,7 @@ function applySave(d){
   S.discoveredLandmarks=Array.isArray(src.discoveredLandmarks)?src.discoveredLandmarks.slice():[];
   S.autoCollect=!!src.autoCollect;
   S.paint=!!src.paint;
+  S.music=!!src.music;
   S.overlay=clamp(Math.floor(num(src.overlay,0)),0,OVERLAYS.length-1);
   S.nightFx=src.nightFx!==false;
   S.lastOffline=src.lastOffline||null;
@@ -3731,6 +3791,7 @@ function boot(){
       CAM.x=CAM.tx;CAM.y=CAM.ty;CAM.z=CAM.tz;
       syncHUD();renderTabs();renderSide();updateToolChip();
       $('mMute').textContent=S.mute?'🔇 音效关':'🔊 音效开';
+      $('mMusic').textContent=S.music?'🎵 音乐开':'🎵 音乐关';
       if(had)dbSave();
       else openModal('modalHelp');
     });
@@ -3745,10 +3806,11 @@ document.addEventListener('visibilitychange',()=>{
     const away=(Date.now()-hiddenAt)/1000;hiddenAt=0;
     if(away>=3){offlineGain(3);renderSide();syncHUD();}
   }
+  syncMusic();
 });
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize,renderInfo};
 boot();
 })();
 </script>
