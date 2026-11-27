@@ -81,6 +81,15 @@ setImmediate(()=>{
   check(D.roadDist[far]===1,'同类连片建筑未共享临路距离');
   check(D.roadFactor[far]===1,'同类连片建筑未获得满效率');
   check(Math.abs(D.roadFactor[other]-.9)<1e-6,'不同类建筑不应共享临路距离');
+  const canvas=sandbox.document.getElementById('game');
+  const origRect=canvas.getBoundingClientRect;
+  canvas.getBoundingClientRect=()=>({width:844,height:390,left:0,top:0});
+  xz.resize();
+  check(xz.view.VW===960,'画布虚拟宽度未保持 960');
+  check(Math.abs(xz.view.VH-444)<2,'画布虚拟高度未按宽高比自适应');
+  check(xz.view.ox===0&&xz.view.oy===0,'画布仍有居中黑边偏移');
+  canvas.getBoundingClientRect=origRect;
+  xz.resize();
   S.tech.automotive=1;
   check(Math.abs(xz.techMul('ind','autoPlant')-1.15)<.001,'汽车科技加成未生效');
   const day=S.day;

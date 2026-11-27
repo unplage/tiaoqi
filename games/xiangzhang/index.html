@@ -238,7 +238,7 @@ border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;
   <h4>存档与离线</h4>
   <p>游戏自动保存在本机 IndexedDB，离线期间会完整推进生产、建造、节气天气、税收、旅游、认证与土壤水系（最多 8 小时）。菜单里可以导出/导入存档。</p>
   <div class="hr"></div>
-  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可获得更大地图视野；「挂机」页可查看每分钟产能并开启自动收成；「农事」页可开关昼夜色调。</p>
+  <p class="mut">操作：单指拖动地图，双指缩放，滚轮也可缩放；「村中心」一键回中；点「⛶ 横屏」进入全屏横屏；点顶部「收起侧栏」可让地图铺满上下栏之间的区域（上下栏仍保留）；「挂机」页可查看每分钟产能并开启自动收成；「农事」页可开关昼夜色调。</p>
   <button class="btn pri" id="hClose">开始经营</button>
 </div></div>
 <div class="modal" id="modalMenu"><div class="mBox">
@@ -277,7 +277,7 @@ border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;
 (function(){
 'use strict';
 /* ============================ 0. 基础 ============================ */
-const VW=960,VH=600,TILE=48,EXPAND=4,MAX_FLOORS=17;
+let VW=960,VH=600;const TILE=48,EXPAND=4,MAX_FLOORS=17;
 let CW=320,CH=256,N=CW*CH,offX=-135,offY=-120;
 const DAY_LEN=24,HOLD_MAX=3,GROW_EVERY=16,TERM_LEN=DAY_LEN*15;
 const CUSTOM_LIMITS={res:12,build:12,seed:12,amount:120,name:12};
@@ -2019,8 +2019,9 @@ function resize(){
   const dpr=Math.min(window.devicePixelRatio||1,2);
   canvas.width=Math.max(2,Math.round(r.width*dpr));
   canvas.height=Math.max(2,Math.round(r.height*dpr));
-  const s=Math.min(canvas.width/VW,canvas.height/VH);
-  VIEW.scale=s;VIEW.ox=(canvas.width-VW*s)/2;VIEW.oy=(canvas.height-VH*s)/2;
+  VW=960;VH=Math.max(1,VW*canvas.height/canvas.width);
+  VIEW.scale=canvas.width/VW;VIEW.ox=0;VIEW.oy=0;
+  clampCam();
 }
 function local(e){
   const r=canvas.getBoundingClientRect();
@@ -3132,7 +3133,7 @@ window.addEventListener('keydown',e=>{
 $('sideToggle').onclick=()=>{
   const hidden=document.body.classList.toggle('side-hidden');
   $('sideToggle').textContent=hidden?'▶ 展开侧栏':'◀ 收起侧栏';
-  setTimeout(resize,30);
+  syncMapLayout();
 };
 $('bBuild').onclick=()=>{const d=$('drawer');if(d.classList.contains('open'))closeDrawer();else openDrawer();};
 $('drawerClose').onclick=closeDrawer;
@@ -3481,7 +3482,12 @@ document.addEventListener('fullscreenchange',syncFull);
 document.addEventListener('webkitfullscreenchange',syncFull);
 if(('ontouchstart' in window)||navigator.maxTouchPoints>0)document.body.classList.add('is-touch');
 const mq=window.matchMedia('(orientation:portrait)');
-function syncOrient(){document.body.classList.toggle('portrait',mq.matches);if(!mq.matches)document.body.classList.remove('skipRotate');}
+function syncMapLayout(){setTimeout(resize,30);}
+function syncOrient(){
+  document.body.classList.toggle('portrait',mq.matches);
+  if(!mq.matches)document.body.classList.remove('skipRotate');
+  syncMapLayout();
+}
 if(mq.addEventListener)mq.addEventListener('change',syncOrient);
 syncOrient();
 
@@ -3731,7 +3737,7 @@ function boot(){
   });
   requestAnimationFrame(frame);
 }
-window.addEventListener('resize',resize);
+window.addEventListener('resize',()=>{syncMapLayout();resize();});
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){hiddenAt=Date.now();dbSave();}
@@ -3742,7 +3748,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize};
 boot();
 })();
 </script>
