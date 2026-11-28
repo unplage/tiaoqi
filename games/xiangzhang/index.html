@@ -164,6 +164,10 @@ body.skipRotate #rotate{display:none!important}
 border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;color:var(--mut)}
 #speedRange{width:96px;accent-color:var(--gold)}
 #speedVal{color:var(--gold2);font-weight:800;min-width:30px;text-align:right}
+#skinBadge{position:absolute;left:8px;top:8px;z-index:5;font-size:10px;padding:3px 9px;border-radius:99px;
+background:rgba(10,18,12,.72);border:1px solid var(--gold);color:var(--gold2);pointer-events:none;display:none}
+#skinBadge.on{display:block}
+#skinBadge.expired{border-color:var(--red);color:var(--red)}
 @media(max-height:430px){#stats .stat{padding:3px 7px}.brand small{display:none}}
 </style>
 </head>
@@ -177,6 +181,7 @@ border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:10.5px;
   <div id="main">
     <div id="boardWrap">
       <canvas id="game" aria-label="乡村经营地图"></canvas>
+      <div id="skinBadge"></div>
       <div id="goal">🎯 正在准备村庄…</div>
       <div id="hint"></div>
       <div id="toolChip"><span id="toolTxt"></span><button id="toolPaint" title="连续放置（拖动铺路/铺田）">✎</button><button id="toolCancel" title="取消">✕</button></div>
@@ -516,7 +521,7 @@ function forEachCell(t,cb){
 }
 function canPlaceRect(id,x0,y0,w,h){
   const d=B[id];if(!d)return {ok:false,reason:'未知建筑'};
-  const lv=levelOf(S.fame);
+  const lv=fameLevel();
   if(lv<(d.need||1))return {ok:false,reason:'需要声望等级 '+d.need};
   if(d.tech&&!S.tech[d.tech])return {ok:false,reason:'需要先研究科技：'+(TECH[d.tech]?TECH[d.tech].n:d.tech)};
   if(d.needCert&&(S.cert||0)<d.needCert)return {ok:false,reason:'需要认证材料 '+d.needCert};
@@ -866,11 +871,165 @@ function cropTypeOf(id,cat){
 }
 const LV=[0,120,320,700,1300,2200,3500,5200,7500];
 function levelOf(fame){let l=1;for(let i=1;i<LV.length;i++)if(fame>=LV[i])l=i+1;return l;}
+function fameDonation(lv){return lv<=1?0:Math.round(200*Math.pow(2.2,lv-2));}
+function fameLevel(){return Math.min(levelOf(S.fame),clamp(Math.floor(S.famePaid||1),1,LV.length));}
+function promoteInfo(){
+  const raw=levelOf(S.fame),paid=fameLevel();
+  if(raw<=paid)return null;
+  return {lv:paid+1,cost:fameDonation(paid+1)};
+}
+function payPromotion(){
+  const info=promoteInfo();
+  if(!info){toast('当前无需缴纳晋升捐纳','info');return;}
+  if(S.coin<info.cost){toast('晋升捐纳不足，还差 '+(info.cost-S.coin)+'🪙','warn');return;}
+  S.coin-=info.cost;S.famePaid=info.lv;
+  toast('🎖️ 晋升 Lv.'+info.lv+' · 缴纳乡贤捐纳 '+info.cost+'🪙','ok');sfx('level');
+  recalc();dbSave();renderSide();syncHUD();checkAch();
+}
 const HAPPY_TXT=v=>v>=80?'非常宜居':v>=60?'宜居':v>=40?'一般':v>=25?'有些不满':'人心浮动';
 const HAPPY_COL=v=>v>=60?'var(--green)':v>=40?'var(--gold)':v>=25?'var(--red)':'#ff6b6b';
 const TIPS=['先建一块稻田，再等它成熟后点「一键收成」。','顺应节气：谷雨播种、芒种收割、冬至积肥，冬季节气会明显减产。','土壤肥力会随耕作下降，选中空地或农田后施有机肥、种绿肥都能恢复地力。','连作会减产，轮作不同作物或改种绿肥可避免连作障碍。','修蓄水池/提水泵站调节水分，旱涝保收。','加工坊能把原料变成更值钱的加工品，别只卖原料。','建种质资源库和育种试验站，选育良种获得品牌溢价。','建精品民宿/采摘园发展乡村旅游，游客会带来额外收益。'];
 function festName(){const p=S.solarTermProgress;if(p>0.3&&p<0.4)return '丰收节';if(p>0.8&&p<0.9)return '庙会';return '';}
 function festKey(){return S.year+'-'+S.solarTermIdx+'-'+festName();}
+function festivalCost(){return Math.round(200+50*countBuildings()+2*Math.max(0,S.pop));}
+function inputPriceMul(){return 1+.12*(fameLevel()-1)+.004*Math.max(0,countBuildings());}
+function dividendCost(){return Math.round((80+12*Math.max(1,S.pop))*(1+.1*(fameLevel()-1)));}
+function payDividend(){
+  const cost=dividendCost();
+  if(!spend(cost,0))return;
+  S.dividendBonus=clamp((S.dividendBonus||0)+4,0,30);
+  let added=0;
+  if(S.pop<D.popCap){S.pop++;added=1;}
+  toast('🎁 村民分红 -'+cost+'🪙 · 幸福度 +4'+(added?' · 新村民 +1':''),'ok');sfx('level');
+  recalc();dbSave();renderSide();syncHUD();checkAch();
+}
+const MARKET_DEFS=[
+  {id:'rice',n:'稻香农业',ic:'🌾',base:120,vol:.06,yield:.025,d:'受节气与年景影响，波动温和。'},
+  {id:'water',n:'山河水务',ic:'💧',base:180,vol:.08,yield:.03,d:'水利与供水，旱年更受追捧。'},
+  {id:'logi',n:'云岭物流',ic:'🚚',base:240,vol:.11,yield:.02,d:'受益于高铁与订单，波动较大。'},
+  {id:'tech',n:'星辰智造',ic:'🛰️',base:360,vol:.16,yield:.01,d:'高波动成长股，需航天科技解锁。'}
+];
+function marketDef(id){for(const c of MARKET_DEFS)if(c.id===id)return c;return null;}
+function ensureMarket(){
+  if(!S.market||typeof S.market!=='object')S.market={shares:{},prices:{},day:0};
+  S.market.shares=S.market.shares&&typeof S.market.shares==='object'?S.market.shares:{};
+  S.market.prices=S.market.prices&&typeof S.market.prices==='object'?S.market.prices:{};
+  for(const c of MARKET_DEFS){
+    if(!isFinite(+S.market.prices[c.id])||(+S.market.prices[c.id])<=0)S.market.prices[c.id]=c.base;
+    if(!isFinite(+S.market.shares[c.id])||(+S.market.shares[c.id])<0)S.market.shares[c.id]=0;
+  }
+}
+function marketTick(){
+  ensureMarket();
+  for(const c of MARKET_DEFS){
+    const p=+S.market.prices[c.id]||c.base;
+    S.market.prices[c.id]=clamp(Math.round(p*(1+(Math.random()-.5)*2*c.vol)),Math.round(c.base*.5),Math.round(c.base*2));
+  }
+  S.market.day=(S.market.day||0)+1;
+}
+function marketDividend(){
+  ensureMarket();let total=0;
+  for(const c of MARKET_DEFS){
+    const q=Math.floor(+S.market.shares[c.id]||0);
+    if(q>0)total+=Math.round(q*(+S.market.prices[c.id]||c.base)*c.yield);
+  }
+  if(total>0){S.coin+=total;toast('📈 证券年度分红 +'+total+'🪙','ok');}
+}
+function marketValue(){
+  ensureMarket();let total=0;
+  for(const c of MARKET_DEFS)total+=Math.floor(+S.market.shares[c.id]||0)*(+S.market.prices[c.id]||c.base);
+  return total;
+}
+function buyShares(id,qty){
+  const def=marketDef(id);if(!def)return;
+  if(def.id==='tech'&&!S.tech.aerospace){toast('星辰智造需要航天科技解锁','warn');return;}
+  qty=clamp(Math.floor(qty||1),1,9999);
+  const price=+S.market.prices[id]||def.base,cost=Math.round(price*qty*1.02);
+  if(!spend(cost,0))return;
+  S.market.shares[id]=Math.floor(+S.market.shares[id]||0)+qty;
+  toast('📈 买入 '+def.n+' ×'+qty+' · -'+cost+'🪙（含 2% 手续费）','ok');sfx('level');dbSave();renderSide();syncHUD();
+}
+function sellShares(id,qty){
+  const def=marketDef(id);if(!def)return;
+  ensureMarket();
+  const have=Math.floor(+S.market.shares[id]||0);
+  if(have<=0){toast('没有持有 '+def.n,'warn');return;}
+  qty=clamp(Math.floor(qty||1),1,have);
+  const price=+S.market.prices[id]||def.base,gain=Math.round(price*qty*.98);
+  S.market.shares[id]=have-qty;S.coin+=gain;
+  toast('📉 卖出 '+def.n+' ×'+qty+' · +'+gain+'🪙（含 2% 手续费）','ok');sfx('level');dbSave();renderSide();syncHUD();
+}
+const SKINS=[
+  {id:'bamboo',n:'青竹庭院',ic:'🎋',rarity:'common',price:1500,renew:800,days:30,tint:'#6fbf73',mix:.20,filter:'saturate(1.08) hue-rotate(6deg)',d:'清雅竹色，建筑与田野泛起新绿。'},
+  {id:'autumn',n:'沃野金秋',ic:'🍂',rarity:'common',price:2000,renew:1000,days:30,tint:'#e0a83c',mix:.22,filter:'sepia(.18) saturate(1.15)',d:'稻浪金黄，一派丰收景象。'},
+  {id:'ink',n:'水墨江南',ic:'🖌️',rarity:'rare',price:12000,renew:6000,days:20,tint:'#8fa9c4',mix:.30,filter:'saturate(.65) hue-rotate(185deg)',d:'淡墨青灰，烟雨江南的写意画卷。'},
+  {id:'snow',n:'瑞雪丰年',ic:'❄️',rarity:'rare',price:15000,renew:7500,days:20,tint:'#d8ecff',mix:.34,filter:'brightness(1.12) saturate(.8) hue-rotate(195deg)',d:'白雪覆野，宁静而祥瑞。'},
+  {id:'maple',n:'赤霞丹枫',ic:'🍁',rarity:'rare',price:18000,renew:9000,days:20,tint:'#d95c3c',mix:.30,filter:'saturate(1.25) hue-rotate(-12deg)',d:'枫红似火，山村被晚霞染透。'},
+  {id:'bronze',n:'青铜古韵',ic:'🏺',rarity:'epic',price:60000,renew:30000,days:14,tint:'#b08d57',mix:.38,filter:'sepia(.42) contrast(1.08)',d:'青铜与古陶的厚重质感。'},
+  {id:'nebula',n:'星海航天',ic:'🌌',rarity:'epic',price:80000,renew:40000,days:14,tint:'#6a5acd',mix:.40,filter:'hue-rotate(245deg) saturate(1.3)',d:'星云紫辉，呼应航天发射场。'},
+  {id:'cyber',n:'赛博乡野',ic:'🤖',rarity:'legendary',price:200000,renew:120000,days:7,tint:'#ff4fd8',mix:.48,filter:'hue-rotate(300deg) saturate(1.6) contrast(1.1)',d:'霓虹粉紫，传统村落的未来幻想。'},
+  {id:'dragon',n:'龙鳞金辉',ic:'🐉',rarity:'legendary',price:300000,renew:180000,days:7,tint:'#ffd34e',mix:.55,filter:'sepia(.3) saturate(1.5) brightness(1.08)',d:'金鳞璀璨，至尊限定外观。'}
+];
+const RARITY_NAME={common:'普通',rare:'稀有',epic:'史诗',legendary:'传说'};
+function skinDef(id){for(const s of SKINS)if(s.id===id)return s;return null;}
+function featuredSkin(){
+  const pool=SKINS.filter(s=>s.rarity==='rare'||s.rarity==='epic');
+  return pool.length?pool[Math.max(0,S.year)%pool.length]:null;
+}
+function skinReqOk(def){
+  if(def.rarity==='common')return true;
+  if(def.rarity==='rare')return fameLevel()>=4;
+  if(def.rarity==='epic')return fameLevel()>=6;
+  return fameLevel()>=8;
+}
+function activeSkin(){
+  if(!S.skin||!S.skin.id)return null;
+  const def=skinDef(S.skin.id);if(!def)return null;
+  if((S.skin.expires||0)<=S.day)return null;
+  return Object.assign({},def,{expires:S.skin.expires});
+}
+function skinCost(def,owned,periods){
+  const f=featuredSkin(),disc=f&&f.id===def.id?.8:1;
+  return Math.round((owned?def.renew:def.price)*clamp(periods||1,1,12)*disc);
+}
+function activateSkin(id,periods){
+  const def=skinDef(id);if(!def)return;
+  if(!skinReqOk(def)){toast(RARITY_NAME[def.rarity]+'外观需要更高声望等级','warn');return;}
+  const owned=!!(S.skinOwned&&S.skinOwned[id]);
+  periods=clamp(Math.floor(periods||1),1,12);
+  const cost=skinCost(def,owned,periods);
+  if(!spend(cost,0))return;
+  S.skinOwned=S.skinOwned||{};S.skinOwned[id]=true;
+  const cur=S.skin&&S.skin.id===id?Math.max(0,S.skin.expires-S.day):0;
+  S.skin={id:id,expires:S.day+cur+def.days*periods};
+  toast('✨ 已启用 '+def.n+' · '+def.days*periods+' 天（'+cost+'🪙）','ok');sfx('level');
+  applySkinFx();dbSave();renderSide();syncHUD();
+}
+function removeSkin(){S.skin=null;applySkinFx();dbSave();renderSide();syncHUD();toast('已卸下外观，恢复村庄原貌','info');}
+function hex2rgb(h){h=String(h||'#000').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16)||0;return [(n>>16)&255,(n>>8)&255,n&255];}
+function rgb2hex(r,g,b){return '#'+[r,g,b].map(v=>('0'+clamp(Math.round(v),0,255).toString(16)).slice(-2)).join('');}
+function mixHex(a,b,m){const x=hex2rgb(a),y=hex2rgb(b);return rgb2hex(x[0]+(y[0]-x[0])*m,x[1]+(y[1]-x[1])*m,x[2]+(y[2]-x[2])*m);}
+function skinCat(cat){
+  const base=CATCOL[cat]||['#4a7a52','#2f4f33'];
+  const s=activeSkin();if(!s||!s.tint)return base;
+  return [mixHex(base[0],s.tint,s.mix),mixHex(base[1],s.tint,s.mix*.85)];
+}
+function applySkinFx(){
+  const s=activeSkin();
+  const cv=$('game');
+  if(cv){
+    cv.style.filter=s&&s.filter?s.filter:'';
+    cv.style.outline=s?'2px solid '+s.tint:'';
+    cv.style.outlineOffset='-2px';
+  }
+  const badge=$('skinBadge');
+  if(badge){
+    if(s){badge.className='on';badge.textContent=s.ic+' '+s.n+' · 剩 '+Math.max(0,s.expires-S.day)+' 天';}
+    else if(S.skin&&S.skin.id){badge.className='on expired';badge.textContent='外观已到期 · 续费后继续展示';}
+    else badge.className='';
+  }
+  if(document.body&&document.body.dataset)document.body.dataset.skin=s?S.skin.id:'';
+}
 /* ============================ 2.5 传承（跨存档元进度） ============================ */
 const META_KEY='tiaoqi-xiangzhang-meta';
 const BOARD_KEY='tiaoqi-xiangzhang-board';
@@ -903,10 +1062,12 @@ function buyMetaUpgrade(id){
 }
 function prestigeInfo(){
   const rs=villageScores();
-  return {eligible:rs.stars>=4||S.qi>=QUESTS.length,gain:Math.max(1,Math.floor(rs.total/10)+levelOf(S.fame)),rs:rs};
+  return {eligible:rs.stars>=4||S.qi>=QUESTS.length,gain:Math.max(1,Math.floor(rs.total/10)+fameLevel()),rs:rs};
 }
 function performPrestige(gain){
   gain=Math.max(1,Math.floor(gain||1));
+  const coinBonus=Math.min(20,Math.floor((S.coin||0)/10000));
+  gain+=coinBonus;
   META.points=(META.points||0)+gain;
   META.villages=(META.villages||0)+1;
   META.best=Math.max(META.best||0,villageScores().total);
@@ -919,13 +1080,13 @@ function performPrestige(gain){
   CAM.tx=CAM.x=(START.x+START.w/2)*TILE;CAM.ty=CAM.y=(START.y+START.h/2)*TILE;CAM.tz=CAM.z=1;
   reveal(14,11,12);markMiniDirty();clampCam();
   S.paused=false;recalc();
-  renderTabs();renderSide();syncHUD();updateToolChip();dbSave();
+  renderTabs();renderSide();syncHUD();applySkinFx();updateToolChip();dbSave();
   return gain;
 }
 function doPrestige(){
   const info=prestigeInfo();
   if(!info.eligible){toast('尚未达到迁村条件（需四星村庄或完成全部主线）','warn');return;}
-  askConfirm('迁村传承','将清空当前村庄与进度，换取永久政绩点 '+info.gain+'。传承升级会保留，确定迁村吗？',()=>{
+  askConfirm('迁村传承','将清空当前村庄与进度，换取永久政绩点 '+info.gain+'（金币折算最多额外 +20）。传承升级会保留，确定迁村吗？',()=>{
     const g=performPrestige(info.gain);
     toast('🏮 已迁入新村落，获得政绩点 '+g,'ok');sfx('level');
   });
@@ -935,7 +1096,7 @@ function loadBoard(){try{const v=JSON.parse(localStorage.getItem(BOARD_KEY)||'[]
 function saveBoard(){try{localStorage.setItem(BOARD_KEY,JSON.stringify(BOARD.slice(0,10)));}catch(e){}}
 function villageCard(){
   const rs=villageScores();
-  return {name:S.villageName||'青禾村',score:rs.total,stars:rs.stars,level:levelOf(S.fame),year:S.year,buildings:countBuildings(),landmarks:(S.discoveredLandmarks||[]).length,theme:S.yearTheme,time:Date.now()};
+  return {name:S.villageName||'青禾村',score:rs.total,stars:rs.stars,level:fameLevel(),year:S.year,buildings:countBuildings(),landmarks:(S.discoveredLandmarks||[]).length,theme:S.yearTheme,time:Date.now()};
 }
 function shareVillage(){
   const c=villageCard();
@@ -970,7 +1131,7 @@ function fresh(scenario){
     festivals:{},villageRules:{style:'balanced'},oralHistory:[],
     prices:{},forecast:[],lastForecastTerm:-1,foodVariety:0,foodStyle:'balanced',hunger:0,
     projects:{},landmarkProjects:{},dailyTasks:[],dailyTaskDay:0,pendingEvent:null,eventDay:0,
-    yearTheme:'normal',villagers:[],lastShareCode:'',
+    yearTheme:'normal',villagers:[],lastShareCode:'',famePaid:1,arrears:0,dividendBonus:0,festBuff:0,market:{shares:{},prices:{},day:0},skin:{id:null,expires:0},skinOwned:{},
     scenario:scenario||'standard',villageName:'青禾村'
   };
 }
@@ -1134,7 +1295,8 @@ function recalc(){
     if(d.floorPop)D.popBase+=Math.round(d.floorPop*fl*(1+.2*(lv-1)));
     if(d.floorTax)D.floorTax+=d.floorTax*fl*(1+.2*(lv-1));
     if(d.time>0&&!t.paused)D.workers+=d.pop||0;
-    D.upkeep+=Math.round((d.upkeep||0)*(1+.25*(lv-1))*(d.cat==='city'?fl:1));
+    const uf=1+.45*(lv-1)+.12*(lv-1)*(lv-1);
+    D.upkeep+=Math.round((d.upkeep||0)*uf*(d.cat==='city'?fl:1)*((d.cat==='proc'||d.cat==='ind')?1.25:1));
     if(d.cap)D.extraCap+=Math.round(d.cap*(1+.2*(lv-1)));
     if(d.floorCap)D.extraCap+=Math.round(d.floorCap*fl*(1+.2*(lv-1)));
     if(d.fameTick)D.fameRate+=d.fameTick*(1+.2*(lv-1));
@@ -1187,6 +1349,9 @@ function recalc(){
       }
     }
   }
+  if(hasVillageProject('highspeed'))D.upkeep+=60;
+  if(hasVillageProject('metropolis'))D.upkeep+=90;
+  if(hasVillageProject('spaceport'))D.upkeep+=150;
   for(let i=0;i<N;i++){
     const t=S.tiles[i],d=t&&B[t.b]?B[t.b]:null;
     if(!isAnchor(t))continue;
@@ -1209,7 +1374,7 @@ function recalc(){
     else if(ter===5)forestTiles++;
     if(D.pollution[ni]>2)polluted++;
   }
-  D.scenic=clamp(Math.round(D.scenic+waterTiles*.12+forestTiles*.08-polluted*.18+(hasProject('qinling')?10:0)+(hasVillageProject('beauty')?8:0)+(hasVillageProject('eco')?12:0)+(hasVillageProject('metropolis')?15:0)),0,100);
+  D.scenic=clamp(Math.round(D.scenic+waterTiles*.12+forestTiles*.08-polluted*.18+(hasProject('qinling')?10:0)+(hasVillageProject('beauty')?8:0)+(hasVillageProject('eco')?12:0)+(hasVillageProject('metropolis')?15:0)+(hasVillageProject('archway')?20:0)+(hasVillageProject('garden')?30:0)+(hasVillageProject('ancestral')?40:0)),0,100);
   let sum=0,count=0;
   for(let i=0;i<N;i++){
     const t=S.tiles[i];if(!t||!B[t.b]||!isAnchor(t))continue;
@@ -1230,7 +1395,8 @@ function recalc(){
   recomputeFood();
   D.foodBonus=foodBonusOf();
   D.hungerPenalty=clamp((S.hunger||0)*2.5,0,20);
-  D.happiness=count?clamp(Math.round(sum/count+D.foodBonus-D.hungerPenalty-(policy==='industry'?3:0)+(hasVillageProject('beauty')?8:0)+(hasVillageProject('metropolis')?10:0)),0,100):clamp(50+D.foodBonus-D.hungerPenalty+(hasVillageProject('beauty')?8:0)+(hasVillageProject('metropolis')?10:0),0,100);
+  D.happiness=count?clamp(Math.round(sum/count+D.foodBonus-D.hungerPenalty-(policy==='industry'?3:0)+(hasVillageProject('beauty')?8:0)+(hasVillageProject('metropolis')?10:0)+(S.dividendBonus||0)),0,100):clamp(50+D.foodBonus-D.hungerPenalty+(hasVillageProject('beauty')?8:0)+(hasVillageProject('metropolis')?10:0)+(S.dividendBonus||0),0,100);
+  if(S.arrears>0)D.happiness=clamp(D.happiness-Math.min(20,S.arrears*3),0,100);
   if(hasVillageProject('metropolis'))D.popBase+=60;
   D.popCap=D.popBase+clamp(Math.floor(S.popBonus||0),0,9999);
   if(S.pop>D.popCap)S.pop=D.popCap;
@@ -1257,7 +1423,7 @@ function soilMul(i){
 }
 function isCropCat(cat){return cat==='farm'||cat==='orchard'||cat==='pond'||cat==='live';}
 function policyStyle(){return (S.villageRules&&S.villageRules.style)||'balanced';}
-function prodPolicyMul(){const p=policyStyle();let m=p==='industry'?1.1:p==='tourism'?.95:1;if(hasVillageProject('industry'))m*=1.1;if(hasVillageProject('spaceport'))m*=1.2;return m;}
+function prodPolicyMul(){const p=policyStyle();let m=p==='industry'?1.1:p==='tourism'?.95:1;if(hasVillageProject('industry'))m*=1.1;if(hasVillageProject('spaceport'))m*=1.2;if(S.festBuff>0)m*=1.15;if(S.arrears>0)m*=clamp(1-.04*S.arrears,.55,1);return m;}
 function tourismPolicyMul(){const p=policyStyle();let m=p==='tourism'?1.3:p==='eco'?1.15:1;if(hasVillageProject('tourism'))m*=1.2;if(hasVillageProject('culture'))m*=1.1;if(hasVillageProject('highspeed'))m*=1.3;return m;}
 function waterMul(i){
   const sw=(S.surfaceWater&&S.surfaceWater[i])||(S.terrain[i]===2?30:0);
@@ -1340,7 +1506,7 @@ const QUESTS=[
   {t:'建造一座民宿，提升人口上限',rw:{coin:150,mat:20},chk:()=>hasB('home')},
   {t:'让村庄幸福度达到 60',rw:{coin:320,fame:15},chk:()=>D.happiness>=60},
   {t:'建造 12 座建筑',rw:{coin:500,mat:30},chk:()=>countBuildings()>=12},
-  {t:'声望等级达到 3 级',rw:{coin:800,mat:40},chk:()=>levelOf(S.fame)>=3},
+  {t:'声望等级达到 3 级',rw:{coin:800,mat:40},chk:()=>fameLevel()>=3},
   {t:'完成 20 笔客商订单',rw:{coin:1500,fame:50},chk:()=>S.stats.orders>=20},
   {t:'发现 3 处神州地标',rw:{coin:800,fame:20},chk:()=>(S.discoveredLandmarks||[]).length>=3},
   {t:'建成有机认证中心',rw:{coin:800,mat:30},chk:()=>hasB('certCenter')},
@@ -1355,7 +1521,7 @@ const ACH={
   full:{n:'初具规模（10 座建筑）',rw:{coin:300},chk:()=>countBuildings()>=10},
   rich:{n:'万元户',rw:{fame:20},chk:()=>S.coin>=10000},
   order:{n:'第一单生意',rw:{coin:100},chk:()=>S.stats.orders>=1},
-  level5:{n:'五级乡长',rw:{mat:50},chk:()=>levelOf(S.fame)>=5},
+  level5:{n:'五级乡长',rw:{mat:50},chk:()=>fameLevel()>=5},
   process:{n:'完整加工链',rw:{coin:300},chk:()=>countOfCat('proc')>0&&hasB('market')},
   happy:{n:'宜居乡村（幸福 80）',rw:{fame:30},chk:()=>D.happiness>=80},
   land:{n:'拓荒者（购买 3 块土地）',rw:{coin:400},chk:()=>S.land>=3},
@@ -1384,17 +1550,23 @@ const PROJECTS={
   tourism:{n:'文旅名村',ic:'🏞️',cost:4500,mat:110,d:'旅游收入 +20%'},
   highspeed:{n:'高铁新区',ic:'🚄',cost:30000,mat:300,stone:150,need:8,d:'旅游收入 +30%，订单金币 +20%'},
   metropolis:{n:'生态新城',ic:'🏙️',cost:40000,mat:350,stone:250,need:8,d:'人口上限 +60，幸福度 +10，景观 +15'},
-  spaceport:{n:'航天发射场',ic:'🚀',cost:60000,mat:500,stone:400,need:9,tech:'aerospace',d:'全产业 +20%，声望 +100，订单金币 +25%'}
+  spaceport:{n:'航天发射场',ic:'🚀',cost:60000,mat:500,stone:400,need:9,tech:'aerospace',d:'全产业 +20%，声望 +100，订单金币 +25%'},
+  archway:{n:'功德牌坊',ic:'🏛️',cost:80000,mat:200,stone:150,need:6,d:'纯景观：声望 +60，景观 +20'},
+  garden:{n:'江南园林',ic:'🏞️',cost:150000,mat:350,stone:300,need:7,d:'纯景观：声望 +120，景观 +30'},
+  ancestral:{n:'宗祠',ic:'⛩️',cost:300000,mat:600,stone:500,need:8,d:'纯景观：声望 +200，景观 +40'}
 };
 function hasVillageProject(id){return !!(S.projects&&S.projects[id]);}
 function buildVillageProject(id){
   const p=PROJECTS[id];if(!p)return;
   if(hasVillageProject(id)){toast('该项目已经完成','info');return;}
-  if(p.need&&levelOf(S.fame)<p.need){toast('需要声望等级 '+p.need,'warn');return;}
+  if(p.need&&fameLevel()<p.need){toast('需要声望等级 '+p.need,'warn');return;}
   if(p.tech&&!S.tech[p.tech]){toast('需要先研究科技：'+(TECH[p.tech]?TECH[p.tech].n:p.tech),'warn');return;}
   if(!spend(p.cost,p.mat,p.stone||0))return;
   S.projects[id]=true;S.fame+=30;
   if(id==='spaceport')S.fame+=100;
+  if(id==='archway')S.fame+=60;
+  if(id==='garden')S.fame+=120;
+  if(id==='ancestral')S.fame+=200;
   S.oralHistory.push('完成乡村建设：'+p.n);
   if(S.oralHistory.length>30)S.oralHistory.shift();
   toast('🏗️ 完成 '+p.n+' · '+p.d,'ok');sfx('level');
@@ -1402,13 +1574,13 @@ function buildVillageProject(id){
 }
 function villageScores(){
   const t=S.tourism||{};
-  const econ=clamp((S.coin/9000)*100+levelOf(S.fame)*4,0,100);
+  const econ=clamp((S.coin/9000)*100+fameLevel()*4,0,100);
   const happy=clamp(D.happiness,0,100);
   let pol=0,cnt=0;
   for(let i=0;i<N;i+=Math.max(1,Math.floor(N/4000))){pol+=D.pollution[i]||0;cnt++;}
   const avgPol=cnt?pol/cnt:0;
   const eco=clamp(45+D.scenic*.55-avgPol*10+(hasVillageProject('eco')?10:0),0,100);
-  const culture=clamp(levelOf(S.fame)*9+(S.stats.festivals||0)*4+Object.keys(S.ach||{}).length*2+(hasVillageProject('culture')?12:0),0,100);
+  const culture=clamp(fameLevel()*9+(S.stats.festivals||0)*4+Object.keys(S.ach||{}).length*2+(hasVillageProject('culture')?12:0),0,100);
   const tour=clamp((t.reputation||0)*.75+Math.log10(1+(t.visitors||0))*13+(hasVillageProject('tourism')?12:0),0,100);
   const total=Math.round(econ*.2+happy*.25+eco*.2+culture*.15+tour*.2);
   const stars=total>=88?5:total>=72?4:total>=55?3:total>=38?2:1;
@@ -1669,7 +1841,9 @@ function collectAll(){
 }
 function expandCost(k){
   const t=LAND_TYPES[clamp(Math.floor(k),0,LAND_TYPES.length-1)]||LAND_TYPES[0];
-  return Math.round(t.cost*Math.pow(1.1,Math.min(Math.max(0,S.land),30)));
+  const n=Math.max(0,S.land);
+  const growth=n<=30?Math.pow(1.1,n):Math.pow(1.1,30)*Math.pow(1.13,n-30);
+  return Math.round(t.cost*growth);
 }
 function genTerrainFor(x,y,ter){
   const r=rnd(0,1);
@@ -1752,7 +1926,7 @@ function addFloor(i){
 function buyTech(id){
   const t=TECH[id];if(!t)return;
   if(S.tech[id]){toast('这项科技已经研究完成','info');return;}
-  if(levelOf(S.fame)<t.need){toast('需要声望等级 '+t.need,'warn');return;}
+  if(fameLevel()<t.need){toast('需要声望等级 '+t.need,'warn');return;}
   if(!spend(t.cost,t.mat,t.stone||0))return;
   S.tech[id]=1;
   toast('🔬 科技完成：'+t.n+' · '+t.d,'ok');sfx('level');
@@ -1762,7 +1936,7 @@ function genOrder(silent){
   const pool=allResKeys().filter(k=>isTradeable(k)&&hasProduced(k));
   if(!pool.length)pool.push('grain');
   const res=pool[Math.floor(Math.random()*pool.length)];
-  const lv=levelOf(S.fame);
+  const lv=fameLevel();
   const rare=ORDER_CAP[res]!=null;
   const base=res==='goods'?6:(rare?3:12);
   const raw=Math.max(rare?1:4,Math.round(base+lv*(rare?1:(res==='goods'?3:5))+rnd(0,rare?3:8)));
@@ -1789,7 +1963,7 @@ function setTab(t){S.sideTab=t;renderTabs();renderSide();}
 function setCat(c){S.cat=c;renderDrawerTabs();renderDrawerItems();}
 function setTool(id){
   const d=B[id];if(!d)return;
-  if(levelOf(S.fame)<(d.need||1)){toast('需要声望等级 '+d.need+' 才能建造'+d.n,'warn');sfx('error');return;}
+  if(fameLevel()<(d.need||1)){toast('需要声望等级 '+d.need+' 才能建造'+d.n,'warn');sfx('error');return;}
   S.tool=id;updateToolChip();closeDrawer();renderSide();
   toast('已选择 '+d.ic+' '+d.n+'，点击空地建造；再点建筑栏可取消','info');
 }
@@ -1915,13 +2089,16 @@ function holdFestival(){
   const f=festName();if(!f){toast('当前不在节庆时段','warn');return;}
   const key=festKey();if(S.festivals[key]){toast('本届'+f+'已经举办过了','info');return;}
   if((S.goods||0)<15||(S.fruit||0)<15){toast('举办节庆需要 15📦 加工品与 15🍎 果蔬','warn');return;}
+  const cost=festivalCost();
+  if(!spend(cost,0))return;
   S.goods-=15;S.fruit-=15;
+  S.festBuff=3;
   S.festivals[key]=true;S.stats.festivals=(S.stats.festivals||0)+1;
   S.fame+=12;S.tourism.reputation=clamp((S.tourism.reputation||0)+10,0,100);
   S.tourism.visitors=(S.tourism.visitors||0)+30;
   S.oralHistory.push('举办'+f+'，四方宾客齐聚'+S.villageName);
   if(S.oralHistory.length>30)S.oralHistory.shift();
-  toast('🎊 '+f+'举办成功！声望与口碑提升','ok');sfx('festival');
+  toast('🎊 '+f+'举办成功！花费 '+cost+'🪙，全产业 +15% 持续 3 天','ok');sfx('festival');
   dbSave();renderSide();syncHUD();checkAch();
 }
 function tourismTick(silent){
@@ -2018,12 +2195,13 @@ function advanceTerm(silent){
   if(S.solarTermProgress>=1){
     S.solarTermProgress=0;
     S.solarTermIdx=(S.solarTermIdx+1)%24;
-    if(S.solarTermIdx===0){S.year++;rollYearTheme(silent);spawnVillagerRequest(silent);if(!silent)toast('🎉 新年快乐！进入第 '+S.year+' 年','ok');}
+    if(S.solarTermIdx===0){S.year++;rollYearTheme(silent);spawnVillagerRequest(silent);marketDividend();if(!silent)toast('🎉 新年快乐！进入第 '+S.year+' 年','ok');}
     if(!silent){const term=SOLAR_TERMS[S.solarTermIdx];toast('🌱 '+term.n+'：'+term.farm+' — '+term.desc,'info');}
   }
 }
 function dayAdvance(silent){
   S.day=(S.day||1)+1;
+  applySkinFx();
   if(!Array.isArray(S.dailyTasks)||S.dailyTaskDay!==S.day){S.dailyTaskDay=S.day;S.dailyTasks=makeDailyTasks();}
   const oldB=D.foodBonus||0,oldP=D.hungerPenalty||0;
   foodTick(silent);
@@ -2031,6 +2209,7 @@ function dayAdvance(silent){
   D.hungerPenalty=clamp((S.hunger||0)*2.5,0,20);
   D.happiness=clamp(D.happiness-oldB+D.foodBonus+oldP-D.hungerPenalty,0,100);
   fluctuatePrices();
+  marketTick();
   if(D.certRate>0)S.cert=clamp((S.cert||0)+D.certRate*DAY_LEN*3,0,999);
   tourismTick(silent);
   if(Array.isArray(S.villagers)){
@@ -2042,7 +2221,11 @@ function dayAdvance(silent){
   const gross=Math.round(S.pop*3*(.4+D.happiness/100)*(1+(S.tech.trade?.2:0))*(festName()?1.2:1));
   const gross2=gross+Math.round(D.floorTax||0);
   const net=gross2-D.upkeep;
+  const prev=S.coin;
   S.coin=Math.max(0,S.coin+net);S.lastTax=net;
+  if(net<0&&prev+net<0)S.arrears=Math.min(30,(S.arrears||0)+1);
+  else S.arrears=Math.max(0,(S.arrears||0)-1);
+  if(S.festBuff>0)S.festBuff--;
   const now=performance.now();
   if(!silent&&gross>0&&now-taxToastAt>7000){taxToastAt=now;toast('📜 税收 +'+gross2+'🪙'+(D.upkeep?(' · 维护 -'+D.upkeep):''),net>=0?'ok':'warn');}
 }
@@ -2380,7 +2563,7 @@ function drawTown(x,y,i,t,d){
 }
 function drawBuilding(x,y,i){
   const t=S.tiles[i];if(!t||!B[t.b]||!isAnchor(t))return;
-  const d=B[t.b],col=CATCOL[d.cat]||['#4a7a52','#2f4f33'];
+  const d=B[t.b],col=skinCat(d.cat);
   if(d.cat==='city'){drawTown(x,y,i,t,d);return;}
   if(d.bridge){drawBridge(x,y,i);return;}
   if(d.road){drawRoad(x,y,i);return;}
@@ -2697,7 +2880,7 @@ function renderGoal(){
   else el.textContent='🎉 主线目标全部完成，继续打造你的美丽乡村';
   const hint=$('hint');if(hint)hint.textContent=TIPS[Math.min(S.qi,TIPS.length-1)];
 }
-const TABS=[['info','详情'],['orders','订单'],['quests','任务'],['meta','传承'],['tech','科技'],['land','拓荒'],['farm','农事'],['seed','种业'],['tour','旅游'],['custom','自定义'],['idle','挂机'],['city','城建']];
+const TABS=[['info','详情'],['orders','订单'],['quests','任务'],['meta','传承'],['market','证市'],['skin','外观'],['tech','科技'],['land','拓荒'],['farm','农事'],['seed','种业'],['tour','旅游'],['custom','自定义'],['idle','挂机'],['city','城建']];
 function renderTabs(){
   const wrap=$('sideTabs');if(!wrap)return;
   const scroll=wrap.scrollLeft||0;
@@ -2757,6 +2940,8 @@ function renderSide(){
   else if(S.sideTab==='orders')h=renderOrders();
   else if(S.sideTab==='quests')h=renderQuests();
   else if(S.sideTab==='meta')h=renderMeta();
+  else if(S.sideTab==='market')h=renderMarket();
+  else if(S.sideTab==='skin')h=renderSkin();
   else if(S.sideTab==='tech')h=renderTech();
   else if(S.sideTab==='land')h=renderLand();
   else if(S.sideTab==='farm')h=renderFarm();
@@ -2874,12 +3059,14 @@ function renderInfo(){
     }
     return h;
   }
-  const lv=levelOf(S.fame),next=LV[lv]||null;
+  const lv=fameLevel(),next=LV[lv]||null;
   const ready=readyCount(),workers=D.workers;
   let h='<h3>🏘️ 村庄概况</h3>';
   h+='<div class="row"><span>等级 / 声望</span><b>Lv.'+lv+(next?' · '+Math.floor(S.fame)+'/'+next:' · 满级')+'</b></div>';
   h+='<div class="row"><span>幸福度</span><b style="color:'+HAPPY_COL(D.happiness)+'">'+Math.round(D.happiness)+' · '+HAPPY_TXT(D.happiness)+'</b></div>';
   h+='<div class="row"><span>人口 / 上限</span><b>'+S.pop+' / '+D.popCap+'</b></div>';
+  h+='<div class="row"><span>分红幸福加成</span><b>+'+Math.round(S.dividendBonus||0)+' · 下次 '+dividendCost()+'🪙</b></div>';
+  h+=btn('🎁 发放村民分红','dividend',null,'pri small');
   h+='<div class="row"><span>劳力占用</span><b style="color:'+(workers>S.pop?'var(--red)':'var(--green)')+'">'+workers+' / '+S.pop+'</b></div>';
   h+='<div class="row"><span>维护 / 预计税收</span><b>-'+D.upkeep+' / +'+Math.round(S.pop*3*(.4+D.happiness/100)*(1+(S.tech.trade?.2:0))*(festName()?1.2:1))+'/日</b></div>';
   h+='<div class="row"><span>昨日净税收</span><b>'+Math.round(S.lastTax||0)+'🪙</b></div>';
@@ -2888,6 +3075,10 @@ function renderInfo(){
   const rs=villageScores();
   h+='<div class="row"><span>村庄评级</span><b>'+'★'.repeat(rs.stars)+'☆'.repeat(5-rs.stars)+' '+ratingTitle(rs.stars)+'</b></div>';
   h+='<div class="row"><span>年度主题</span><b>'+yearTheme().ic+' '+yearTheme().n+' · 生产 ×'+themeProdMul().toFixed(2)+'</b></div>';
+  if(S.arrears>0)h+='<div class="tag bad">维护欠费 '+S.arrears+' 天 · 生产与幸福度下降</div>';
+  if(S.festBuff>0)h+='<div class="tag gold">节庆余兴 '+S.festBuff+' 天 · 全产业 +15%</div>';
+  const promo=promoteInfo();
+  if(promo)h+='<div class="card hi"><div class="row"><span>🎖️ 晋升 Lv.'+promo.lv+' 捐纳</span><b>'+promo.cost+'🪙</b></div><div class="mut">声望已达标，缴纳乡贤捐纳后方可享受新等级加成。</div>'+btn('缴纳晋升捐纳','promote',null,'pri')+'</div>';
   let stored=0;for(const k of allResKeys())if(isStoredRes(k))stored+=S[k]||0;
   h+='<div class="row"><span>认证材料 / 土壤剂</span><b>'+Math.floor(S.cert||0)+' 📜 · '+Math.floor(S.soil||0)+' 🧪</b></div>';
   h+='<div class="row"><span>每日认证材料</span><b>+'+((D.certRate||0)*DAY_LEN*3).toFixed(1)+' 📜</b></div>';
@@ -2964,7 +3155,7 @@ function renderQuests(){
   h+='<h4>🏗️ 乡村建设</h4>';
   for(const id in PROJECTS){
     const pr=PROJECTS[id],done=hasVillageProject(id);
-    const lvLock=pr.need&&levelOf(S.fame)<pr.need;
+    const lvLock=pr.need&&fameLevel()<pr.need;
     const techLock=pr.tech&&!S.tech[pr.tech];
     const lock=lvLock||techLock;
     h+='<div class="card'+(done?' hi':'')+'"><div class="row"><span>'+pr.ic+' '+pr.n+'</span><b>'+(done?'已完成':pr.cost+'🪙 '+pr.mat+'🧱'+(pr.stone?' '+pr.stone+'🪨':''))+'</b></div>';
@@ -3001,7 +3192,7 @@ function renderQuests(){
 function renderTech(){
   let h='<h3>🔬 乡村科技</h3><p class="mut">一次性研究，永久生效。</p>';
   for(const id in TECH){
-    const t=TECH[id],on=S.tech[id],lock=levelOf(S.fame)<t.need;
+    const t=TECH[id],on=S.tech[id],lock=fameLevel()<t.need;
     h+='<div class="card'+(on?' hi':'')+'"><div class="row"><span>'+t.ic+' '+t.n+'</span><b>'+(on?'已研究':lock?'需 Lv.'+t.need:t.cost+'🪙 '+t.mat+'🧱'+(t.stone?' '+t.stone+'🪨':''))+'</b></div>';
     h+='<div class="mut">'+t.d+'</div>';
     if(!on){if(lock)h+='<div class="tag bad">声望不足</div>';else h+=btn('🔬 研究 '+t.n,'tech',id,'pri');}
@@ -3245,7 +3436,7 @@ function renderCity(){
   h+='<div class="hr"></div><h4>🏗️ 集镇建筑</h4>';
   for(const id in B){
     const d=B[id];if(d.cat!=='city')continue;
-    if(levelOf(S.fame)<(d.need||1)){h+='<div class="card"><div class="row"><span>'+esc(d.ic)+' '+esc(d.n)+'</span><b>需 Lv.'+d.need+'</b></div></div>';continue;}
+    if(fameLevel()<(d.need||1)){h+='<div class="card"><div class="row"><span>'+esc(d.ic)+' '+esc(d.n)+'</span><b>需 Lv.'+d.need+'</b></div></div>';continue;}
     const c=townFloorCost(d,2);
     h+='<div class="card"><div class="row"><span>'+esc(d.ic)+' '+esc(d.n)+'</span><b>首层 '+d.cost+'🪙 '+d.mat+'🧱 '+d.stone+'🪨</b></div>';
     h+='<div class="mut">二层：'+c.coin+'🪙 '+c.mat+'🧱 '+c.stone+'🪨 · 每层人口 +'+d.floorPop+' / 税收 +'+d.floorTax+'</div>';
@@ -3259,7 +3450,7 @@ function renderMeta(){
   h+='<div class="row"><span>已迁村次数</span><b>'+(META.villages||0)+' 次</b></div>';
   h+='<div class="row"><span>历史最佳</span><b>'+(META.best||0)+' 分</b></div>';
   const info=prestigeInfo();
-  h+='<p class="mut">村庄达到四星（或完成全部主线）即可迁村传承：清空当前村庄，换取永久政绩点，用于下方传承升级，帮助下一座村庄走得更远。</p>';
+  h+='<p class="mut">村庄达到四星（或完成全部主线）即可迁村传承：清空当前村庄，换取永久政绩点（按金币存量最多额外 +20），用于下方传承升级，帮助下一座村庄走得更远。</p>';
   h+='<div class="card'+(info.eligible?' hi':'')+'"><div class="row"><span>当前评级</span><b>'+'★'.repeat(info.rs.stars)+'☆'.repeat(5-info.rs.stars)+' '+info.rs.total+' 分</b></div>';
   h+='<div class="mut">迁村可获得约 <b>'+info.gain+'</b> 政绩点</div>';
   h+=btn(info.eligible?'🏮 迁村传承（+'+info.gain+' 政绩）':'未达迁村条件（四星或主线全清）','prestige',null,info.eligible?'pri':'');
@@ -3274,6 +3465,56 @@ function renderMeta(){
     h+='</div>';
   }
   h+='<p class="mut">传承进度独立保存，即使「重新开始」也不会丢失。</p>';
+  return h;
+}
+function renderMarket(){
+  ensureMarket();
+  let h='<h3>📈 乡村证券市场</h3>';
+  h+='<p class="mut">用金币买卖模拟企业股票，买入与卖出各收 2% 手续费；每年元旦按持股派发分红。股价每日随机波动，是闲置金币的长期去处。</p>';
+  h+='<div class="card hi"><div class="row"><span>持仓市值</span><b>'+fmt(marketValue())+' 🪙</b></div>';
+  h+='<div class="row"><span>累计交易日</span><b>'+Math.floor(S.market.day||0)+' 日</b></div></div>';
+  for(const c of MARKET_DEFS){
+    const locked=c.id==='tech'&&!S.tech.aerospace;
+    const price=+S.market.prices[c.id]||c.base,q=Math.floor(+S.market.shares[c.id]||0);
+    h+='<div class="card'+(locked?'':' hi')+'"><div class="row"><span>'+c.ic+' '+c.n+'</span><b>'+price+' 🪙</b></div>';
+    h+='<div class="mut">'+c.d+' · 年股息约 '+(c.yield*100).toFixed(1)+'%</div>';
+    h+='<div class="row"><span>持股 / 市值</span><b>'+q+' 股 · '+fmt(q*price)+' 🪙</b></div>';
+    if(locked)h+='<div class="tag bad">需航天科技解锁</div>';
+    else h+='<div class="btnRow">'+btn('买 1','mbuy',c.id+':1','pri small')+btn('买 10','mbuy',c.id+':10','small')+btn('卖 1','msell',c.id+':1','small')+btn('卖 10','msell',c.id+':10','small')+'</div>';
+    h+='</div>';
+  }
+  return h;
+}
+function renderSkin(){
+  const cur=activeSkin(),featured=featuredSkin();
+  let h='<h3>✨ 村庄外观</h3>';
+  h+='<p class="mut">外观均为限时体验，到期后自动恢复原貌；想继续展示需要续费。稀有度越高，持续天数越短、续费越贵。</p>';
+  if(cur){
+    const left=Math.max(0,cur.expires-S.day);
+    h+='<div class="card hi"><div class="row"><span>'+cur.ic+' '+cur.n+'（'+RARITY_NAME[cur.rarity]+'）</span><b>剩 '+left+' 天</b></div>';
+    h+='<div class="mut">到期日：第 '+cur.expires+' 年/日 · 当前正在展示</div>';
+    h+='<div class="btnRow">'+btn('续费 '+cur.days+' 天（'+skinCost(cur,true,1)+'🪙）','skinbuy',cur.id+':1','pri small')+btn('续费 3 期（'+skinCost(cur,true,3)+'🪙）','skinbuy',cur.id+':3','small')+btn('卸下','skinoff',null,'small')+'</div></div>';
+    if(left<=3)h+='<div class="tag bad">即将到期，请及时续费</div>';
+  }else if(S.skin&&S.skin.id){
+    const def=skinDef(S.skin.id);
+    h+='<div class="card"><div class="row"><span>'+(def?def.ic+' '+def.n:'外观')+'</span><b class="mut">已到期</b></div>'+btn('续费重新展示','skinbuy',S.skin.id+':1','pri')+'</div>';
+  }else h+='<p class="mut">当前未使用外观，村庄保持原貌。</p>';
+  h+='<div class="hr"></div><h4>🛍️ 外观商店</h4>';
+  if(featured){
+    const ok=skinReqOk(featured),owned=!!(S.skinOwned&&S.skinOwned[featured.id]);
+    h+='<div class="card hi"><div class="row"><span>🌟 本年度限定：'+featured.ic+' '+featured.n+'</span><b>'+RARITY_NAME[featured.rarity]+' · 8 折</b></div>';
+    h+='<div class="mut">'+featured.d+' · '+featured.days+' 天/期</div>';
+    h+=ok?btn((owned?'续费':'购买')+'（'+skinCost(featured,owned,1)+'🪙）','skinbuy',featured.id+':1','pri small'):'<div class="tag bad">需更高声望等级</div>';
+    h+='</div>';
+  }
+  for(const def of SKINS){
+    const owned=!!(S.skinOwned&&S.skinOwned[def.id]),ok=skinReqOk(def);
+    h+='<div class="card"><div class="row"><span>'+def.ic+' '+def.n+'</span><b>'+RARITY_NAME[def.rarity]+' · '+def.days+' 天</b></div>';
+    h+='<div class="mut">'+def.d+' · 购买 '+def.price+'🪙 / 续费 '+def.renew+'🪙</div>';
+    if(!ok)h+='<div class="tag bad">需 '+({rare:'Lv.4',epic:'Lv.6',legendary:'Lv.8'}[def.rarity]||'')+' 声望</div>';
+    else h+=btn(owned?'启用/续费 '+def.days+' 天（'+skinCost(def,true,1)+'🪙）':'购买 '+def.days+' 天（'+def.price+'🪙）','skinbuy',def.id+':1',owned?'pri small':'small');
+    h+='</div>';
+  }
   return h;
 }
 function renderDrawerTabs(){
@@ -3292,7 +3533,7 @@ function renderDrawerTabs(){
 function renderDrawerItems(){
   const wrap=$('drawerItems');if(!wrap)return;
   wrap.innerHTML='';
-  const lv=levelOf(S.fame);
+  const lv=fameLevel();
   for(const id in B){
     const d=B[id];if(d.cat!==S.cat)continue;
     if(drawerQuery&&(d.n+(d.desc||'')+(d.id||id)).indexOf(drawerQuery)<0)continue;
@@ -3439,7 +3680,7 @@ function fertilize(){
   const i=S.sel;if(i<0||i>=N){toast('请先选中一块地','warn');return;}
   if(!isUnlocked(i)){toast('这块土地还未开发','warn');return;}
   if((S.soil||0)>0)S.soil-=1;
-  else if(!spend(30,0))return;
+  else if(!spend(Math.round(30*inputPriceMul()),0))return;
   const s=getSoilEdit(i);
   s.fertility=clamp(s.fertility+25,0,100);s.organic=clamp(s.organic+1.2,0,5);
   s.NPK.N=clamp(s.NPK.N+30,0,200);s.NPK.P=clamp(s.NPK.P+20,0,150);s.NPK.K=clamp(s.NPK.K+20,0,150);
@@ -3447,7 +3688,7 @@ function fertilize(){
 }
 function greenManure(){
   const i=S.sel;if(i<0||i>=N){toast('请先选中一块空地','warn');return;}
-  if(!spend(15,0))return;
+  if(!spend(Math.round(15*inputPriceMul()),0))return;
   const s=getSoilEdit(i);
   s.fertility=clamp(s.fertility+15,0,100);s.organic=clamp(s.organic+1.5,0,5);s.compaction=clamp(s.compaction-15,0,100);
   s.cropHistory.push('绿肥');if(s.cropHistory.length>5)s.cropHistory.shift();
@@ -3509,11 +3750,11 @@ function autoCollectTick(){
   if(n){renderSide();syncHUD();}
 }
 function buyWater(){
-  if(!spend(50,0))return;
+  if(!spend(Math.round(50*inputPriceMul()),0))return;
   S.waterRights+=50;toast('💧 已购买 50 单位水权','ok');sfx('water');dbSave();renderSide();syncHUD();
 }
 function buySoil(){
-  if(!spend(30,0))return;
+  if(!spend(Math.round(30*inputPriceMul()),0))return;
   S.soil=(S.soil||0)+3;toast('🧪 已购买 3 份土壤改良剂','ok');sfx('plant');dbSave();renderSide();syncHUD();
 }
 function breed(id){
@@ -3525,7 +3766,7 @@ function breed(id){
   if(S.seedVarieties[id]){toast('该品种已选育','info');return;}
   if(!hasB('seedBank')||!hasB('breedingStation')){toast('需要种质资源库与育种试验站才能育种','warn');return;}
   if((S.seed||0)<d.seed){toast('种子不足，需要 '+d.seed+' 🌱','warn');return;}
-  if(!spend(d.cost,0))return;
+  if(!spend(Math.round(d.cost*inputPriceMul()),0))return;
   S.seed-=d.seed;
   S.seedBank[id]=true;
   S.seedVarieties[id]={name:d.name,trait:d.trait,purity:95,generation:1};
@@ -3658,6 +3899,16 @@ $('sideBody').addEventListener('click',e=>{
   else if(act==='metaup')buyMetaUpgrade(b.dataset.i);
   else if(act==='prestige')doPrestige();
   else if(act==='share')shareVillage();
+  else if(act==='skinoff')removeSkin();
+  else if(act==='skinbuy'){
+    const p=String(b.dataset.i).split(':');activateSkin(p[0],+p[1]);
+  }
+  else if(act==='promote')payPromotion();
+  else if(act==='dividend')payDividend();
+  else if(act==='mbuy'||act==='msell'){
+    const p=String(b.dataset.i).split(':');
+    if(act==='mbuy')buyShares(p[0],+p[1]);else sellShares(p[0],+p[1]);
+  }
   else if(act==='lmproject')developLandmark(b.dataset.i);
   else if(act==='festival')holdFestival();
   else if(act==='task')claimTask(i);
@@ -3899,6 +4150,10 @@ function applySave(d){
   S.meat=Math.max(0,num(src.meat,0));
   S.goods=Math.max(0,num(src.goods,0));
   S.fame=Math.max(0,num(src.fame,0));
+  S.famePaid=clamp(Math.floor(num(src.famePaid,levelOf(S.fame))),1,LV.length);
+  S.arrears=clamp(Math.floor(num(src.arrears,0)),0,30);
+  S.dividendBonus=clamp(Math.floor(num(src.dividendBonus,0)),0,30);
+  S.festBuff=clamp(Math.floor(num(src.festBuff,0)),0,7);
   S.pop=clamp(Math.floor(num(src.pop,6)),0,999);
   S.popBonus=clamp(Math.floor(num(src.popBonus,0)),0,9999);
   S.solarTermIdx=clamp(Math.floor(num(src.solarTermIdx,0)),0,23);
@@ -3995,6 +4250,9 @@ function applySave(d){
   if(!YEAR_THEMES.some(t=>t.id===S.yearTheme))S.yearTheme='normal';
   S.lastShareCode=typeof src.lastShareCode==='string'?src.lastShareCode.slice(0,120):'';
   S.villagers=Array.isArray(src.villagers)?src.villagers.filter(v=>v&&villagerDef(v.vid)).map(v=>({vid:v.vid,res:v.res,amt:Math.max(0,Math.floor(num(v.amt,0))),coin:Math.max(0,Math.floor(num(v.coin,0))),fame:Math.max(0,Math.floor(num(v.fame,0))),mat:Math.max(0,Math.floor(num(v.mat,0))),left:Math.max(0,Math.floor(num(v.left,0))),d:typeof v.d==='string'?v.d.slice(0,80):''})).slice(0,3):[];
+  ensureMarket();
+  S.skinOwned=(src.skinOwned&&typeof src.skinOwned==='object')?src.skinOwned:{};
+  S.skin=(src.skin&&skinDef(src.skin.id))?{id:src.skin.id,expires:Math.max(0,Math.floor(num(src.skin.expires,0)))}:{id:null,expires:0};
   refreshForecast();
   CAM.tz=CAM.z=clamp(num(src.zoom,1),.35,2.2);
   CAM.tx=num(src.camX,(START.x+START.w/2)*TILE);
@@ -4036,7 +4294,7 @@ function boot(){
       if(!Array.isArray(S.fog))S.fog=new Array(N).fill(0);
       reveal(14,11,12);
       CAM.x=CAM.tx;CAM.y=CAM.ty;CAM.z=CAM.tz;
-      syncHUD();renderTabs();renderSide();updateToolChip();
+      syncHUD();applySkinFx();renderTabs();renderSide();updateToolChip();
       $('mMute').textContent=S.mute?'🔇 音效关':'🔊 音效开';
       $('mMusic').textContent=S.music?'🎵 音乐开':'🎵 音乐关';
       if(had)dbSave();
@@ -4057,7 +4315,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get META(){return META;},get BOARD(){return BOARD;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize,renderInfo,renderSide,setTab,yearTheme,themeProdMul,themePriceMul,themeTourMul,rollYearTheme,metaLevel,metaProdMul,buyMetaUpgrade,prestigeInfo,performPrestige,doPrestige,spawnVillagerRequest,fulfillVillager,shareVillage,villageCard,loadBoard};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get META(){return META;},get BOARD(){return BOARD;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize,renderInfo,renderSide,setTab,yearTheme,themeProdMul,themePriceMul,themeTourMul,rollYearTheme,metaLevel,metaProdMul,buyMetaUpgrade,prestigeInfo,performPrestige,doPrestige,spawnVillagerRequest,fulfillVillager,shareVillage,villageCard,loadBoard,buildVillageProject,holdFestival,payPromotion,promoteInfo,fameLevel,fameDonation,dividendCost,payDividend,MARKET_DEFS,marketDef,ensureMarket,marketTick,marketDividend,marketValue,buyShares,sellShares,expandCost,festivalCost,inputPriceMul,SKINS,skinDef,featuredSkin,skinReqOk,activeSkin,skinCost,activateSkin,removeSkin,skinCat,applySkinFx};
 boot();
 })();
 </script>

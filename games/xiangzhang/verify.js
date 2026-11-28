@@ -141,15 +141,83 @@ setImmediate(()=>{
   check(isFinite(S.coin)&&S.coin>=0,'30 日经济模拟后金币异常');
   check(S.day>1,'30 日经济模拟未推进日期');
 
+  const land=S.land;S.land=31;const c31=xz.expandCost(0);S.land=32;const c32=xz.expandCost(0);S.land=land;
+  check(c32>c31*1.12,'拓荒成本在 30 次后未继续加速');
+
+  S.fame=130;S.famePaid=1;S.coin=1000;
+  check(xz.fameLevel()===1,'晋升捐纳未锁定等级');
+  const donation=xz.fameDonation(2);
+  check(donation>0,'晋升捐纳金额为 0');
+  xz.payPromotion();
+  check(xz.fameLevel()===2,'缴纳捐纳后未晋升');
+  check(Math.abs(S.coin-(1000-donation))<1,'晋升捐纳未扣款');
+
+  const tileIdx=xz.b2i(17,11);
+  S.arrears=0;const policy0=xz.rateParts(tileIdx).policy;
+  S.arrears=3;const policy1=xz.rateParts(tileIdx).policy;
+  check(policy1<policy0,'维护欠费未降低生产');
+  S.arrears=0;
+
+  check(xz.festivalCost()>200,'节庆成本未随村庄规模增长');
+  S.pop=10;S.coin=1000;S.dividendBonus=0;
+  xz.payDividend();
+  check(S.dividendBonus===4,'村民分红未提升幸福加成');
+  check(S.coin<1000,'村民分红未扣款');
+
+  S.coin=10000;xz.ensureMarket();S.market.prices.rice=xz.marketDef('rice').base;
+  xz.buyShares('rice',2);
+  check(Math.floor(S.market.shares.rice)===2,'买入股票未到账');
+  check(S.coin<10000,'买入股票未扣手续费');
+  xz.marketTick();
+  check(S.market.prices.rice>=xz.marketDef('rice').base*.5-1&&S.market.prices.rice<=xz.marketDef('rice').base*2+1,'股价越过上下限');
+  const beforeDiv=S.coin;
+  xz.marketDividend();
+  check(S.coin>=beforeDiv,'证券分红异常');
+  const beforeSell=S.coin;
+  xz.sellShares('rice',1);
+  check(Math.floor(S.market.shares.rice)===1,'卖出股票未减少持股');
+  check(S.coin>beforeSell,'卖出股票未回款');
+
+  S.fame=100000;S.famePaid=9;S.coin=1000000;S.mat=1000;S.stone=1000;
+  xz.buildVillageProject('archway');
+  check(!!S.projects.archway,'装饰工程未建成');
+  check(xz.fameLevel()>=6,'装饰工程等级门槛异常');
+
+  S.coin=5000;S.fame=100000;S.famePaid=9;
+  xz.activateSkin('bamboo',1);
+  check(!!xz.activeSkin()&&xz.activeSkin().id==='bamboo','皮肤未启用');
+  const cvStyle=sandbox.document.getElementById('game').style;
+  check(/hue-rotate|saturate|sepia|brightness/.test(cvStyle.filter||''),'皮肤未应用到画布滤镜');
+  check(/solid/.test(cvStyle.outline||''),'皮肤未应用到画布边框');
+  check(/青竹庭院/.test(sandbox.document.getElementById('skinBadge').textContent||''),'皮肤徽章未显示');
+  check(S.coin<5000,'皮肤购买未扣款');
+  const skinned=xz.skinCat('farm')[0];
+  xz.removeSkin();
+  check(!xz.activeSkin(),'卸下皮肤后仍然生效');
+  check(xz.skinCat('farm')[0]!==skinned,'皮肤未改变建筑配色');
+  S.skin={id:'bamboo',expires:S.day-1};
+  check(!xz.activeSkin(),'过期皮肤仍然展示');
+  xz.applySkinFx();
+  check(!cvStyle.filter,'过期后画布滤镜未清除');
+  check(/到期/.test(sandbox.document.getElementById('skinBadge').textContent||''),'过期提示未显示');
+  const renewCoin=S.coin;
+  xz.activateSkin('bamboo',1);
+  check(!!xz.activeSkin(),'续费后皮肤未恢复');
+  check(S.coin<renewCoin,'续费未扣款');
+  S.fame=0;S.famePaid=1;S.coin=1000000;
+  xz.activateSkin('ink',1);
+  check(!xz.activeSkin()||xz.activeSkin().id!=='ink','稀有皮肤等级门槛失效');
+
   S.qi=999;
   check(xz.prestigeInfo().eligible,'主线完成后未获得迁村资格');
-  const villagesBefore=xz.META.villages||0,pointsBefore=xz.META.points||0;
+  const villagesBefore=xz.META.villages||0,pointsBefore=xz.META.points||0,prestigeCoin=xz.S.coin;
   xz.performPrestige(5);
   const S2=xz.S;
   check(S2.qi===0,'迁村后主线进度未重置');
   check(S2.tiles.every(t=>!t),'迁村后地块未清空');
   check((xz.META.villages||0)===villagesBefore+1,'迁村次数未累计');
-  check((xz.META.points||0)===pointsBefore+5,'迁村未获得政绩点');
+  const expected=5+Math.min(20,Math.floor(prestigeCoin/10000));
+  check((xz.META.points||0)===pointsBefore+expected,'迁村未获得政绩点');
   finish();
 });
 function finish(){
