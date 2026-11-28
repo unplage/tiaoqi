@@ -79,6 +79,7 @@ border-radius:12px;padding:11px;font-size:12px;line-height:1.7;scrollbar-width:t
 #sideBody .btn{width:100%;margin-top:5px;font-size:11px;padding:7px 9px}
 #sideBody .btn.half{width:auto;flex:1}
 #sideBody .btnRow{display:flex;gap:5px}
+#sideBody .emoPick{width:auto;flex:0 0 auto;padding:3px 7px;margin:1px 0;font-size:15px;line-height:1.2}
 #sideBody .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:99px;
 background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--mut);margin:2px 3px 2px 0}
 #sideBody .tag.ok{color:var(--green);border-color:rgba(120,214,138,.4);background:rgba(120,214,138,.1)}
@@ -285,6 +286,8 @@ let VW=960,VH=600;const TILE=48,EXPAND=4,MAX_FLOORS=17;
 let CW=320,CH=256,N=CW*CH,offX=-135,offY=-120;
 const DAY_LEN=24,HOLD_MAX=3,GROW_EVERY=16,TERM_LEN=DAY_LEN*15;
 const CUSTOM_LIMITS={res:12,build:12,seed:12,amount:120,name:12};
+const CUSTOM_CATS=[['farm','农田'],['orchard','果园'],['pond','水产'],['live','养殖'],['proc','加工'],['service','服务'],['seed','种业'],['cert','认证'],['tour','旅游'],['ind','智造']];
+function suggestedCat(res){return (res&&(res.indexOf('x_')===0||res==='fruit'))?'orchard':'farm';}
 const TRADE_EXCLUDE={coin:1,fame:1,soil:1,water:1,cert:1};
 const STORAGE_EXCLUDE={coin:1,fame:1,soil:1,water:1,cert:1,seed:1};
 const OVERLAYS=[['关闭',0],['污染',1],['服务',2],['土壤',3],['水分',4]];
@@ -2556,12 +2559,14 @@ function renderGoal(){
 const TABS=[['info','详情'],['orders','订单'],['quests','任务'],['tech','科技'],['land','拓荒'],['farm','农事'],['seed','种业'],['tour','旅游'],['custom','自定义'],['idle','挂机'],['city','城建']];
 function renderTabs(){
   const wrap=$('sideTabs');if(!wrap)return;
+  const scroll=wrap.scrollLeft||0;
   wrap.innerHTML='';
   TABS.forEach(([id,n])=>{
     const b=document.createElement('button');b.className='sTab'+(S.sideTab===id?' on':'');
     b.innerHTML=n+(id==='orders'&&S.orders.length?'<span class="dot">'+S.orders.length+'</span>':'');
     b.onclick=()=>setTab(id);wrap.appendChild(b);
   });
+  wrap.scrollLeft=scroll;
 }
 function btn(label,act,data,cls){
   return '<button class="btn '+(cls||'')+'" data-act="'+act+'"'+(data!=null?' data-i="'+data+'"':'')+'>'+label+'</button>';
@@ -2971,43 +2976,60 @@ function renderTour(){
   else h+='<p class="mut">完成地标项目、乡村建设或举办节庆后，这里会记录村庄大事。文化名村与文旅名村还能进一步提升旅游收益。</p>';
   return h;
 }
+let customDraft={};
+const EMOJIS=['🌾','🍎','🍊','🍇','🍓','🥬','🌽','🐟','🦐','🦀','🐔','🐖','🐑','🐄','📦','🪙','🧱','🪨','⛏️','💠','🔬','🏗️','🚗','📱','🛰️','🌱','🌿','🌳','🌸','🌻','🍒','🫐','🥭','🍍','🥕','🥔','🍅','🌶️','🐝','🏡','🏭','🧪','📜','💧','⭐'];
+function emojiRow(target){
+  let h='<div class="btnRow" style="flex-wrap:wrap">';
+  for(const e of EMOJIS)h+='<button class="btn small emoPick" data-act="pickEmoji" data-i="'+target+':'+e+'">'+e+'</button>';
+  return h+'</div>';
+}
 function renderCustom(){
   let h='<h3>🧩 自定义拓展</h3>';
-  h+='<p class="mut">为村庄加入你自己的作物、水果与建筑。自定义内容会随存档保存，离线可用；名称最长 '+CUSTOM_LIMITS.name+' 字，数量有上限，避免影响正常进度。</p>';
+  h+='<p class="mut">为村庄加入你自己的作物、水果与建筑。自定义内容会随存档保存，离线可用；名称最长 '+CUSTOM_LIMITS.name+' 字，数量有上限。图标可在输入框下方直接点选 emoji，也可手动输入。</p>';
   // 自定义命名
   h+='<div class="hr"></div><h4>✏️ 建筑/作物改名</h4>';
   h+='<div class="mut">选择建筑后填写新名称与图标，可随时恢复默认。</div>';
   h+='<select id="cnTarget" style="width:100%;margin:4px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
   for(const id in B){h+='<option value="'+esc(id)+'">'+esc(B[id].ic)+' '+esc(B[id].n)+'</option>';}
   h+='</select>';
-  h+='<input id="cnName" placeholder="新名称，如：荔枝园" maxlength="'+CUSTOM_LIMITS.name+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  h+='<input id="cnIcon" placeholder="图标 emoji，如：🍒" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="cnName" placeholder="新名称，如：荔枝园" maxlength="'+CUSTOM_LIMITS.name+'" value="'+esc(customDraft.cnName||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="cnIcon" placeholder="图标 emoji，如：🍒" maxlength="4" value="'+esc(customDraft.cnIcon||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<div class="mut">点选 emoji：</div>'+emojiRow('cnIcon');
   h+=btn('保存改名','saveName',null,'pri');
   const named=Object.keys(S.customNames||{});
   for(const id of named)h+='<div class="row"><span>'+esc(B[id]?B[id].ic+' '+B[id].n:id)+'</span>'+btn('恢复默认','resetName',id,'small')+'</div>';
   // 自定义资源
   h+='<div class="hr"></div><h4>🌱 新增自定义产物</h4>';
   h+='<div class="mut">例如「荔枝」「蓝莓」。上限 '+CUSTOM_LIMITS.res+' 种；解锁的作物仍产出它。</div>';
-  h+='<input id="crName" placeholder="产物名称，如：荔枝" maxlength="'+CUSTOM_LIMITS.name+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  h+='<input id="crIcon" placeholder="图标 emoji，如：🍒" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="crName" placeholder="产物名称，如：荔枝" maxlength="'+CUSTOM_LIMITS.name+'" value="'+esc(customDraft.crName||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="crIcon" placeholder="图标 emoji，如：🍒" maxlength="4" value="'+esc(customDraft.crIcon||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<div class="mut">点选 emoji：</div>'+emojiRow('crIcon');
   h+=btn('新增产物','addRes',null,'pri');
   for(const k of Object.keys(S.customRes||{}))h+='<div class="row"><span>'+resHtml(k)+'</span>'+btn('删除','delRes',k,'small')+'</div>';
-  // 自定义作物建筑
-  h+='<div class="hr"></div><h4>🍇 新增自定义作物/水果</h4>';
-  h+='<div class="mut">上限 '+CUSTOM_LIMITS.build+' 种，每次产出最多 '+CUSTOM_LIMITS.amount+'；造价随产量提高（200🪙 + 6🪙/产量）。</div>';
-  h+='<input id="cuName" placeholder="建筑名称，如：荔枝园" maxlength="'+CUSTOM_LIMITS.name+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  h+='<input id="cuIcon" placeholder="图标 emoji，如：🌳" maxlength="4" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  // 自定义建筑
+  h+='<div class="hr"></div><h4>🏗️ 新增自定义建筑</h4>';
+  h+='<div class="mut">上限 '+CUSTOM_LIMITS.build+' 种，每次产出最多 '+CUSTOM_LIMITS.amount+'；造价随产量提高（200🪙 + 6🪙/产量）。创建后归入下方所选的建造分类。</div>';
+  h+='<input id="cuName" placeholder="建筑名称，如：荔枝园" maxlength="'+CUSTOM_LIMITS.name+'" value="'+esc(customDraft.cuName||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="cuIcon" placeholder="图标 emoji，如：🌳" maxlength="4" value="'+esc(customDraft.cuIcon||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<div class="mut">点选 emoji：</div>'+emojiRow('cuIcon');
   h+='<select id="cuRes" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  for(const k of allResKeys()){if(!isTradeable(k))continue;h+='<option value="'+esc(k)+'">'+resHtml(k)+'</option>';}
+  for(const k of allResKeys()){
+    if(!isTradeable(k))continue;
+    h+='<option value="'+esc(k)+'"'+(customDraft.cuRes===k?' selected':'')+'>'+resHtml(k)+'</option>';
+  }
   h+='</select>';
-  h+='<input id="cuAmt" type="number" min="1" max="'+CUSTOM_LIMITS.amount+'" value="12" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  h+=btn('创建作物建筑','addCrop',null,'pri');
+  const defCat=CUSTOM_CATS.some(c=>c[0]===customDraft.cuCat)?customDraft.cuCat:suggestedCat(customDraft.cuRes);
+  h+='<div class="mut">归属建造分类：</div><select id="cuCat" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  for(const [id,n] of CUSTOM_CATS)h+='<option value="'+id+'"'+(defCat===id?' selected':'')+'>'+n+'</option>';
+  h+='</select>';
+  h+='<input id="cuAmt" type="number" min="1" max="'+CUSTOM_LIMITS.amount+'" value="'+esc(customDraft.cuAmt||'12')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+=btn('创建自定义建筑','addCrop',null,'pri');
   for(const b of (S.customBuilds||[]))h+='<div class="row"><span>'+esc(b.def.ic)+' '+esc(b.def.n)+'</span>'+btn('删除','delBuild',b.id,'small')+'</div>';
   // 自定义品种
   h+='<div class="hr"></div><h4>🧬 新增自定义良种</h4>';
   h+='<div class="mut">需先建种质资源库与育种试验站，花费 300🪙 + 8🌱；上限 '+CUSTOM_LIMITS.seed+' 种。</div>';
-  h+='<input id="csName" placeholder="品种名称，如：蜜香荔枝" maxlength="'+CUSTOM_LIMITS.name+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
-  h+='<input id="csTrait" placeholder="特性，如：甜度+30%" maxlength="'+CUSTOM_LIMITS.name+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="csName" placeholder="品种名称，如：蜜香荔枝" maxlength="'+CUSTOM_LIMITS.name+'" value="'+esc(customDraft.csName||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
+  h+='<input id="csTrait" placeholder="特性，如：甜度+30%" maxlength="'+CUSTOM_LIMITS.name+'" value="'+esc(customDraft.csTrait||'')+'" style="width:100%;margin:3px 0;padding:5px;background:#1b2a1d;color:#dce8d8;border:1px solid #3a5a40;border-radius:6px">';
   h+=btn('保存品种','addSeed',null,'pri');
   for(const v of (S.customSeeds||[]))h+='<div class="row"><span>'+esc(v.name)+' · '+esc(v.trait)+'</span>'+btn('删除','delSeed',v.id,'small')+'</div>';
   return h;
@@ -3324,6 +3346,7 @@ function saveName(){
   S.customNames[id]=S.customNames[id]||{};
   if(nm){S.customNames[id].n=nm;B[id].n=nm;}
   if(ic){S.customNames[id].ic=ic;B[id].ic=ic;}
+  customDraft.cnName='';customDraft.cnIcon='';
   toast('✏️ 已保存到「'+B[id].n+'」','ok');sfx('build');dbSave();renderSide();syncHUD();
 }
 function resetName(id){
@@ -3340,6 +3363,7 @@ function addCustomRes(){
   const key='x_r'+(++S.customResSeq);
   S.customRes[key]={n:nm,ic:ic};S[key]=0;
   RES[key]=nm;RESIC[key]=ic;
+  customDraft.crName='';customDraft.crIcon='';
   toast('🌱 已新增产物：'+ic+' '+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
 }
 function deleteCustomRes(key){
@@ -3356,15 +3380,17 @@ function addCrop(){
   if((S.customBuilds||[]).length>=CUSTOM_LIMITS.build){toast('自定义作物数量已达上限','warn');return;}
   const nm=cleanName($('cuName').value),ic=$('cuIcon').value.trim().slice(0,4)||'🌳';
   const res=$('cuRes').value,amt=clamp(Math.floor(+$('cuAmt').value||12),1,CUSTOM_LIMITS.amount);
+  const chosen=$('cuCat').value,cat=CUSTOM_CATS.some(c=>c[0]===chosen)?chosen:suggestedCat(res);
   if(!nm){toast('请填写建筑名称','warn');return;}
   if(!isResKey(res)){toast('请选择产出资源','warn');return;}
   const id='u_b'+(++S.customBuildSeq);
   const cost=Math.round(200+amt*6),mat=8+Math.floor(amt/30);
-  const def={n:nm,ic:ic,cat:(res.indexOf('x_')===0||res==='fruit')?'orchard':'farm',
-    cost:cost,mat:mat,build:6,time:20,out:{},pop:2,upkeep:2,need:1,desc:'自定义作物：每次产出'+resIcon(res)+' '+resName(res)+' ×'+amt+'。'};
+  const def={n:nm,ic:ic,cat:cat,
+    cost:cost,mat:mat,build:6,time:20,out:{},pop:2,upkeep:2,need:1,desc:'自定义建筑：每次产出'+resIcon(res)+' '+resName(res)+' ×'+amt+'。'};
   def.out[res]=amt;
   bd(id,def);
   S.customBuilds.push({id:id,def:def});
+  customDraft.cuName='';customDraft.cuIcon='';customDraft.cuAmt='12';
   toast('🍇 已创建作物建筑：'+ic+' '+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
 }
 function deleteCustomBuild(id){
@@ -3389,6 +3415,7 @@ function addSeed(){
   const id='u_s'+(++S.customSeedSeq);
   S.customSeeds.push({id:id,name:nm,trait:tr});
   S.seedVarieties[id]={name:nm,trait:tr,purity:95,generation:1};
+  customDraft.csName='';customDraft.csTrait='';
   toast('🧬 已保存良种：'+nm,'ok');sfx('level');dbSave();renderSide();syncHUD();
 }
 function deleteCustomSeed(id){
@@ -3400,6 +3427,12 @@ function deleteCustomSeed(id){
     toast('🧬 已删除自定义良种','info');dbSave();renderSide();syncHUD();
   });
 }
+function trackCustomInput(e){
+  const id=e.target&&e.target.id;
+  if(id&&/^(cnName|cnIcon|crName|crIcon|cuName|cuIcon|cuRes|cuCat|cuAmt|csName|csTrait)$/.test(id))customDraft[id]=e.target.value;
+}
+$('sideBody').addEventListener('input',trackCustomInput);
+$('sideBody').addEventListener('change',trackCustomInput);
 $('sideBody').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const act=b.dataset.act,i=+b.dataset.i;
@@ -3447,6 +3480,10 @@ $('sideBody').addEventListener('click',e=>{
   else if(act==='delBuild')deleteCustomBuild(b.dataset.i);
   else if(act==='addSeed')addSeed();
   else if(act==='delSeed')deleteCustomSeed(b.dataset.i);
+  else if(act==='pickEmoji'){
+    const p=String(b.dataset.i).split(':'),el=p[0]&&$(p[0]);
+    if(el&&p[1]){el.value=p[1];customDraft[p[0]]=p[1];toast('已选择 '+p[1],'info');}
+  }
   else if(act==='deliver')deliver(i);
   else if(act==='tech')buyTech(b.dataset.i);
   renderSide();syncHUD();
@@ -3811,7 +3848,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',dbSave);
 window.addEventListener('beforeunload',dbSave);
-window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize,renderInfo};
+window.__xz={get S(){return S;},get D(){return D;},get CAM(){return CAM;},get dims(){return {CW,CH,N,offX,offY};},get view(){return {VW,VH,scale:VIEW.scale,ox:VIEW.ox,oy:VIEW.oy};},b2i,i2x,i2y,getSoil,canPlaceRect,footOf,tileAnchor,townFloorCost,rateParts,recalc,collectAll,place,addFloor,applySave,offlineGain,genOrder,hasProduced,isTradeable,allResKeys,dayAdvance,advanceTerm,certReqOk,techMul,resize,renderInfo,renderSide,setTab};
 boot();
 })();
 </script>

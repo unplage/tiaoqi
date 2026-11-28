@@ -85,6 +85,10 @@ setImmediate(()=>{
   const detail=xz.renderInfo();
   check(detail.indexOf('施有机肥')>=0,'已建农田详情缺少施肥按钮');
   check(detail.indexOf('种绿肥')>=0,'已建农田详情缺少种绿肥按钮');
+  xz.setTab('custom');
+  check(xz.S.sideTab==='custom','切换到自定义页后被重置');
+  check(sandbox.document.getElementById('sideBody').innerHTML.indexOf('pickEmoji')>=0,'自定义页缺少 emoji 选择器');
+  check(sandbox.document.getElementById('sideBody').innerHTML.indexOf('cuCat')>=0,'自定义页缺少建造分类选择器');
   const canvas=sandbox.document.getElementById('game');
   const origRect=canvas.getBoundingClientRect;
   canvas.getBoundingClientRect=()=>({width:844,height:390,left:0,top:0});
