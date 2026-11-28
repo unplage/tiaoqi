@@ -104,6 +104,52 @@ setImmediate(()=>{
   S.lastSave=Date.now()-3600000;
   try{xz.offlineGain(1);}catch(e){fails.push('离线结算异常：'+e.message);}
   check(S.day>day,'离线未推进日期');
+
+  S.yearTheme='drought';
+  check(xz.themeProdMul()<1,'旱年未降低产量');
+  check(xz.themePriceMul()>1,'旱年未提高价格');
+  S.yearTheme='normal';
+  check(xz.themeProdMul()===1,'平常年产量乘子不为 1');
+  xz.rollYearTheme(true);
+  check(typeof xz.yearTheme().id==='string','年度主题滚动后无效');
+
+  xz.META.points=20;
+  const prodLv=xz.metaLevel('prod');
+  xz.buyMetaUpgrade('prod');
+  check(xz.metaLevel('prod')===prodLv+1,'传承升级未提升等级');
+  check(xz.metaProdMul()>1,'传承生产加成未生效');
+
+  S.villagers=[];
+  xz.spawnVillagerRequest(true);
+  check(S.villagers.length===1,'村民诉求未生成');
+  if(S.villagers.length){
+    const v=S.villagers[0];
+    S[v.res]=(S[v.res]||0)+v.amt;
+    const coinBefore=S.coin;
+    xz.fulfillVillager(0);
+    check(S.villagers.length===0,'村民诉求完成后未移除');
+    check(S.coin>=coinBefore,'村民诉求未给予金币奖励');
+  }
+
+  const code=xz.shareVillage();
+  check(/^XZ1-/.test(code),'分享码格式不正确');
+  check(xz.BOARD.length>0,'村庄榜未记录');
+  check(S.lastShareCode===code,'分享码未写入存档状态');
+
+  const coinBefore=S.coin;
+  for(let k=0;k<30;k++)xz.dayAdvance(true);
+  check(isFinite(S.coin)&&S.coin>=0,'30 日经济模拟后金币异常');
+  check(S.day>1,'30 日经济模拟未推进日期');
+
+  S.qi=999;
+  check(xz.prestigeInfo().eligible,'主线完成后未获得迁村资格');
+  const villagesBefore=xz.META.villages||0,pointsBefore=xz.META.points||0;
+  xz.performPrestige(5);
+  const S2=xz.S;
+  check(S2.qi===0,'迁村后主线进度未重置');
+  check(S2.tiles.every(t=>!t),'迁村后地块未清空');
+  check((xz.META.villages||0)===villagesBefore+1,'迁村次数未累计');
+  check((xz.META.points||0)===pointsBefore+5,'迁村未获得政绩点');
   finish();
 });
 function finish(){
